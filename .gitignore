@@ -1,0 +1,27 @@
+# WordPress
+*.log
+wp-config.php
+.htaccess
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-*
+
+# Backup
+*.backup
+*.bak
+
+# Node
+node_modules/
+package-lock.json
+
+# Temp
+*.tmp
