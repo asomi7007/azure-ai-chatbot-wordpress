@@ -1,131 +1,242 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-// Parsedown 라이브러리 로드 (WordPress 내장)
-if (!class_exists('Parsedown')) {
-    require_once ABSPATH . 'wp-includes/class-parsedown.php';
-}
+$plugin = Azure_AI_Chatbot::get_instance();
+$options = get_option('azure_chatbot_settings', []);
 
-// 가이드 마크다운 파일 경로
-$guide_file = AZURE_CHATBOT_PLUGIN_DIR . 'docs/USER_GUIDE.md';
-
-// 마크다운 파일이 없으면 기본 가이드 생성
-if (!file_exists($guide_file)) {
-    $guide_content = "가이드 파일을 찾을 수 없습니다.";
-} else {
-    $markdown_content = file_get_contents($guide_file);
-    $parsedown = new Parsedown();
-    $guide_content = $parsedown->text($markdown_content);
+// API Key 마스킹
+$masked_api_key = '';
+if (!empty($options['api_key_encrypted'])) {
+    $decrypted_key = $plugin->decrypt($options['api_key_encrypted']);
+    if ($decrypted_key && strlen($decrypted_key) > 8) {
+        $masked_api_key = substr($decrypted_key, 0, 4) . str_repeat('•', strlen($decrypted_key) - 8) . substr($decrypted_key, -4);
+    } else {
+        $masked_api_key = str_repeat('•', strlen($decrypted_key));
+    }
 }
 ?>
 
-<div class="wrap azure-chatbot-guide">
+<div class="wrap azure-chatbot-settings">
     <h1>
-        <span class="dashicons dashicons-book"></span>
-        Azure AI Chatbot 사용 가이드
+        <span class="dashicons dashicons-admin-generic"></span>
+        Azure AI Chatbot 설정
     </h1>
     
-    <div class="guide-container">
-        <div class="guide-sidebar">
+    <form method="post" action="options.php" id="azure-chatbot-settings-form">
+        <?php settings_fields('azure_chatbot_settings_group'); ?>
+        
+        <div class="settings-container">
+            <!-- API 설정 -->
             <div class="postbox">
-                <h2 class="hndle">📑 목차</h2>
+                <h2 class="hndle">
+                    <span class="dashicons dashicons-cloud"></span>
+                    Azure AI 연결 설정
+                </h2>
                 <div class="inside">
-                    <nav id="guide-toc">
-                        <ul>
-                            <li><a href="#introduction">소개</a></li>
-                            <li><a href="#installation">설치 방법</a></li>
-                            <li><a href="#configuration">설정</a></li>
-                            <li><a href="#features">주요 기능</a></li>
-                            <li><a href="#customization">커스터마이징</a></li>
-                            <li><a href="#troubleshooting">문제 해결</a></li>
-                            <li><a href="#faq">자주 묻는 질문</a></li>
-                        </ul>
-                    </nav>
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row">
+                                <label for="endpoint">엔드포인트 URL *</label>
+                            </th>
+                            <td>
+                                <input type="url" 
+                                       id="endpoint" 
+                                       name="azure_chatbot_settings[endpoint]" 
+                                       value="<?php echo esc_attr($options['endpoint'] ?? ''); ?>" 
+                                       class="regular-text"
+                                       placeholder="https://your-project.cognitiveservices.azure.com/"
+                                       required />
+                                <p class="description">
+                                    Azure AI Foundry 프로젝트의 엔드포인트 URL을 입력하세요.
+                                </p>
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <th scope="row">
+                                <label for="api_key">API Key *</label>
+                            </th>
+                            <td>
+                                <input type="password" 
+                                       id="api_key" 
+                                       name="azure_chatbot_settings[api_key]" 
+                                       value="<?php echo esc_attr($masked_api_key); ?>" 
+                                       class="regular-text"
+                                       placeholder="API Key를 입력하세요"
+                                       required />
+                                <button type="button" id="toggle-api-key" class="button">
+                                    <span class="dashicons dashicons-visibility"></span>
+                                </button>
+                                <p class="description">
+                                    API Key는 암호화되어 안전하게 저장됩니다. (AES-256 암호화)
+                                </p>
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <th scope="row">
+                                <label for="agent_id">에이전트 ID *</label>
+                            </th>
+                            <td>
+                                <input type="text" 
+                                       id="agent_id" 
+                                       name="azure_chatbot_settings[agent_id]" 
+                                       value="<?php echo esc_attr($options['agent_id'] ?? ''); ?>" 
+                                       class="regular-text"
+                                       placeholder="your-agent-id"
+                                       required />
+                                <p class="description">
+                                    Azure AI Foundry에서 생성한 에이전트의 ID를 입력하세요.
+                                </p>
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <th scope="row">
+                                <label for="enabled">위젯 활성화</label>
+                            </th>
+                            <td>
+                                <label>
+                                    <input type="checkbox" 
+                                           id="enabled" 
+                                           name="azure_chatbot_settings[enabled]" 
+                                           value="1" 
+                                           <?php checked(!empty($options['enabled'])); ?> />
+                                    채팅 위젯을 사이트에 표시합니다
+                                </label>
+                            </td>
+                        </tr>
+                    </table>
+                    
+                    <p>
+                        <button type="button" id="test-connection" class="button button-secondary">
+                            <span class="dashicons dashicons-arrow-right-alt"></span>
+                            연결 테스트
+                        </button>
+                        <span id="test-result" style="margin-left: 10px;"></span>
+                    </p>
                 </div>
             </div>
             
+            <!-- 외관 설정 -->
             <div class="postbox">
-                <h2 class="hndle">🔧 빠른 작업</h2>
+                <h2 class="hndle">
+                    <span class="dashicons dashicons-admin-appearance"></span>
+                    외관 설정
+                </h2>
                 <div class="inside">
-                    <ul class="quick-actions">
-                        <li>
-                            <a href="admin.php?page=azure-ai-chatbot" class="button button-primary" style="width: 100%;">
-                                ⚙️ 설정 페이지
-                            </a>
-                        </li>
-                        <li>
-                            <a href="<?php echo admin_url('admin.php?page=azure-ai-chatbot-guide&action=edit'); ?>" class="button button-secondary" style="width: 100%;">
-                                ✏️ 가이드 편집
-                            </a>
-                        </li>
-                        <li>
-                            <a href="<?php echo admin_url('admin.php?page=azure-ai-chatbot-guide&action=download'); ?>" class="button button-secondary" style="width: 100%;">
-                                ⬇️ 가이드 다운로드
-                            </a>
-                        </li>
-                    </ul>
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row">
+                                <label for="chat_title">채팅 제목</label>
+                            </th>
+                            <td>
+                                <input type="text" 
+                                       id="chat_title" 
+                                       name="azure_chatbot_settings[chat_title]" 
+                                       value="<?php echo esc_attr($options['chat_title'] ?? 'AI 도우미'); ?>" 
+                                       class="regular-text" />
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <th scope="row">
+                                <label for="welcome_message">환영 메시지</label>
+                            </th>
+                            <td>
+                                <textarea id="welcome_message" 
+                                          name="azure_chatbot_settings[welcome_message]" 
+                                          rows="3" 
+                                          class="large-text"><?php echo esc_textarea($options['welcome_message'] ?? '안녕하세요! 무엇을 도와드릴까요?'); ?></textarea>
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <th scope="row">
+                                <label for="widget_position">위젯 위치</label>
+                            </th>
+                            <td>
+                                <select id="widget_position" name="azure_chatbot_settings[widget_position]">
+                                    <option value="bottom-right" <?php selected($options['widget_position'] ?? 'bottom-right', 'bottom-right'); ?>>
+                                        오른쪽 하단
+                                    </option>
+                                    <option value="bottom-left" <?php selected($options['widget_position'] ?? '', 'bottom-left'); ?>>
+                                        왼쪽 하단
+                                    </option>
+                                    <option value="top-right" <?php selected($options['widget_position'] ?? '', 'top-right'); ?>>
+                                        오른쪽 상단
+                                    </option>
+                                    <option value="top-left" <?php selected($options['widget_position'] ?? '', 'top-left'); ?>>
+                                        왼쪽 상단
+                                    </option>
+                                </select>
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <th scope="row">
+                                <label for="primary_color">메인 색상</label>
+                            </th>
+                            <td>
+                                <input type="text" 
+                                       id="primary_color" 
+                                       name="azure_chatbot_settings[primary_color]" 
+                                       value="<?php echo esc_attr($options['primary_color'] ?? '#667eea'); ?>" 
+                                       class="color-picker" />
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <th scope="row">
+                                <label for="secondary_color">보조 색상</label>
+                            </th>
+                            <td>
+                                <input type="text" 
+                                       id="secondary_color" 
+                                       name="azure_chatbot_settings[secondary_color]" 
+                                       value="<?php echo esc_attr($options['secondary_color'] ?? '#764ba2'); ?>" 
+                                       class="color-picker" />
+                                <p class="description">
+                                    메인 색상과 보조 색상으로 그라데이션이 적용됩니다.
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- 미리보기 -->
+            <div class="postbox">
+                <h2 class="hndle">
+                    <span class="dashicons dashicons-visibility"></span>
+                    미리보기
+                </h2>
+                <div class="inside">
+                    <div id="widget-preview" style="position: relative; height: 200px; background: #f0f0f0; border-radius: 8px; overflow: hidden;">
+                        <div class="preview-widget" style="position: absolute; bottom: 20px; right: 20px;">
+                            <button class="preview-toggle" style="width: 60px; height: 60px; border-radius: 50%; border: none; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                                <svg width="28" height="28" viewBox="0 0 24 24" fill="white">
+                                    <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <p class="description">
+                        설정을 변경하면 실시간으로 미리보기가 업데이트됩니다.
+                    </p>
                 </div>
             </div>
         </div>
         
-        <div class="guide-content">
-            <?php if (isset($_GET['action']) && $_GET['action'] === 'edit'): ?>
-                <!-- 편집 모드 -->
-                <div class="postbox">
-                    <h2 class="hndle">✏️ 가이드 편집</h2>
-                    <div class="inside">
-                        <form method="post" action="">
-                            <?php wp_nonce_field('azure_chatbot_edit_guide'); ?>
-                            <p>
-                                <label for="guide-editor"><strong>마크다운 편집:</strong></label>
-                            </p>
-                            <textarea id="guide-editor" 
-                                      name="guide_content" 
-                                      rows="30" 
-                                      style="width: 100%; font-family: monospace;"><?php echo esc_textarea(file_get_contents($guide_file)); ?></textarea>
-                            <p class="description">
-                                마크다운 문법을 사용하여 가이드를 작성할 수 있습니다.
-                                <a href="https://www.markdownguide.org/basic-syntax/" target="_blank">마크다운 문법 보기</a>
-                            </p>
-                            <p>
-                                <button type="submit" name="save_guide" class="button button-primary">
-                                    💾 저장
-                                </button>
-                                <a href="admin.php?page=azure-ai-chatbot-guide" class="button button-secondary">
-                                    취소
-                                </a>
-                            </p>
-                        </form>
-                    </div>
-                </div>
-            <?php else: ?>
-                <!-- 읽기 모드 -->
-                <div class="markdown-content">
-                    <?php echo $guide_content; ?>
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
+        <p class="submit">
+            <button type="submit" class="button button-primary button-large">
+                <span class="dashicons dashicons-saved"></span>
+                변경사항 저장
+            </button>
+            <a href="admin.php?page=azure-ai-chatbot-guide" class="button button-secondary button-large">
+                <span class="dashicons dashicons-book"></span>
+                사용 가이드 보기
+            </a>
+        </p>
+    </form>
 </div>
-
-<?php
-// 가이드 저장 처리
-if (isset($_POST['save_guide']) && check_admin_referer('azure_chatbot_edit_guide')) {
-    $new_content = wp_unslash($_POST['guide_content']);
-    
-    if (file_put_contents($guide_file, $new_content) !== false) {
-        echo '<div class="notice notice-success is-dismissible"><p>가이드가 성공적으로 저장되었습니다.</p></div>';
-        echo '<script>setTimeout(function(){ window.location.href = "admin.php?page=azure-ai-chatbot-guide"; }, 1500);</script>';
-    } else {
-        echo '<div class="notice notice-error is-dismissible"><p>가이드 저장에 실패했습니다. 파일 권한을 확인하세요.</p></div>';
-    }
-}
-
-// 가이드 다운로드 처리
-if (isset($_GET['action']) && $_GET['action'] === 'download') {
-    header('Content-Type: text/markdown');
-    header('Content-Disposition: attachment; filename="azure-chatbot-guide.md"');
-    readfile($guide_file);
-    exit;
-}
-?>

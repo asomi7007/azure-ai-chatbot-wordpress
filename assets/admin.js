@@ -159,6 +159,89 @@
             }
         });
         
+        // API Key 표시/숨김 버튼
+        $('#toggle-api-key').on('click', function() {
+            const $input = $('#api_key');
+            const $icon = $(this).find('.dashicons');
+            
+            if ($input.attr('type') === 'password') {
+                $input.attr('type', 'text');
+                $icon.removeClass('dashicons-visibility').addClass('dashicons-hidden');
+            } else {
+                $input.attr('type', 'password');
+                $icon.removeClass('dashicons-hidden').addClass('dashicons-visibility');
+            }
+        });
+        
+        // 연결 테스트
+        $('#test-connection').on('click', function(e) {
+            e.preventDefault();
+            
+            const $button = $(this);
+            const $result = $('#test-result');
+            
+            // 버튼 비활성화
+            $button.prop('disabled', true).html('<span class="dashicons dashicons-update spin"></span> 테스트 중...');
+            $result.html('');
+            
+            // AJAX 요청
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'azure_chatbot_test_connection',
+                    nonce: $('#_wpnonce').val()
+                },
+                success: function(response) {
+                    if (response.success) {
+                        $result.html('<span style="color: #46b450;">✓ ' + response.data.message + '</span>');
+                    } else {
+                        $result.html('<span style="color: #dc3232;">✗ ' + response.data.message + '</span>');
+                    }
+                },
+                error: function() {
+                    $result.html('<span style="color: #dc3232;">✗ 연결 테스트 중 오류가 발생했습니다.</span>');
+                },
+                complete: function() {
+                    $button.prop('disabled', false).html('<span class="dashicons dashicons-arrow-right-alt"></span> 연결 테스트');
+                }
+            });
+        });
+        
+        // 실시간 미리보기 업데이트
+        function updateWidgetPreview() {
+            const primaryColor = $('#primary_color').val();
+            const secondaryColor = $('#secondary_color').val();
+            const position = $('#widget_position').val();
+            
+            const $preview = $('.preview-toggle');
+            if ($preview.length) {
+                $preview.css({
+                    'background': `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor} 100%)`
+                });
+            }
+            
+            // 위치 업데이트
+            const $previewWidget = $('.preview-widget');
+            if ($previewWidget.length) {
+                $previewWidget.css({
+                    'position': 'absolute',
+                    'bottom': position.includes('bottom') ? '20px' : 'auto',
+                    'top': position.includes('top') ? '20px' : 'auto',
+                    'right': position.includes('right') ? '20px' : 'auto',
+                    'left': position.includes('left') ? '20px' : 'auto'
+                });
+            }
+        }
+        
+        // 색상 및 위치 변경 시 미리보기 업데이트
+        $('#primary_color, #secondary_color, #widget_position').on('change', updateWidgetPreview);
+        
+        // 초기 미리보기 설정
+        if ($('.preview-toggle').length) {
+            updateWidgetPreview();
+        }
+        
         // 설정 내보내기/가져오기 (선택사항)
         if ($('#export-settings').length) {
             $('#export-settings').on('click', function() {

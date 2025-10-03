@@ -119,7 +119,7 @@ class Azure_AI_Chatbot {
     /**
      * 데이터 복호화
      */
-    private function decrypt($data) {
+    public function decrypt($data) {
         if (empty($data)) {
             return '';
         }

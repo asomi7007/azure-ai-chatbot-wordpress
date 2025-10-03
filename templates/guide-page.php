@@ -25,20 +25,69 @@ if (!file_exists($guide_file)) {
         Azure AI Chatbot 사용 가이드
     </h1>
     
-    <div class="guide-container">
-        <div class="guide-sidebar">
+    <div class="guide-container" style="display: flex; gap: 20px; align-items: flex-start;">
+        <div class="guide-sidebar" style="position: sticky; top: 32px; flex: 0 0 280px; max-height: calc(100vh - 64px); overflow-y: auto;">
             <div class="postbox">
                 <h2 class="hndle">📑 목차</h2>
                 <div class="inside">
                     <nav id="guide-toc">
-                        <ul>
-                            <li><a href="#introduction">소개</a></li>
-                            <li><a href="#installation">설치 방법</a></li>
-                            <li><a href="#configuration">설정</a></li>
-                            <li><a href="#features">주요 기능</a></li>
-                            <li><a href="#customization">커스터마이징</a></li>
-                            <li><a href="#troubleshooting">문제 해결</a></li>
-                            <li><a href="#faq">자주 묻는 질문</a></li>
+                        <ul style="list-style: none; padding: 0; margin: 0;">
+                            <li style="margin-bottom: 8px;">
+                                <a href="#-소개" style="text-decoration: none; color: #2271b1; display: block; padding: 4px 8px; border-radius: 4px; transition: background 0.2s;" 
+                                   onmouseover="this.style.background='#f0f0f1'" 
+                                   onmouseout="this.style.background='transparent'"
+                                   onclick="event.preventDefault(); scrollToSection('#-소개');">
+                                    소개
+                                </a>
+                            </li>
+                            <li style="margin-bottom: 8px;">
+                                <a href="#-설치-방법" style="text-decoration: none; color: #2271b1; display: block; padding: 4px 8px; border-radius: 4px; transition: background 0.2s;" 
+                                   onmouseover="this.style.background='#f0f0f1'" 
+                                   onmouseout="this.style.background='transparent'"
+                                   onclick="event.preventDefault(); scrollToSection('#-설치-방법');">
+                                    설치 방법
+                                </a>
+                            </li>
+                            <li style="margin-bottom: 8px;">
+                                <a href="#-설정-가이드" style="text-decoration: none; color: #2271b1; display: block; padding: 4px 8px; border-radius: 4px; transition: background 0.2s;" 
+                                   onmouseover="this.style.background='#f0f0f1'" 
+                                   onmouseout="this.style.background='transparent'"
+                                   onclick="event.preventDefault(); scrollToSection('#-설정-가이드');">
+                                    설정 가이드
+                                </a>
+                            </li>
+                            <li style="margin-bottom: 8px;">
+                                <a href="#-주요-기능" style="text-decoration: none; color: #2271b1; display: block; padding: 4px 8px; border-radius: 4px; transition: background 0.2s;" 
+                                   onmouseover="this.style.background='#f0f0f1'" 
+                                   onmouseout="this.style.background='transparent'"
+                                   onclick="event.preventDefault(); scrollToSection('#-주요-기능');">
+                                    주요 기능
+                                </a>
+                            </li>
+                            <li style="margin-bottom: 8px;">
+                                <a href="#-커스터마이징" style="text-decoration: none; color: #2271b1; display: block; padding: 4px 8px; border-radius: 4px; transition: background 0.2s;" 
+                                   onmouseover="this.style.background='#f0f0f1'" 
+                                   onmouseout="this.style.background='transparent'"
+                                   onclick="event.preventDefault(); scrollToSection('#-커스터마이징');">
+                                    커스터마이징
+                                </a>
+                            </li>
+                            <li style="margin-bottom: 8px;">
+                                <a href="#-문제-해결" style="text-decoration: none; color: #2271b1; display: block; padding: 4px 8px; border-radius: 4px; transition: background 0.2s;" 
+                                   onmouseover="this.style.background='#f0f0f1'" 
+                                   onmouseout="this.style.background='transparent'"
+                                   onclick="event.preventDefault(); scrollToSection('#-문제-해결');">
+                                    문제 해결
+                                </a>
+                            </li>
+                            <li style="margin-bottom: 8px;">
+                                <a href="#-자주-묻는-질문" style="text-decoration: none; color: #2271b1; display: block; padding: 4px 8px; border-radius: 4px; transition: background 0.2s;" 
+                                   onmouseover="this.style.background='#f0f0f1'" 
+                                   onmouseout="this.style.background='transparent'"
+                                   onclick="event.preventDefault(); scrollToSection('#-자주-묻는-질문');">
+                                    자주 묻는 질문
+                                </a>
+                            </li>
                         </ul>
                     </nav>
                 </div>
@@ -47,19 +96,19 @@ if (!file_exists($guide_file)) {
             <div class="postbox">
                 <h2 class="hndle">🔧 빠른 작업</h2>
                 <div class="inside">
-                    <ul class="quick-actions">
-                        <li>
-                            <a href="admin.php?page=azure-ai-chatbot" class="button button-primary" style="width: 100%;">
+                    <ul class="quick-actions" style="list-style: none; padding: 0; margin: 0;">
+                        <li style="margin-bottom: 8px;">
+                            <a href="admin.php?page=azure-ai-chatbot" class="button button-primary" style="width: 100%; text-align: center;">
                                 ⚙️ 설정 페이지
                             </a>
                         </li>
-                        <li>
-                            <a href="<?php echo admin_url('admin.php?page=azure-ai-chatbot-guide&action=edit'); ?>" class="button button-secondary" style="width: 100%;">
+                        <li style="margin-bottom: 8px;">
+                            <a href="<?php echo admin_url('admin.php?page=azure-ai-chatbot-guide&action=edit'); ?>" class="button button-secondary" style="width: 100%; text-align: center;">
                                 ✏️ 가이드 편집
                             </a>
                         </li>
-                        <li>
-                            <a href="<?php echo admin_url('admin.php?page=azure-ai-chatbot-guide&action=download'); ?>" class="button button-secondary" style="width: 100%;">
+                        <li style="margin-bottom: 8px;">
+                            <a href="<?php echo admin_url('admin.php?page=azure-ai-chatbot-guide&action=download'); ?>" class="button button-secondary" style="width: 100%; text-align: center;">
                                 ⬇️ 가이드 다운로드
                             </a>
                         </li>
@@ -68,7 +117,7 @@ if (!file_exists($guide_file)) {
             </div>
         </div>
         
-        <div class="guide-content">
+        <div class="guide-content" style="flex: 1; min-width: 0;">
             <?php if (isset($_GET['action']) && $_GET['action'] === 'edit'): ?>
                 <!-- 편집 모드 -->
                 <div class="postbox">
@@ -107,6 +156,22 @@ if (!file_exists($guide_file)) {
         </div>
     </div>
 </div>
+
+<script>
+function scrollToSection(selector) {
+    const element = document.querySelector(selector);
+    if (element) {
+        const offset = 100; // 상단 여백
+        const elementPosition = element.getBoundingClientRect().top;
+        const offsetPosition = elementPosition + window.pageYOffset - offset;
+        
+        window.scrollTo({
+            top: offsetPosition,
+            behavior: 'smooth'
+        });
+    }
+}
+</script>
 
 <?php
 // 가이드 저장 처리
