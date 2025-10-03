@@ -19,17 +19,25 @@ Azure AI Foundry의 강력한 AI 에이전트를 WordPress 웹사이트에 쉽�
 
 ## 📦 설치 방법
 
-### 자동 설치 (WordPress.org에서 배포 시)
+### 방법 1: ZIP 파일로 설치 (권장)
+
+1. [Releases 페이지](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases)에서 최신 `azure-ai-chatbot.zip` 다운로드
+2. WordPress 관리자 페이지 → **플러그인** → **새로 추가** → **플러그인 업로드**
+3. 다운로드한 ZIP 파일 선택
+4. **지금 설치** → **플러그인 활성화**
+
+### 방법 2: 수동 설치
+
+1. 이 저장소를 다운로드하거나 복제
+2. 폴더 이름을 `azure-ai-chatbot`으로 변경
+3. `/wp-content/plugins/` 디렉토리에 업로드
+4. WordPress 관리자 페이지에서 플러그인 활성화
+
+### 방법 3: WordPress.org에서 설치 (향후 지원 예정)
 
 1. WordPress 관리자 페이지 → **플러그인** → **새로 추가**
 2. "Azure AI Chatbot" 검색
 3. **지금 설치** → **활성화**
-
-### 수동 설치
-
-1. 이 저장소를 다운로드하거나 복제
-2. `azure-ai-chatbot` 폴더를 `/wp-content/plugins/`에 업로드
-3. WordPress 관리자 페이지에서 플러그인 활성화
 
 ## 🚀 빠른 시작
 
