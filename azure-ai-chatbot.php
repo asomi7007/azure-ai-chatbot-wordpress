@@ -576,6 +576,12 @@ class Azure_AI_Chatbot {
             AZURE_CHATBOT_VERSION,
             true
         );
+        
+        // AJAX URL과 nonce를 JavaScript에 전달
+        wp_localize_script('azure-chatbot-admin-js', 'azureChatbotAdmin', [
+            'ajaxUrl' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('azure_chatbot_test')
+        ]);
     }
     
     /**

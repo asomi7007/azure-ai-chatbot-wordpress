@@ -5,16 +5,10 @@
     'use strict';
     
     $(document).ready(function() {
-        // 색상 선택기 초기화
-        if ($.fn.wpColorPicker) {
-            $('.color-picker').wpColorPicker({
-                change: function(event, ui) {
-                    // 색상 변경 시 미리보기 업데이트 (선택사항)
-                    const color = ui.color.toString();
-                    console.log('Color changed:', color);
-                }
-            });
-        }
+        console.log('Azure AI Chatbot Admin JS Loaded');
+        console.log('AJAX URL:', typeof azureChatbotAdmin !== 'undefined' ? azureChatbotAdmin.ajaxUrl : 'Not defined');
+        
+        // 색상 선택기 초기화는 나중에 미리보기 함수와 함께 처리
         
         // 폼 제출 전 검증
         $('form').on('submit', function(e) {
@@ -160,7 +154,8 @@
         });
         
         // API Key 표시/숨김 버튼
-        $('#toggle-api-key').on('click', function() {
+        $('#toggle-api-key').on('click', function(e) {
+            e.preventDefault();
             const $input = $('#api_key');
             const $icon = $(this).find('.dashicons');
             
@@ -186,21 +181,22 @@
             
             // AJAX 요청
             $.ajax({
-                url: ajaxurl,
+                url: azureChatbotAdmin.ajaxUrl,
                 type: 'POST',
                 data: {
                     action: 'azure_chatbot_test_connection',
-                    nonce: $('#_wpnonce').val()
+                    nonce: azureChatbotAdmin.nonce
                 },
                 success: function(response) {
                     if (response.success) {
-                        $result.html('<span style="color: #46b450;">✓ ' + response.data.message + '</span>');
+                        $result.html('<span style="color: #46b450; font-weight: bold;">✓ ' + response.data.message + '</span>');
                     } else {
-                        $result.html('<span style="color: #dc3232;">✗ ' + response.data.message + '</span>');
+                        $result.html('<span style="color: #dc3232; font-weight: bold;">✗ ' + response.data.message + '</span>');
                     }
                 },
-                error: function() {
-                    $result.html('<span style="color: #dc3232;">✗ 연결 테스트 중 오류가 발생했습니다.</span>');
+                error: function(xhr, status, error) {
+                    console.error('AJAX Error:', status, error);
+                    $result.html('<span style="color: #dc3232; font-weight: bold;">✗ 연결 테스트 중 오류가 발생했습니다.</span>');
                 },
                 complete: function() {
                     $button.prop('disabled', false).html('<span class="dashicons dashicons-arrow-right-alt"></span> 연결 테스트');
@@ -210,79 +206,69 @@
         
         // 실시간 미리보기 업데이트
         function updateWidgetPreview() {
-            const primaryColor = $('#primary_color').val();
-            const secondaryColor = $('#secondary_color').val();
-            const position = $('#widget_position').val();
+            const primaryColor = $('#primary_color').val() || '#667eea';
+            const secondaryColor = $('#secondary_color').val() || '#764ba2';
+            const position = $('#widget_position').val() || 'bottom-right';
+            
+            console.log('Updating preview:', {primaryColor, secondaryColor, position});
             
             const $preview = $('.preview-toggle');
             if ($preview.length) {
                 $preview.css({
-                    'background': `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor} 100%)`
+                    'background': `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor} 100%)`,
+                    'transition': 'all 0.3s ease'
                 });
             }
             
             // 위치 업데이트
             const $previewWidget = $('.preview-widget');
             if ($previewWidget.length) {
+                // 모든 위치 초기화
                 $previewWidget.css({
                     'position': 'absolute',
-                    'bottom': position.includes('bottom') ? '20px' : 'auto',
-                    'top': position.includes('top') ? '20px' : 'auto',
-                    'right': position.includes('right') ? '20px' : 'auto',
-                    'left': position.includes('left') ? '20px' : 'auto'
+                    'bottom': 'auto',
+                    'top': 'auto',
+                    'right': 'auto',
+                    'left': 'auto',
+                    'transition': 'all 0.3s ease'
                 });
+                
+                // 선택된 위치 적용
+                if (position.includes('bottom')) {
+                    $previewWidget.css('bottom', '20px');
+                } else if (position.includes('top')) {
+                    $previewWidget.css('top', '20px');
+                }
+                
+                if (position.includes('right')) {
+                    $previewWidget.css('right', '20px');
+                } else if (position.includes('left')) {
+                    $previewWidget.css('left', '20px');
+                }
             }
         }
         
-        // 색상 및 위치 변경 시 미리보기 업데이트
-        $('#primary_color, #secondary_color, #widget_position').on('change', updateWidgetPreview);
-        
-        // 초기 미리보기 설정
-        if ($('.preview-toggle').length) {
-            updateWidgetPreview();
-        }
-        
-        // 설정 내보내기/가져오기 (선택사항)
-        if ($('#export-settings').length) {
-            $('#export-settings').on('click', function() {
-                const settings = {
-                    endpoint: $('#endpoint').val(),
-                    agent_id: $('#agent_id').val(),
-                    widget_position: $('#widget_position').val(),
-                    primary_color: $('#primary_color').val(),
-                    secondary_color: $('#secondary_color').val(),
-                    welcome_message: $('#welcome_message').val(),
-                    chat_title: $('#chat_title').val()
-                };
-                
-                const dataStr = JSON.stringify(settings, null, 2);
-                const dataBlob = new Blob([dataStr], {type: 'application/json'});
-                const url = URL.createObjectURL(dataBlob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = 'azure-chatbot-settings.json';
-                link.click();
-            });
-        }
-        
-        // 실시간 미리보기 (색상)
-        $('.color-picker').on('change', function() {
-            updatePreview();
+        // 색상 선택기 변경 시 미리보기 업데이트
+        $('.color-picker').wpColorPicker({
+            change: function() {
+                updateWidgetPreview();
+            },
+            clear: function() {
+                updateWidgetPreview();
+            }
         });
         
-        function updatePreview() {
-            const primaryColor = $('#primary_color').val();
-            const secondaryColor = $('#secondary_color').val();
-            
-            // 미리보기 요소가 있다면 업데이트
-            if ($('#chatbot-preview').length) {
-                $('#chatbot-preview').find('.preview-button').css({
-                    'background': `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor} 100%)`
-                });
-            }
-        }
+        // 위치 변경 시 미리보기 업데이트
+        $('#widget_position').on('change', function() {
+            updateWidgetPreview();
+        });
         
-        console.log('Azure AI Chatbot 관리자 스크립트 로드됨');
+        // 초기 미리보기 설정
+        setTimeout(function() {
+            updateWidgetPreview();
+        }, 500);
+        
+        console.log('Azure AI Chatbot 관리자 스크립트 로드 완료');
     });
     
 })(jQuery);

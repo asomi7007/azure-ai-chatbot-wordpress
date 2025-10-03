@@ -240,3 +240,14 @@ if (!empty($options['api_key_encrypted'])) {
         </p>
     </form>
 </div>
+
+<script>
+jQuery(document).ready(function($) {
+    console.log('Settings page loaded');
+    console.log('jQuery available:', typeof $ !== 'undefined');
+    console.log('Admin data:', typeof azureChatbotAdmin !== 'undefined' ? azureChatbotAdmin : 'NOT DEFINED');
+    console.log('Test button exists:', $('#test-connection').length);
+    console.log('Toggle button exists:', $('#toggle-api-key').length);
+    console.log('Color pickers:', $('.color-picker').length);
+});
+</script>
