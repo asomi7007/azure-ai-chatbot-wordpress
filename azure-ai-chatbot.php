@@ -166,8 +166,18 @@ class Azure_AI_Chatbot {
             $api_key = $this->decrypt($stored_options['api_key_encrypted']);
         }
         
+        // Client Secret 복호화
+        $client_secret = '';
+        if (!empty($stored_options['client_secret_encrypted'])) {
+            $client_secret = $this->decrypt($stored_options['client_secret_encrypted']);
+        }
+        
         $this->options = [
+            'auth_type' => $stored_options['auth_type'] ?? 'api_key', // api_key or entra_id
             'api_key' => $api_key,
+            'client_id' => $stored_options['client_id'] ?? '',
+            'client_secret' => $client_secret,
+            'tenant_id' => $stored_options['tenant_id'] ?? '',
             'endpoint' => $stored_options['endpoint'] ?? '',
             'agent_id' => $stored_options['agent_id'] ?? '',
             'enabled' => $stored_options['enabled'] ?? false,
@@ -294,10 +304,18 @@ class Azure_AI_Chatbot {
      * 위젯 활성화 여부 확인
      */
     private function is_widget_enabled() {
-        return !empty($this->options['enabled']) && 
-               !empty($this->options['api_key']) && 
-               !empty($this->options['endpoint']) && 
-               !empty($this->options['agent_id']);
+        if (empty($this->options['enabled']) || empty($this->options['endpoint']) || empty($this->options['agent_id'])) {
+            return false;
+        }
+        
+        // 인증 방식에 따라 검증
+        if ($this->options['auth_type'] === 'entra_id') {
+            return !empty($this->options['client_id']) && 
+                   !empty($this->options['client_secret']) && 
+                   !empty($this->options['tenant_id']);
+        } else {
+            return !empty($this->options['api_key']);
+        }
     }
     
     /**
@@ -504,8 +522,12 @@ class Azure_AI_Chatbot {
      */
     public function sanitize_settings($input) {
         $sanitized = [];
+        $old_options = get_option('azure_chatbot_settings', []);
         
-        // API Key는 암호화하여 저장
+        // 인증 방식
+        $sanitized['auth_type'] = sanitize_text_field($input['auth_type'] ?? 'api_key');
+        
+        // API Key는 암호화하여 저장 (API Key 인증 방식일 때)
         if (!empty($input['api_key'])) {
             $api_key = sanitize_text_field($input['api_key']);
             
@@ -514,8 +536,22 @@ class Azure_AI_Chatbot {
                 $sanitized['api_key_encrypted'] = $this->encrypt($api_key);
             } else {
                 // 마스킹된 값이면 기존 암호화 값 유지
-                $old_options = get_option('azure_chatbot_settings', []);
                 $sanitized['api_key_encrypted'] = $old_options['api_key_encrypted'] ?? '';
+            }
+        }
+        
+        // Entra ID 인증 정보
+        $sanitized['client_id'] = sanitize_text_field($input['client_id'] ?? '');
+        $sanitized['tenant_id'] = sanitize_text_field($input['tenant_id'] ?? '');
+        
+        // Client Secret 암호화하여 저장
+        if (!empty($input['client_secret'])) {
+            $client_secret = sanitize_text_field($input['client_secret']);
+            
+            if (strpos($client_secret, '••••') === false) {
+                $sanitized['client_secret_encrypted'] = $this->encrypt($client_secret);
+            } else {
+                $sanitized['client_secret_encrypted'] = $old_options['client_secret_encrypted'] ?? '';
             }
         }
         
@@ -549,6 +585,25 @@ class Azure_AI_Chatbot {
         
         // 앞 4자리와 뒤 4자리만 표시, 나머지는 마스킹
         return substr($key, 0, 4) . str_repeat('•', $key_length - 8) . substr($key, -4);
+    }
+    
+    /**
+     * 설정 페이지용 Client Secret 마스킹
+     */
+    public function get_masked_client_secret() {
+        if (empty($this->options['client_secret'])) {
+            return '';
+        }
+        
+        $secret = $this->options['client_secret'];
+        $secret_length = strlen($secret);
+        
+        if ($secret_length <= 8) {
+            return str_repeat('•', $secret_length);
+        }
+        
+        // 앞 4자리와 뒤 4자리만 표시, 나머지는 마스킹
+        return substr($secret, 0, 4) . str_repeat('•', $secret_length - 8) . substr($secret, -4);
     }
     
     /**
@@ -718,8 +773,12 @@ class Azure_AI_Chatbot {
             // Azure AI API 호출
             $api_handler = new Azure_AI_API_Handler(
                 $this->options['endpoint'],
+                $this->options['agent_id'],
+                $this->options['auth_type'],
                 $this->options['api_key'],
-                $this->options['agent_id']
+                $this->options['client_id'],
+                $this->options['client_secret'],
+                $this->options['tenant_id']
             );
             
             $response = $api_handler->send_message($message, $thread_id);
@@ -769,8 +828,12 @@ class Azure_AI_Chatbot {
         try {
             $api_handler = new Azure_AI_API_Handler(
                 $this->options['endpoint'],
+                $this->options['agent_id'],
+                $this->options['auth_type'],
                 $this->options['api_key'],
-                $this->options['agent_id']
+                $this->options['client_id'],
+                $this->options['client_secret'],
+                $this->options['tenant_id']
             );
             
             // 간단한 테스트 메시지 전송
@@ -794,14 +857,105 @@ class Azure_AI_Chatbot {
 class Azure_AI_API_Handler {
     
     private $endpoint;
-    private $api_key;
     private $agent_id;
     private $api_version = '2024-12-01-preview';
     
-    public function __construct($endpoint, $api_key, $agent_id) {
+    // 인증 관련
+    private $auth_type; // 'api_key' or 'entra_id'
+    private $api_key;
+    private $client_id;
+    private $client_secret;
+    private $tenant_id;
+    private $access_token;
+    private $token_expiry;
+    
+    public function __construct($endpoint, $agent_id, $auth_type = 'api_key', $api_key = '', $client_id = '', $client_secret = '', $tenant_id = '') {
         $this->endpoint = rtrim($endpoint, '/');
-        $this->api_key = $api_key;
         $this->agent_id = $agent_id;
+        $this->auth_type = $auth_type;
+        $this->api_key = $api_key;
+        $this->client_id = $client_id;
+        $this->client_secret = $client_secret;
+        $this->tenant_id = $tenant_id;
+        
+        // Entra ID 인증이면 토큰 캐시 확인
+        if ($this->auth_type === 'entra_id') {
+            $this->load_cached_token();
+        }
+    }
+    
+    /**
+     * 캐시된 액세스 토큰 로드
+     */
+    private function load_cached_token() {
+        $cache_key = 'azure_chatbot_access_token_' . md5($this->client_id);
+        $cached = get_transient($cache_key);
+        
+        if ($cached && !empty($cached['token']) && !empty($cached['expiry'])) {
+            // 만료 5분 전까지 사용
+            if (time() < ($cached['expiry'] - 300)) {
+                $this->access_token = $cached['token'];
+                $this->token_expiry = $cached['expiry'];
+            }
+        }
+    }
+    
+    /**
+     * 캐시된 액세스 토큰 저장
+     */
+    private function save_cached_token($token, $expires_in) {
+        $cache_key = 'azure_chatbot_access_token_' . md5($this->client_id);
+        $expiry = time() + $expires_in;
+        
+        set_transient($cache_key, [
+            'token' => $token,
+            'expiry' => $expiry
+        ], $expires_in);
+        
+        $this->access_token = $token;
+        $this->token_expiry = $expiry;
+    }
+    
+    /**
+     * Entra ID 액세스 토큰 획득
+     */
+    private function get_access_token() {
+        // 캐시된 토큰이 유효하면 반환
+        if (!empty($this->access_token) && time() < ($this->token_expiry - 300)) {
+            return $this->access_token;
+        }
+        
+        // OAuth 2.0 Client Credentials Flow
+        $token_url = "https://login.microsoftonline.com/{$this->tenant_id}/oauth2/v2.0/token";
+        
+        $response = wp_remote_post($token_url, [
+            'body' => [
+                'grant_type' => 'client_credentials',
+                'client_id' => $this->client_id,
+                'client_secret' => $this->client_secret,
+                'scope' => 'https://cognitiveservices.azure.com/.default'
+            ],
+            'timeout' => 30
+        ]);
+        
+        if (is_wp_error($response)) {
+            throw new Exception('토큰 요청 실패: ' . $response->get_error_message());
+        }
+        
+        $http_code = wp_remote_retrieve_response_code($response);
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
+        
+        if ($http_code !== 200 || empty($data['access_token'])) {
+            $error_msg = !empty($data['error_description']) ? $data['error_description'] : 'Unknown error';
+            throw new Exception("Entra ID 인증 실패 (HTTP {$http_code}): {$error_msg}");
+        }
+        
+        // 토큰 캐시 저장 (expires_in은 초 단위, 기본 3600초 = 1시간)
+        $expires_in = !empty($data['expires_in']) ? intval($data['expires_in']) : 3600;
+        $this->save_cached_token($data['access_token'], $expires_in);
+        
+        return $data['access_token'];
     }
     
     /**
@@ -944,12 +1098,21 @@ class Azure_AI_API_Handler {
             $url .= '?api-version=' . $this->api_version;
         }
         
+        // 인증 헤더 설정
+        $headers = ['Content-Type' => 'application/json'];
+        
+        if ($this->auth_type === 'entra_id') {
+            // Entra ID: Bearer 토큰 사용
+            $access_token = $this->get_access_token();
+            $headers['Authorization'] = 'Bearer ' . $access_token;
+        } else {
+            // API Key: api-key 헤더 사용
+            $headers['api-key'] = $this->api_key;
+        }
+        
         $args = [
             'method' => $method,
-            'headers' => [
-                'api-key' => $this->api_key,
-                'Content-Type' => 'application/json'
-            ],
+            'headers' => $headers,
             'timeout' => 60
         ];
         
@@ -977,12 +1140,21 @@ class Azure_AI_API_Handler {
             switch ($http_code) {
                 case 401:
                     $error_message .= " - 인증 실패\n";
-                    $error_message .= "• API Key가 올바른지 확인해주세요\n";
-                    $error_message .= "• Endpoint URL이 정확한지 확인해주세요";
+                    if ($this->auth_type === 'entra_id') {
+                        $error_message .= "• Client ID, Client Secret, Tenant ID가 올바른지 확인해주세요\n";
+                        $error_message .= "• Service Principal에 Cognitive Services User 권한이 있는지 확인해주세요";
+                    } else {
+                        $error_message .= "• API Key가 올바른지 확인해주세요\n";
+                        $error_message .= "• Endpoint URL이 정확한지 확인해주세요";
+                    }
                     break;
                 case 403:
                     $error_message .= " - 권한 없음\n";
-                    $error_message .= "• API Key에 해당 에이전트 접근 권한이 있는지 확인해주세요";
+                    if ($this->auth_type === 'entra_id') {
+                        $error_message .= "• Service Principal에 해당 리소스 접근 권한이 있는지 확인해주세요";
+                    } else {
+                        $error_message .= "• API Key에 해당 에이전트 접근 권한이 있는지 확인해주세요";
+                    }
                     break;
                 case 404:
                     $error_message .= " - 리소스를 찾을 수 없음\n";
