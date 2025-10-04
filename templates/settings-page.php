@@ -26,8 +26,8 @@ if (!empty($options['client_secret_encrypted'])) {
     }
 }
 
-// 현재 인증 방식
-$auth_type = $options['auth_type'] ?? 'api_key';
+// 현재 모드
+$mode = $options['mode'] ?? 'chat';
 ?>
 
 <div class="wrap azure-chatbot-settings">
@@ -50,58 +50,72 @@ $auth_type = $options['auth_type'] ?? 'api_key';
                     <table class="form-table">
                         <tr>
                             <th scope="row">
-                                <label>인증 방식 *</label>
+                                <label>작동 모드 *</label>
                             </th>
                             <td>
                                 <fieldset>
                                     <label style="display: block; margin-bottom: 10px;">
                                         <input type="radio" 
-                                               name="azure_chatbot_settings[auth_type]" 
-                                               value="api_key" 
-                                               <?php checked($auth_type, 'api_key'); ?>
-                                               class="auth-type-radio" />
-                                        <strong>API Key 인증</strong> - 간단한 설정 (계정 수준 접근)
+                                               name="azure_chatbot_settings[mode]" 
+                                               value="chat" 
+                                               <?php checked($mode, 'chat'); ?>
+                                               class="mode-radio" />
+                                        <strong>Chat 모드 (OpenAI 호환)</strong> - 간단한 대화형 챗봇 (API Key 인증)
                                     </label>
                                     <label style="display: block;">
                                         <input type="radio" 
-                                               name="azure_chatbot_settings[auth_type]" 
-                                               value="entra_id" 
-                                               <?php checked($auth_type, 'entra_id'); ?>
-                                               class="auth-type-radio" />
-                                        <strong>Entra ID (Service Principal)</strong> - 보안 강화, 프로젝트 수준 접근 (권장)
+                                               name="azure_chatbot_settings[mode]" 
+                                               value="agent" 
+                                               <?php checked($mode, 'agent'); ?>
+                                               class="mode-radio" />
+                                        <strong>Agent 모드 (Azure AI Foundry)</strong> - 고급 에이전트 기능 (Entra ID 인증 필수)
                                     </label>
                                 </fieldset>
                                 <p class="description">
-                                    Azure AI Foundry Project API 사용 시 Entra ID 인증이 필요합니다.
+                                    • Chat 모드: Azure OpenAI 또는 OpenAI 호환 API 사용 (API Key 인증)<br>
+                                    • Agent 모드: Azure AI Foundry Assistants API 사용 (Entra ID 인증, threads/runs 지원)<br>
                                     <a href="admin.php?page=azure-ai-chatbot-guide" target="_blank">설정 가이드 보기</a>
                                 </p>
                             </td>
                         </tr>
                         
-                        <tr>
+                        <!-- Chat 모드 필드 -->
+                        <tr class="mode-field mode-chat">
                             <th scope="row">
-                                <label for="endpoint">엔드포인트 URL *</label>
+                                <label for="chat_endpoint">Chat 엔드포인트 *</label>
                             </th>
                             <td>
                                 <input type="url" 
-                                       id="endpoint" 
-                                       name="azure_chatbot_settings[endpoint]" 
-                                       value="<?php echo esc_attr($options['endpoint'] ?? ''); ?>" 
+                                       id="chat_endpoint" 
+                                       name="azure_chatbot_settings[chat_endpoint]" 
+                                       value="<?php echo esc_attr($options['chat_endpoint'] ?? ''); ?>" 
                                        class="regular-text"
-                                       placeholder="https://your-resource.services.ai.azure.com/api/projects/your-project"
-                                       required />
-                                <p class="description" id="endpoint-hint-apikey" style="display: none;">
-                                    예: https://your-resource.cognitiveservices.azure.com/
-                                </p>
-                                <p class="description" id="endpoint-hint-entraid" style="display: none;">
-                                    <strong>Entra ID 인증 시 프로젝트 경로 필수:</strong><br>
-                                    https://your-resource.services.ai.azure.com<strong>/api/projects/your-project</strong>
+                                       placeholder="https://your-resource.openai.azure.com" />
+                                <p class="description">
+                                    Azure OpenAI 엔드포인트<br>
+                                    예: https://your-resource.openai.azure.com
                                 </p>
                             </td>
                         </tr>
                         
-                        <!-- API Key 인증 필드 -->
-                        <tr class="auth-field auth-apikey">
+                        <tr class="mode-field mode-chat">
+                            <th scope="row">
+                                <label for="deployment_name">배포 이름 *</label>
+                            </th>
+                            <td>
+                                <input type="text" 
+                                       id="deployment_name" 
+                                       name="azure_chatbot_settings[deployment_name]" 
+                                       value="<?php echo esc_attr($options['deployment_name'] ?? ''); ?>" 
+                                       class="regular-text"
+                                       placeholder="gpt-4o" />
+                                <p class="description">
+                                    Azure OpenAI 배포 이름 (예: gpt-4o, gpt-35-turbo)
+                                </p>
+                            </td>
+                        </tr>
+                        
+                        <tr class="mode-field mode-chat">
                             <th scope="row">
                                 <label for="api_key">API Key *</label>
                             </th>
@@ -121,8 +135,43 @@ $auth_type = $options['auth_type'] ?? 'api_key';
                             </td>
                         </tr>
                         
-                        <!-- Entra ID 인증 필드 -->
-                        <tr class="auth-field auth-entraid">
+                        <!-- Agent 모드 필드 -->
+                        <tr class="mode-field mode-agent">
+                            <th scope="row">
+                                <label for="agent_endpoint">Agent 엔드포인트 *</label>
+                            </th>
+                            <td>
+                                <input type="url" 
+                                       id="agent_endpoint" 
+                                       name="azure_chatbot_settings[agent_endpoint]" 
+                                       value="<?php echo esc_attr($options['agent_endpoint'] ?? ''); ?>" 
+                                       class="regular-text"
+                                       placeholder="https://your-resource.services.ai.azure.com/api/projects/your-project" />
+                                <p class="description">
+                                    <strong>프로젝트 경로 필수:</strong><br>
+                                    https://your-resource.services.ai.azure.com<strong>/api/projects/your-project</strong>
+                                </p>
+                            </td>
+                        </tr>
+                        
+                        <tr class="mode-field mode-agent">
+                            <th scope="row">
+                                <label for="agent_id">Agent ID *</label>
+                            </th>
+                            <td>
+                                <input type="text" 
+                                       id="agent_id" 
+                                       name="azure_chatbot_settings[agent_id]" 
+                                       value="<?php echo esc_attr($options['agent_id'] ?? ''); ?>" 
+                                       class="regular-text"
+                                       placeholder="your-agent-id" />
+                                <p class="description">
+                                    Azure AI Foundry에서 생성한 Agent ID
+                                </p>
+                            </td>
+                        </tr>
+                        
+                        <tr class="mode-field mode-agent">
                             <th scope="row">
                                 <label for="client_id">Client ID (App ID) *</label>
                             </th>
@@ -134,12 +183,12 @@ $auth_type = $options['auth_type'] ?? 'api_key';
                                        class="regular-text"
                                        placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
                                 <p class="description">
-                                    Service Principal의 Application (Client) ID를 입력하세요.
+                                    Service Principal의 Application (Client) ID
                                 </p>
                             </td>
                         </tr>
                         
-                        <tr class="auth-field auth-entraid">
+                        <tr class="mode-field mode-agent">
                             <th scope="row">
                                 <label for="client_secret">Client Secret *</label>
                             </th>
@@ -159,7 +208,7 @@ $auth_type = $options['auth_type'] ?? 'api_key';
                             </td>
                         </tr>
                         
-                        <tr class="auth-field auth-entraid">
+                        <tr class="mode-field mode-agent">
                             <th scope="row">
                                 <label for="tenant_id">Tenant ID *</label>
                             </th>
@@ -171,25 +220,7 @@ $auth_type = $options['auth_type'] ?? 'api_key';
                                        class="regular-text"
                                        placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
                                 <p class="description">
-                                    Azure Entra ID (Azure AD) Tenant ID를 입력하세요.
-                                </p>
-                            </td>
-                        </tr>
-                        
-                        <tr>
-                            <th scope="row">
-                                <label for="agent_id">에이전트 ID *</label>
-                            </th>
-                            <td>
-                                <input type="text" 
-                                       id="agent_id" 
-                                       name="azure_chatbot_settings[agent_id]" 
-                                       value="<?php echo esc_attr($options['agent_id'] ?? ''); ?>" 
-                                       class="regular-text"
-                                       placeholder="your-agent-id"
-                                       required />
-                                <p class="description">
-                                    Azure AI Foundry에서 생성한 에이전트의 ID를 입력하세요.
+                                    Azure Entra ID (Azure AD) Tenant ID
                                 </p>
                             </td>
                         </tr>
@@ -211,12 +242,16 @@ $auth_type = $options['auth_type'] ?? 'api_key';
                         </tr>
                     </table>
                     
-                    <p>
+                    <p style="display: flex; align-items: center; gap: 10px;">
+                        <button type="submit" class="button button-primary">
+                            <span class="dashicons dashicons-saved"></span>
+                            설정 저장
+                        </button>
                         <button type="button" id="test-connection" class="button button-secondary">
                             <span class="dashicons dashicons-arrow-right-alt"></span>
                             연결 테스트
                         </button>
-                        <span id="test-result" style="margin-left: 10px;"></span>
+                        <span id="test-result"></span>
                     </p>
                 </div>
             </div>
@@ -332,10 +367,6 @@ $auth_type = $options['auth_type'] ?? 'api_key';
         </div>
         
         <p class="submit">
-            <button type="submit" class="button button-primary button-large">
-                <span class="dashicons dashicons-saved"></span>
-                변경사항 저장
-            </button>
             <a href="admin.php?page=azure-ai-chatbot-guide" class="button button-secondary button-large">
                 <span class="dashicons dashicons-book"></span>
                 사용 가이드 보기
@@ -348,36 +379,34 @@ $auth_type = $options['auth_type'] ?? 'api_key';
 jQuery(document).ready(function($) {
     console.log('Settings page loaded');
     
-    // 인증 방식에 따라 필드 표시/숨김
+    // 모드에 따라 필드 표시/숨김
     function toggleAuthFields() {
-        const authType = $('input[name="azure_chatbot_settings[auth_type]"]:checked').val();
+        const mode = $('input[name="azure_chatbot_settings[mode]"]:checked').val();
         
-        if (authType === 'api_key') {
-            $('.auth-apikey').show();
-            $('.auth-entraid').hide();
-            $('#endpoint-hint-apikey').show();
-            $('#endpoint-hint-entraid').hide();
+        if (mode === 'chat') {
+            // Chat 모드: API Key 인증
+            $('.mode-chat').show();
+            $('.mode-agent').hide();
             
-            // API Key는 필수, Entra ID 필드는 선택
-            $('#api_key').prop('required', true);
-            $('#client_id, #client_secret, #tenant_id').prop('required', false);
+            // Chat 필드는 필수, Agent 필드는 선택
+            $('#chat_endpoint, #deployment_name, #api_key').prop('required', true);
+            $('#agent_endpoint, #agent_id, #client_id, #client_secret, #tenant_id').prop('required', false);
         } else {
-            $('.auth-apikey').hide();
-            $('.auth-entraid').show();
-            $('#endpoint-hint-apikey').hide();
-            $('#endpoint-hint-entraid').show();
+            // Agent 모드: Entra ID 인증
+            $('.mode-chat').hide();
+            $('.mode-agent').show();
             
-            // Entra ID 필드는 필수, API Key는 선택
-            $('#api_key').prop('required', false);
-            $('#client_id, #client_secret, #tenant_id').prop('required', true);
+            // Agent 필드는 필수, Chat 필드는 선택
+            $('#chat_endpoint, #deployment_name, #api_key').prop('required', false);
+            $('#agent_endpoint, #agent_id, #client_id, #client_secret, #tenant_id').prop('required', true);
         }
     }
     
     // 초기 로드 시 필드 표시
     toggleAuthFields();
     
-    // 인증 방식 변경 시
-    $('.auth-type-radio').on('change', function() {
+    // 모드 변경 시
+    $('.mode-radio').on('change', function() {
         toggleAuthFields();
     });
     

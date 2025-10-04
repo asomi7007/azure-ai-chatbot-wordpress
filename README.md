@@ -2,7 +2,7 @@
 
 Azure AI Foundry의 강력한 AI 에이전트를 WordPress 웹사이트에 쉽게 통합하는 플러그인입니다.
 
-![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)
 ![WordPress](https://img.shields.io/badge/wordpress-6.0%2B-blue.svg)
 ![PHP](https://img.shields.io/badge/php-7.4%2B-purple.svg)
 ![License](https://img.shields.io/badge/license-GPL--2.0%2B-green.svg)
@@ -19,21 +19,31 @@ Azure AI Foundry의 강력한 AI 에이전트를 WordPress 웹사이트에 쉽�
 
 ## 📦 설치 방법
 
-### 방법 1: ZIP 파일로 설치 (권장)
+### ZIP 파일로 설치 (권장) ⭐
 
-1. [Releases 페이지](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases)에서 최신 `azure-ai-chatbot.zip` 다운로드
-2. WordPress 관리자 페이지 → **플러그인** → **새로 추가** → **플러그인 업로드**
-3. 다운로드한 ZIP 파일 선택
-4. **지금 설치** → **플러그인 활성화**
+가장 쉽고 빠른 설치 방법입니다!
 
-### 방법 2: 수동 설치
+1. **[GitHub Releases](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/latest)에서 최신 `azure-ai-chatbot-wordpress.zip` 다운로드**
+2. WordPress 관리자 페이지 접속
+3. **플러그인** → **새로 추가** → **플러그인 업로드** 클릭
+4. 다운로드한 ZIP 파일 선택
+5. **지금 설치** 클릭
+6. 설치 완료 후 **플러그인 활성화** 클릭
+
+> 💡 **Tip**: ZIP 파일 압축을 풀 필요 없습니다! 그대로 업로드하세요.
+
+### 수동 설치 (개발자용)
+
+소스 코드를 직접 편집하려는 경우:
 
 1. 이 저장소를 다운로드하거나 복제
-2. 폴더 이름을 `azure-ai-chatbot`으로 변경
-3. `/wp-content/plugins/` 디렉토리에 업로드
-4. WordPress 관리자 페이지에서 플러그인 활성화
+   ```bash
+   git clone https://github.com/asomi7007/azure-ai-chatbot-wordpress.git
+   ```
+2. 폴더를 `/wp-content/plugins/` 디렉토리에 업로드
+3. WordPress 관리자 페이지에서 플러그인 활성화
 
-### 방법 3: WordPress.org에서 설치 (향후 지원 예정)
+### WordPress.org에서 설치 (향후 지원 예정)
 
 1. WordPress 관리자 페이지 → **플러그인** → **새로 추가**
 2. "Azure AI Chatbot" 검색
@@ -41,7 +51,341 @@ Azure AI Foundry의 강력한 AI 에이전트를 WordPress 웹사이트에 쉽�
 
 ## 🚀 빠른 시작
 
-### 1단계: Azure AI Foundry 정보 확인
+### 방법 1: Chat 모드 (간단 - 권장) ⭐
+
+Chat 모드는 API Key만으로 즉시 사용 가능합니다!
+
+#### 📋 Azure Cloud Shell에서 자동 테스트 (Ctrl+V로 붙여넣기)
+
+Azure Cloud Shell ([shell.azure.com](https://shell.azure.com))에서 아래 전체를 **Ctrl+V**로 붙여넣기하면 자동으로 테스트됩니다:
+
+```bash
+cat > test_chat_mode.sh << 'SCRIPT_EOF'
+#!/bin/bash
+echo "========================================="
+echo "Azure AI Chatbot - Chat 모드 연결 테스트"
+echo "========================================="
+echo ""
+RESOURCE_NAME="your-resource-name"  # ← 여기만 수정하세요!
+DEPLOYMENT_NAME="gpt-4o"
+echo "🔍 Azure OpenAI 리소스 검색 중..."
+RESOURCE_GROUP=$(az cognitiveservices account list --query "[?name=='$RESOURCE_NAME'].resourceGroup | [0]" -o tsv)
+if [ -z "$RESOURCE_GROUP" ]; then
+    echo "❌ 리소스를 찾을 수 없습니다: $RESOURCE_NAME"
+    echo "사용 가능한 Azure OpenAI 리소스:"
+    az cognitiveservices account list --query "[?kind=='OpenAI'].{Name:name, ResourceGroup:resourceGroup}" -o table
+    exit 1
+fi
+ENDPOINT=$(az cognitiveservices account show --name "$RESOURCE_NAME" --resource-group "$RESOURCE_GROUP" --query "properties.endpoint" -o tsv)
+API_KEY=$(az cognitiveservices account keys list --name "$RESOURCE_NAME" --resource-group "$RESOURCE_GROUP" --query "key1" -o tsv)
+echo "✅ 리소스: $RESOURCE_NAME"
+echo "📍 엔드포인트: $ENDPOINT"
+echo "🔑 API Key: ${API_KEY:0:8}...${API_KEY: -4}"
+echo ""
+ENDPOINT="${ENDPOINT%/}"
+TEST_URL="${ENDPOINT}/openai/deployments/${DEPLOYMENT_NAME}/chat/completions?api-version=2024-08-01-preview"
+echo "🧪 Chat API 테스트 중..."
+RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST "${TEST_URL}" \
+  -H "Content-Type: application/json" \
+  -H "api-key: ${API_KEY}" \
+  -d '{"messages":[{"role":"user","content":"Hello"}],"max_tokens":10}')
+HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d':' -f2)
+if [ "$HTTP_CODE" == "200" ]; then
+    echo "✅ 성공! HTTP $HTTP_CODE"
+    echo "응답: $(echo "$RESPONSE" | sed '/HTTP_CODE:/d' | jq -r '.choices[0].message.content' 2>/dev/null)"
+    echo ""
+    echo "========================================="
+    echo "✅ WordPress 플러그인 설정값"
+    echo "========================================="
+    echo "작동 모드: Chat 모드 (OpenAI 호환)"
+    echo "Chat 엔드포인트: ${ENDPOINT}"
+    echo "배포 이름: ${DEPLOYMENT_NAME}"
+    echo "API Key: ${API_KEY}"
+else
+    echo "❌ 실패: HTTP $HTTP_CODE"
+    echo "$(echo "$RESPONSE" | sed '/HTTP_CODE:/d' | jq '.' 2>/dev/null)"
+fi
+SCRIPT_EOF
+chmod +x test_chat_mode.sh
+./test_chat_mode.sh
+```
+
+> **💡 사용 방법:**
+> 1. 위 코드 전체를 복사 (Ctrl+C)
+> 2. Azure Cloud Shell 열기 ([shell.azure.com](https://shell.azure.com))
+> 3. 붙여넣기 (Ctrl+V) → Enter
+> 4. `RESOURCE_NAME="your-resource-name"` 부분만 실제 리소스명으로 수정
+> 5. Enter 키를 한 번 더 누르면 자동 실행!
+
+#### WordPress 플러그인 설정
+
+위 스크립트 결과에서 나온 값을 그대로 WordPress 관리자 페이지에 입력하세요:
+
+1. WordPress 관리자 → **Azure AI Chatbot** → **설정**
+2. **작동 모드**: `Chat 모드 (OpenAI 호환)` 선택
+3. 스크립트 결과에서 나온 값 입력
+4. **저장** 버튼 클릭
+5. **연결 테스트** 버튼으로 확인
+
+---
+
+### 방법 2: Agent 모드 (고급 기능) 🤖
+
+Agent 모드는 Azure AI Foundry의 **Assistants API v1**을 사용하여 다음 고급 기능을 제공합니다:
+
+**✨ Agent 모드 주요 기능:**
+- 🧵 **Thread 관리**: 대화 컨텍스트 자동 유지 (재방문 시 이전 대화 기억)
+- 🛠️ **Function Calling**: 외부 API 호출, 데이터베이스 조회 등 확장 가능
+- 📎 **파일 업로드**: 문서 분석 및 RAG (Retrieval-Augmented Generation)
+- 🔄 **비동기 Run**: 장시간 실행 작업 지원
+- 📊 **상태 추적**: 실시간 Run 상태 모니터링 (queued → in_progress → completed)
+
+**⚠️ 중요: API 버전**
+- Azure AI Foundry Assistants API는 **`api-version=v1`만 지원**됩니다
+- `2024-12-01-preview` 등 날짜 기반 버전은 Sweden Central 등 일부 리전에서 작동하지 않습니다
+- 본 플러그인은 `v1`을 사용하여 모든 리전에서 호환됩니다
+
+#### Azure Cloud Shell 완전 자동 설정 스크립트
+
+**⚡ 복사 → 붙여넣기 → 실행:**
+
+```bash
+cat > setup_azure_agent.sh << 'EOFSCRIPT'
+#!/bin/bash
+set -e
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 🚀 Azure AI Chatbot WordPress - Agent 모드 자동 설정
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📋 Azure AI 프로젝트 정보 입력"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+# 사용자 입력
+read -p "Resource Group 이름: " RESOURCE_GROUP
+read -p "AI Foundry 리소스 이름: " ACCOUNT_NAME
+read -p "프로젝트 이름 (리소스와 동일하면 엔터): " PROJECT_NAME
+PROJECT_NAME=${PROJECT_NAME:-$ACCOUNT_NAME}
+read -p "Service Principal 이름 (기본: azure-ai-chatbot-wp): " SP_NAME
+SP_NAME=${SP_NAME:-"azure-ai-chatbot-wp"}
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "� Azure 구독 정보 확인 중..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+SUBSCRIPTION_ID=$(az account show --query "id" -o tsv)
+TENANT_ID=$(az account show --query "tenantId" -o tsv)
+RESOURCE_ID="/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.CognitiveServices/accounts/$ACCOUNT_NAME"
+
+echo "✅ Subscription ID: $SUBSCRIPTION_ID"
+echo "✅ Tenant ID: $TENANT_ID"
+echo ""
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🔐 Service Principal 생성 중..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Service Principal 생성 시도
+SP_OUTPUT=$(az ad sp create-for-rbac \
+  --name "$SP_NAME" \
+  --role "Cognitive Services User" \
+  --scopes "$RESOURCE_ID" \
+  2>&1)
+
+if echo "$SP_OUTPUT" | grep -q "appId"; then
+    echo "✅ Service Principal 생성 완료!"
+    CLIENT_ID=$(echo $SP_OUTPUT | jq -r '.appId')
+    CLIENT_SECRET=$(echo $SP_OUTPUT | jq -r '.password')
+else
+    echo "⚠️  이미 존재하는 Service Principal입니다."
+    echo "   새 Client Secret을 생성합니다..."
+    
+    APP_ID=$(az ad sp list --display-name "$SP_NAME" --query "[0].appId" -o tsv)
+    if [ -z "$APP_ID" ]; then
+        echo "❌ Service Principal을 찾을 수 없습니다."
+        echo "   다른 이름으로 다시 시도하거나 Azure Portal에서 수동으로 생성하세요."
+        exit 1
+    fi
+    
+    SP_OUTPUT=$(az ad app credential reset --id "$APP_ID" --append --years 1)
+    CLIENT_ID=$APP_ID
+    CLIENT_SECRET=$(echo $SP_OUTPUT | jq -r '.password')
+    echo "✅ Client Secret 재생성 완료!"
+fi
+
+AGENT_ENDPOINT="https://${ACCOUNT_NAME}.services.ai.azure.com/api/projects/${PROJECT_NAME}"
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🤖 AI Agent 확인 중..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Token 생성
+TOKEN=$(curl -s -X POST "https://login.microsoftonline.com/$TENANT_ID/oauth2/v2.0/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "client_id=$CLIENT_ID" \
+  -d "client_secret=$CLIENT_SECRET" \
+  -d "scope=https://ai.azure.com/.default" \
+  -d "grant_type=client_credentials" | jq -r '.access_token')
+
+if [ "$TOKEN" == "null" ] || [ -z "$TOKEN" ]; then
+    echo "⚠️  토큰 생성 실패. 권한 설정 중일 수 있습니다."
+    echo "   1-2분 후 다시 시도하거나 Agent ID를 수동으로 입력하세요."
+    AGENT_ID="[AI Foundry에서 확인 필요]"
+else
+    # Assistants 목록 조회 (v1 API 사용)
+    ASSISTANTS=$(curl -s \
+      "${AGENT_ENDPOINT}/assistants?api-version=v1" \
+      -H "Authorization: Bearer $TOKEN")
+    
+    AGENT_COUNT=$(echo $ASSISTANTS | jq -r '.data | length' 2>/dev/null || echo "0")
+    
+    if [ "$AGENT_COUNT" == "0" ]; then
+        echo ""
+        echo "❌ Agent가 존재하지 않습니다!"
+        echo ""
+        echo "다음 방법 중 하나를 선택하세요:"
+        echo ""
+        echo "1️⃣  AI Foundry Portal에서 생성 (권장)"
+        echo "   https://ai.azure.com → Agents → Create"
+        echo ""
+        echo "2️⃣  Azure Cloud Shell에서 생성:"
+        echo ""
+        read -p "   지금 생성하시겠습니까? (y/n): " CREATE_AGENT
+        
+        if [ "$CREATE_AGENT" == "y" ]; then
+            read -p "   Agent 이름: " AGENT_NAME
+            read -p "   Agent 설명 (옵션): " AGENT_DESC
+            read -p "   사용할 모델 (기본: gpt-4o): " AGENT_MODEL
+            AGENT_MODEL=${AGENT_MODEL:-"gpt-4o"}
+            
+            NEW_AGENT=$(curl -s -X POST \
+              "${AGENT_ENDPOINT}/assistants?api-version=v1" \
+              -H "Authorization: Bearer $TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"model\":\"$AGENT_MODEL\",\"name\":\"$AGENT_NAME\",\"description\":\"$AGENT_DESC\",\"instructions\":\"당신은 친절한 AI 도우미입니다.\"}")
+            
+            AGENT_ID=$(echo $NEW_AGENT | jq -r '.id')
+            echo "✅ Agent 생성 완료: $AGENT_ID"
+        else
+            AGENT_ID="[나중에 AI Foundry에서 생성 후 입력]"
+        fi
+    else
+        echo "✅ $AGENT_COUNT 개의 Agent 발견!"
+        echo ""
+        echo "사용 가능한 Agents:"
+        echo $ASSISTANTS | jq -r '.data[] | "  - \(.id): \(.name // "Unnamed")"'
+        echo ""
+        
+        if [ "$AGENT_COUNT" == "1" ]; then
+            AGENT_ID=$(echo $ASSISTANTS | jq -r '.data[0].id')
+            AGENT_NAME=$(echo $ASSISTANTS | jq -r '.data[0].name // "Unnamed"')
+            echo "✅ 자동 선택: $AGENT_ID ($AGENT_NAME)"
+        else
+            read -p "사용할 Agent ID를 입력하세요: " AGENT_ID
+        fi
+    fi
+fi
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "✅ 설정 완료!"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "📋 WordPress에 아래 값을 복사하여 입력하세요:"
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Agent 엔드포인트:"
+echo "$AGENT_ENDPOINT"
+echo ""
+echo "Agent ID:"
+echo "$AGENT_ID"
+echo ""
+echo "Client ID:"
+echo "$CLIENT_ID"
+echo ""
+echo "Client Secret:"
+echo "$CLIENT_SECRET"
+echo ""
+echo "Tenant ID:"
+echo "$TENANT_ID"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "⚠️  중요: Client Secret은 지금만 표시됩니다!"
+echo "         안전한 곳에 즉시 저장하세요!"
+echo ""
+EOFSCRIPT
+
+chmod +x setup_azure_agent.sh
+./setup_azure_agent.sh
+```
+
+**� 사용 방법:**
+1. Azure Cloud Shell (https://shell.azure.com) 접속
+2. 위 전체 코드 블록 복사
+3. Cloud Shell에 붙여넣기
+4. 프롬프트에 따라 정보 입력
+5. 출력된 값들을 WordPress 설정에 입력
+
+**📋 출력 예시:**
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Agent 엔드포인트:
+https://your-resource.services.ai.azure.com/api/projects/your-project
+
+Agent ID:
+asst_xxxxxxxxxxxxxxxxxxxxxx
+
+Client ID:
+xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+
+Client Secret:
+xxx~xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+Tenant ID:
+xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+#### 개별 명령어로 설정 (선택사항)
+
+스크립트를 사용하지 않는 경우 개별 명령어:
+
+```bash
+# 1. Service Principal 생성
+az ad sp create-for-rbac \
+  --name "azure-ai-chatbot-wordpress" \
+  --role "Cognitive Services User" \
+  --scopes "/subscriptions/{SUBSCRIPTION_ID}/resourceGroups/{RG}/providers/Microsoft.CognitiveServices/accounts/{ACCOUNT}"
+
+# 2. 출력에서 다음 정보 복사:
+# - appId → Client ID
+# - password → Client Secret
+# - tenant → Tenant ID
+
+# 3. Agent ID는 Azure AI Foundry (https://ai.azure.com)에서 확인
+```
+
+#### Client Secret 재생성 (분실 시)
+
+```bash
+# 기존 Service Principal의 새 Client Secret 생성
+az ad app credential reset \
+  --id "{CLIENT_ID}" \
+  --append \
+  --years 1
+
+# 출력된 password를 WordPress에 입력
+```
+
+---
+
+### 1단계: Azure AI Foundry 정보 확인 (레거시)
 
 Azure Portal에서 다음 정보를 확인하세요:
 
@@ -308,7 +652,7 @@ define('NONCE_SALT', 'your-unique-phrase');
 
 번역에 참여하고 싶으신가요?
 - `.pot` 파일: `languages/azure-ai-chatbot.pot`
-- 연락처: admin@edueldensolution.kr
+- 연락처: admin@eldensolution.kr
 
 ## 🤝 기여하기
 
@@ -321,10 +665,12 @@ define('NONCE_SALT', 'your-unique-phrase');
 - 오류 메시지
 - 재현 단계
 
+**연락처**: admin@eldensolution.kr
+
 ### 기능 제안
 
 새 기능 아이디어가 있으신가요?
-- 이메일: admin@edueldensolution.kr
+- 이메일: admin@eldensolution.kr
 - 제목: [Feature Request] 기능 제목
 
 ### 코드 기여
@@ -371,15 +717,15 @@ define('NONCE_SALT', 'your-unique-phrase');
 - [Function Calling 가이드](https://learn.microsoft.com/azure/ai-foundry/agents/)
 
 ### 커뮤니티
-- **이메일 지원**: admin@edueldensolution.kr
-- **웹사이트**: https://edueldensolution.kr
+- **이메일 지원**: admin@eldensolution.kr
+- **웹사이트**: https://www.eldensolution.kr
 
 ## 📄 라이선스
 
 이 프로젝트는 GPL-2.0+ 라이선스 하에 배포됩니다.
 
 ```
-Copyright (C) 2025 허석 (Heo Seok)
+Copyright (C) 2025 Elden Solution (엘던솔루션)
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -398,17 +744,19 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
 ## 👤 제작자
 
-**허석 (Heo Seok)**
-- 이메일: admin@edueldensolution.kr
-- 웹사이트: https://edueldensolution.kr
+**엘던솔루션 (Elden Solution)**
+- 웹사이트: https://www.eldensolution.kr
+- 이메일: admin@eldensolution.kr
 - 위치: 대한민국
 
 ## 🙏 감사의 말
 
 이 플러그인을 만드는 데 도움을 주신 분들:
-- Azure AI Foundry 팀
+- Microsoft Azure AI 팀
 - WordPress 커뮤니티
 - 모든 베타 테스터분들
+
+Developed with ❤️ by [Elden Solution](https://www.eldensolution.kr)
 
 ## 💡 향후 계획
 
@@ -445,12 +793,14 @@ A: 네, GPL 라이선스 하에 자유롭게 사용 가능합니다.
 A: WordPress 관리자 페이지에서 자동으로 업데이트 알림을 받습니다.
 
 **Q: 기술 지원은 어떻게 받나요?**  
-A: admin@edueldensolution.kr로 문의하시거나 사용 가이드를 참고하세요.
+A: admin@eldensolution.kr로 문의하시거나 사용 가이드를 참고하세요.
 
 ---
 
 ⭐ 이 플러그인이 유용하다면 GitHub에서 Star를 눌러주세요!
 
-🐛 버그를 발견하셨나요? Issue를 등록해주세요.
+🐛 버그를 발견하셨나요? [Issue를 등록](https://github.com/asomi7007/azure-ai-chatbot-wordpress/issues)해주세요.
 
-💬 질문이 있으신가요? admin@edueldensolution.kr로 연락주세요.
+💬 질문이 있으신가요? admin@eldensolution.kr로 연락주세요.
+
+🌐 더 많은 솔루션: [www.eldensolution.kr](https://www.eldensolution.kr)

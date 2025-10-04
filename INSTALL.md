@@ -1,4 +1,4 @@
-# Azure AI Chatbot 설치 가이드
+# Azure AI Chatbot for WordPress - 설치 가이드 v2.0.0
 
 ## 📦 전체 파일 구조
 
@@ -173,13 +173,13 @@ nano wp-config.php
 
 #### API Key 확인 방법
 1. [Azure Portal](https://portal.azure.com) 접속
-2. 검색창에 AI Foundry 리소스 이름 입력 (예: `eduelden04-2296-resource`)
+2. 검색창에 AI Foundry 리소스 이름 입력 (예: `your-resource-name`)
 3. 리소스 선택 후 좌측 메뉴에서 **"키 및 엔드포인트"** 클릭
 4. **KEY 1** 또는 **KEY 2** 복사
 
 #### 프로젝트 엔드포인트 확인
 - 형식: `https://[리소스명].services.ai.azure.com/api/projects/[프로젝트명]`
-- 예시: `https://eduelden04-2296-resource.services.ai.azure.com/api/projects/eduelden04-2296`
+- 예시: `https://your-resource.services.ai.azure.com/api/projects/your-project`
 
 #### 에이전트 ID 확인
 1. [AI Foundry](https://ai.azure.com) 접속

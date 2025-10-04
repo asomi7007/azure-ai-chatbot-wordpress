@@ -1,11 +1,11 @@
 <?php
 /**
  * Plugin Name: Azure AI Chatbot
- * Plugin URI: https://edueldensolution.kr
+ * Plugin URI: https://www.eldensolution.kr
  * Description: Azure AI Foundry 에이전트를 WordPress에 통합하는 채팅 위젯
- * Version: 2.0.0
- * Author: 허석 (Heo Seok)
- * Author URI: mailto:admin@edueldensolution.kr
+ * Version: 2.1.0
+ * Author: 엘던솔루션 (Elden Solution)
+ * Author URI: https://www.eldensolution.kr
  * License: GPL-2.0+
  * License URI: http://www.gnu.org/licenses/gpl-2.0.txt
  * Text Domain: azure-ai-chatbot
@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
 }
 
 // 플러그인 상수 정의
-define('AZURE_CHATBOT_VERSION', '2.0.0');
+define('AZURE_CHATBOT_VERSION', '2.1.0');
 define('AZURE_CHATBOT_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('AZURE_CHATBOT_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('AZURE_CHATBOT_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -173,13 +173,21 @@ class Azure_AI_Chatbot {
         }
         
         $this->options = [
-            'auth_type' => $stored_options['auth_type'] ?? 'api_key', // api_key or entra_id
-            'api_key' => $api_key,
+            'mode' => $stored_options['mode'] ?? 'agent', // 'agent' (Entra ID + Agent) or 'chat' (API Key + Chat Completion)
+            
+            // Agent 모드 (Entra ID)
             'client_id' => $stored_options['client_id'] ?? '',
             'client_secret' => $client_secret,
             'tenant_id' => $stored_options['tenant_id'] ?? '',
-            'endpoint' => $stored_options['endpoint'] ?? '',
+            'agent_endpoint' => $stored_options['agent_endpoint'] ?? '',
             'agent_id' => $stored_options['agent_id'] ?? '',
+            
+            // Chat 모드 (API Key)
+            'api_key' => $api_key,
+            'chat_endpoint' => $stored_options['chat_endpoint'] ?? '',
+            'deployment_name' => $stored_options['deployment_name'] ?? '',
+            
+            // 공통 설정
             'enabled' => $stored_options['enabled'] ?? false,
             'widget_position' => $stored_options['widget_position'] ?? 'bottom-right',
             'primary_color' => $stored_options['primary_color'] ?? '#667eea',
@@ -304,17 +312,23 @@ class Azure_AI_Chatbot {
      * 위젯 활성화 여부 확인
      */
     private function is_widget_enabled() {
-        if (empty($this->options['enabled']) || empty($this->options['endpoint']) || empty($this->options['agent_id'])) {
+        if (empty($this->options['enabled'])) {
             return false;
         }
         
-        // 인증 방식에 따라 검증
-        if ($this->options['auth_type'] === 'entra_id') {
+        // 모드에 따라 필수 필드 검증
+        if ($this->options['mode'] === 'agent') {
+            // Agent 모드: Entra ID + Agent 필수
             return !empty($this->options['client_id']) && 
                    !empty($this->options['client_secret']) && 
-                   !empty($this->options['tenant_id']);
+                   !empty($this->options['tenant_id']) &&
+                   !empty($this->options['agent_endpoint']) &&
+                   !empty($this->options['agent_id']);
         } else {
-            return !empty($this->options['api_key']);
+            // Chat 모드: API Key + Deployment 필수
+            return !empty($this->options['api_key']) &&
+                   !empty($this->options['chat_endpoint']) &&
+                   !empty($this->options['deployment_name']);
         }
     }
     
@@ -524,25 +538,15 @@ class Azure_AI_Chatbot {
         $sanitized = [];
         $old_options = get_option('azure_chatbot_settings', []);
         
-        // 인증 방식
-        $sanitized['auth_type'] = sanitize_text_field($input['auth_type'] ?? 'api_key');
+        // 모드 선택
+        $sanitized['mode'] = sanitize_text_field($input['mode'] ?? 'agent');
         
-        // API Key는 암호화하여 저장 (API Key 인증 방식일 때)
-        if (!empty($input['api_key'])) {
-            $api_key = sanitize_text_field($input['api_key']);
-            
-            // 기존 값과 다른 경우에만 암호화 (마스킹된 값 처리)
-            if (strpos($api_key, '••••') === false) {
-                $sanitized['api_key_encrypted'] = $this->encrypt($api_key);
-            } else {
-                // 마스킹된 값이면 기존 암호화 값 유지
-                $sanitized['api_key_encrypted'] = $old_options['api_key_encrypted'] ?? '';
-            }
-        }
-        
-        // Entra ID 인증 정보
+        // Agent 모드 설정 (Entra ID)
         $sanitized['client_id'] = sanitize_text_field($input['client_id'] ?? '');
         $sanitized['tenant_id'] = sanitize_text_field($input['tenant_id'] ?? '');
+        // Agent 엔드포인트는 경로 포함해야 하므로 esc_url_raw 대신 sanitize_text_field 사용
+        $sanitized['agent_endpoint'] = sanitize_text_field($input['agent_endpoint'] ?? '');
+        $sanitized['agent_id'] = sanitize_text_field($input['agent_id'] ?? '');
         
         // Client Secret 암호화하여 저장
         if (!empty($input['client_secret'])) {
@@ -555,9 +559,22 @@ class Azure_AI_Chatbot {
             }
         }
         
-        // 나머지 값들은 일반적으로 저장 (민감하지 않은 정보)
-        $sanitized['endpoint'] = esc_url_raw($input['endpoint'] ?? '');
-        $sanitized['agent_id'] = sanitize_text_field($input['agent_id'] ?? '');
+        // Chat 모드 설정 (API Key)
+        $sanitized['chat_endpoint'] = esc_url_raw($input['chat_endpoint'] ?? '');
+        $sanitized['deployment_name'] = sanitize_text_field($input['deployment_name'] ?? '');
+        
+        // API Key 암호화하여 저장
+        if (!empty($input['api_key'])) {
+            $api_key = sanitize_text_field($input['api_key']);
+            
+            if (strpos($api_key, '••••') === false) {
+                $sanitized['api_key_encrypted'] = $this->encrypt($api_key);
+            } else {
+                $sanitized['api_key_encrypted'] = $old_options['api_key_encrypted'] ?? '';
+            }
+        }
+        
+        // 공통 설정
         $sanitized['enabled'] = !empty($input['enabled']);
         $sanitized['widget_position'] = sanitize_text_field($input['widget_position'] ?? 'bottom-right');
         $sanitized['primary_color'] = sanitize_hex_color($input['primary_color'] ?? '#667eea');
@@ -661,7 +678,7 @@ class Azure_AI_Chatbot {
         // 스크립트에 설정 전달
         wp_localize_script('azure-chatbot-js', 'azureChatbot', [
             'apiUrl' => rest_url('azure-chatbot/v1/chat'),
-            'nonce' => wp_create_nonce('azure_chatbot_nonce'),
+            'nonce' => wp_create_nonce('wp_rest'), // WordPress REST API 표준 nonce
             'settings' => [
                 'position' => $this->options['widget_position'],
                 'primaryColor' => $this->options['primary_color'],
@@ -752,9 +769,21 @@ class Azure_AI_Chatbot {
      * 채팅 요청 처리
      */
     public function handle_chat($request) {
-        // Nonce 검증
-        if (!wp_verify_nonce($request->get_header('X-WP-Nonce'), 'azure_chatbot_nonce')) {
-            return new WP_Error('invalid_nonce', '보안 검증 실패', ['status' => 403]);
+        // Nonce 검증 (로그인 사용자만)
+        $nonce = $request->get_header('X-WP-Nonce');
+        
+        if (is_user_logged_in()) {
+            // 로그인 사용자는 wp_rest nonce 검증
+            if (!wp_verify_nonce($nonce, 'wp_rest')) {
+                error_log('[Azure Chat] Nonce verification failed for logged-in user');
+                return new WP_Error('invalid_nonce', '보안 검증 실패', ['status' => 403]);
+            }
+        } else {
+            // 비로그인 사용자는 public_access 옵션 확인
+            if (!$this->options['public_access']) {
+                error_log('[Azure Chat] Public access disabled for non-logged-in user');
+                return new WP_Error('access_denied', '로그인이 필요합니다', ['status' => 401]);
+            }
         }
         
         $message = sanitize_text_field($request->get_param('message'));
@@ -770,28 +799,75 @@ class Azure_AI_Chatbot {
         }
         
         try {
-            // Azure AI API 호출
-            $api_handler = new Azure_AI_API_Handler(
-                $this->options['endpoint'],
-                $this->options['agent_id'],
-                $this->options['auth_type'],
-                $this->options['api_key'],
-                $this->options['client_id'],
-                $this->options['client_secret'],
-                $this->options['tenant_id']
-            );
+            $mode = $this->options['mode'];
+            error_log('[Azure Chat] Mode: ' . $mode);
+            error_log('[Azure Chat] Message: ' . $message);
+            error_log('[Azure Chat] Thread ID: ' . ($thread_id ?: 'null'));
             
-            $response = $api_handler->send_message($message, $thread_id);
-            
-            return new WP_REST_Response([
-                'success' => true,
-                'reply' => $response['message'],
-                'thread_id' => $response['thread_id']
-            ], 200);
+            if ($mode === 'agent') {
+                // Agent 모드: Entra ID + Assistants API (threads, messages, runs)
+                error_log('[Azure Chat] Creating Agent API Handler...');
+                error_log('[Azure Chat] Agent Endpoint: ' . $this->options['agent_endpoint']);
+                error_log('[Azure Chat] Agent ID: ' . $this->options['agent_id']);
+                
+                $api_handler = new Azure_AI_API_Handler(
+                    $this->options['agent_endpoint'],
+                    $this->options['agent_id'],
+                    'entra_id',
+                    null,
+                    $this->options['client_id'],
+                    $this->options['client_secret'],
+                    $this->options['tenant_id']
+                );
+                
+                error_log('[Azure Chat] Sending message via Agent API...');
+                $response = $api_handler->send_message($message, $thread_id);
+                error_log('[Azure Chat] Response received: ' . json_encode($response));
+                
+                return new WP_REST_Response([
+                    'success' => true,
+                    'reply' => $response['message'],
+                    'thread_id' => $response['thread_id']
+                ], 200);
+                
+            } else {
+                // Chat 모드: API Key + Chat Completions API (simple messages)
+                $api_handler = new Azure_AI_API_Handler(
+                    $this->options['chat_endpoint'],
+                    $this->options['deployment_name'],
+                    'api_key',
+                    $this->options['api_key'],
+                    null,
+                    null,
+                    null
+                );
+                
+                $response = $api_handler->send_chat_message($message);
+                
+                return new WP_REST_Response([
+                    'success' => true,
+                    'reply' => $response['message']
+                    // Chat 모드에서는 thread_id 없음
+                ], 200);
+            }
             
         } catch (Exception $e) {
-            error_log('Azure AI Chatbot Error: ' . $e->getMessage());
-            return new WP_Error('api_error', '일시적인 오류가 발생했습니다', ['status' => 500]);
+            error_log('[Azure Chat] ERROR: ' . $e->getMessage());
+            error_log('[Azure Chat] ERROR Trace: ' . $e->getTraceAsString());
+            
+            // 사용자에게 상세한 에러 메시지 반환 (디버깅용)
+            return new WP_REST_Response([
+                'success' => false,
+                'error' => true,
+                'message' => $e->getMessage(),
+                'debug_info' => [
+                    'mode' => $mode ?? 'unknown',
+                    'endpoint' => $mode === 'agent' ? ($this->options['agent_endpoint'] ?? 'N/A') : ($this->options['chat_endpoint'] ?? 'N/A'),
+                    'thread_id' => $thread_id ?? 'null',
+                    'file' => basename($e->getFile()),
+                    'line' => $e->getLine()
+                ]
+            ], 500);
         }
     }
     
@@ -820,32 +896,128 @@ class Azure_AI_Chatbot {
             return;
         }
         
-        if (!$this->is_widget_enabled()) {
-            wp_send_json_error(['message' => '설정이 완료되지 않았습니다. API Key, 엔드포인트, 에이전트 ID를 모두 입력해주세요.']);
-            return;
+        // 연결 테스트는 위젯 활성화 여부와 무관하게 필드만 검증
+        $mode = $this->options['mode'];
+        $missing_fields = [];
+        
+        if ($mode === 'agent') {
+            // Agent 모드 필수 필드 검증
+            if (empty($this->options['agent_endpoint'])) {
+                $missing_fields[] = '• Agent 엔드포인트';
+            }
+            if (empty($this->options['agent_id'])) {
+                $missing_fields[] = '• Agent ID';
+            }
+            if (empty($this->options['client_id'])) {
+                $missing_fields[] = '• Client ID (App ID)';
+            }
+            if (empty($this->options['client_secret'])) {
+                $missing_fields[] = '• Client Secret';
+            }
+            if (empty($this->options['tenant_id'])) {
+                $missing_fields[] = '• Tenant ID';
+            }
+            
+            if (!empty($missing_fields)) {
+                $error_msg = "❌ Agent 모드 설정이 완료되지 않았습니다.\n\n";
+                $error_msg .= "다음 필드를 입력해주세요:\n" . implode("\n", $missing_fields);
+                
+                wp_send_json_error(['message' => $error_msg]);
+                return;
+            }
+        } else {
+            // Chat 모드 필수 필드 검증
+            if (empty($this->options['chat_endpoint'])) {
+                $missing_fields[] = '• Chat 엔드포인트';
+            }
+            if (empty($this->options['deployment_name'])) {
+                $missing_fields[] = '• 배포 이름';
+            }
+            if (empty($this->options['api_key'])) {
+                $missing_fields[] = '• API Key';
+            }
+            
+            if (!empty($missing_fields)) {
+                $error_msg = "❌ Chat 모드 설정이 완료되지 않았습니다.\n\n";
+                $error_msg .= "다음 필드를 입력해주세요:\n" . implode("\n", $missing_fields);
+                
+                wp_send_json_error(['message' => $error_msg]);
+                return;
+            }
         }
         
         try {
-            $api_handler = new Azure_AI_API_Handler(
-                $this->options['endpoint'],
-                $this->options['agent_id'],
-                $this->options['auth_type'],
-                $this->options['api_key'],
-                $this->options['client_id'],
-                $this->options['client_secret'],
-                $this->options['tenant_id']
-            );
+            $mode = $this->options['mode'];
             
-            // 간단한 테스트 메시지 전송
-            $response = $api_handler->send_message('Hello, this is a test message.', null);
-            
-            wp_send_json_success([
-                'message' => 'Azure AI 연결에 성공했습니다! 에이전트가 정상적으로 응답했습니다.'
-            ]);
+            if ($mode === 'agent') {
+                // Agent 모드: Entra ID + Assistants API
+                $api_handler = new Azure_AI_API_Handler(
+                    $this->options['agent_endpoint'],
+                    $this->options['agent_id'],
+                    'entra_id',
+                    null,
+                    $this->options['client_id'],
+                    $this->options['client_secret'],
+                    $this->options['tenant_id']
+                );
+                
+                // 간단한 테스트 메시지 전송
+                $response = $api_handler->send_message('Hello, this is a test message.', null);
+                
+                wp_send_json_success([
+                    'message' => 'Agent 모드 연결에 성공했습니다! Azure AI Foundry 에이전트가 정상적으로 응답했습니다.'
+                ]);
+            } else {
+                // Chat 모드: API Key + Chat Completions API
+                $api_handler = new Azure_AI_API_Handler(
+                    $this->options['chat_endpoint'],
+                    $this->options['deployment_name'],
+                    'api_key',
+                    $this->options['api_key'],
+                    null,
+                    null,
+                    null
+                );
+                
+                // 간단한 테스트 메시지 전송 (Chat Completions 방식)
+                $response = $api_handler->send_chat_message('Hello, this is a test message.');
+                
+                wp_send_json_success([
+                    'message' => 'Chat 모드 연결에 성공했습니다! 챗봇이 정상적으로 응답했습니다.'
+                ]);
+            }
             
         } catch (Exception $e) {
+            $mode = $this->options['mode'] ?? 'chat';
+            $error_message = "❌ 연결 테스트 실패\n\n";
+            
+            // 모드 표시
+            if ($mode === 'agent') {
+                $error_message .= "📍 모드: Agent (Azure AI Foundry)\n\n";
+            } else {
+                $error_message .= "📍 모드: Chat (OpenAI 호환)\n\n";
+            }
+            
+            // 에러 메시지 파싱 및 구조화
+            $raw_error = $e->getMessage();
+            
+            // HTTP 상태 코드 추출
+            if (preg_match('/HTTP (\d{3})/', $raw_error, $matches)) {
+                $http_code = $matches[1];
+                $error_message .= "🔴 오류 코드: HTTP {$http_code}\n\n";
+            }
+            
+            // 서버 응답 메시지 추출
+            if (preg_match('/상세 정보: (.+?)(\n|$)/s', $raw_error, $matches)) {
+                $error_message .= "💬 서버 메시지:\n" . trim($matches[1]) . "\n\n";
+            }
+            
+            // 원본 에러 메시지 (상세 정보 전체)
+            $error_message .= "📋 상세 오류 내용:\n";
+            $error_message .= str_replace('\n', "\n", $raw_error);
+            
             wp_send_json_error([
-                'message' => 'Azure AI 연결에 실패했습니다: ' . $e->getMessage()
+                'message' => $error_message
             ]);
         }
     }
@@ -858,7 +1030,7 @@ class Azure_AI_API_Handler {
     
     private $endpoint;
     private $agent_id;
-    private $api_version = '2024-12-01-preview';
+    private $api_version = 'v1';  // Azure AI Foundry Assistants API - v1이 Sweden Central에서 작동
     
     // 인증 관련
     private $auth_type; // 'api_key' or 'entra_id'
@@ -933,7 +1105,7 @@ class Azure_AI_API_Handler {
                 'grant_type' => 'client_credentials',
                 'client_id' => $this->client_id,
                 'client_secret' => $this->client_secret,
-                'scope' => 'https://cognitiveservices.azure.com/.default'
+                'scope' => 'https://ai.azure.com/.default'  // Azure AI Foundry Assistants API용 scope
             ],
             'timeout' => 30
         ]);
@@ -962,33 +1134,79 @@ class Azure_AI_API_Handler {
      * 메시지 전송 및 응답 받기
      */
     public function send_message($message, $thread_id = null) {
+        error_log('[Agent API] send_message() called');
+        error_log('[Agent API] Input thread_id: ' . ($thread_id ?: 'null'));
+        
         // 1. Thread 생성 또는 재사용
         if (empty($thread_id)) {
+            error_log('[Agent API] Creating new thread...');
             $thread_id = $this->create_thread();
+            error_log('[Agent API] New thread created: ' . $thread_id);
+        } else {
+            error_log('[Agent API] Reusing existing thread: ' . $thread_id);
         }
         
         // 2. 메시지 추가
+        error_log('[Agent API] Adding message to thread...');
         $this->add_message($thread_id, $message);
+        error_log('[Agent API] Message added successfully');
         
         // 3. Agent Run 실행
+        error_log('[Agent API] Creating run...');
         $run_id = $this->create_run($thread_id);
+        error_log('[Agent API] Run created: ' . $run_id);
         
         // 4. 완료 대기
+        error_log('[Agent API] Waiting for completion...');
         $run_status = $this->wait_for_completion($thread_id, $run_id);
+        error_log('[Agent API] Run status: ' . ($run_status['status'] ?? 'unknown'));
         
         // 5. Function calling 처리 (필요시)
         if ($run_status['status'] === 'requires_action') {
+            error_log('[Agent API] Handling tool calls...');
             $this->handle_tool_calls($thread_id, $run_id, $run_status);
             $run_status = $this->wait_for_completion($thread_id, $run_id);
+            error_log('[Agent API] After tool calls, status: ' . ($run_status['status'] ?? 'unknown'));
         }
         
         // 6. 응답 메시지 가져오기
+        error_log('[Agent API] Retrieving latest message...');
         $response_message = $this->get_latest_message($thread_id);
+        error_log('[Agent API] Response message length: ' . strlen($response_message));
         
         return [
             'message' => $response_message,
             'thread_id' => $thread_id
         ];
+    }
+    
+    /**
+     * Chat Completions API를 사용한 메시지 전송 (Chat 모드용)
+     * OpenAI-compatible Chat Completions API 사용
+     */
+    public function send_chat_message($message) {
+        // Chat Completions API 엔드포인트: /openai/deployments/{deployment}/chat/completions
+        $path = "/openai/deployments/{$this->agent_id}/chat/completions?api-version=2024-08-01-preview";
+        
+        $data = [
+            'messages' => [
+                ['role' => 'system', 'content' => 'You are a helpful assistant.'],
+                ['role' => 'user', 'content' => $message]
+            ],
+            'temperature' => 0.7,
+            'max_tokens' => 800
+        ];
+        
+        $response = $this->api_request($path, 'POST', $data);
+        
+        // Chat Completions 응답 구조: choices[0].message.content
+        if (!empty($response['choices'][0]['message']['content'])) {
+            return [
+                'message' => $response['choices'][0]['message']['content']
+            ];
+        }
+        
+        throw new Exception('Chat API 응답에서 메시지를 찾을 수 없습니다.');
     }
     
     private function create_thread() {
@@ -1018,42 +1236,65 @@ class Azure_AI_API_Handler {
     }
     
     private function wait_for_completion($thread_id, $run_id, $max_attempts = 30) {
+        $sleep_ms = 250; // 적응형 폴링: 250ms → 1000ms
+        
         for ($i = 0; $i < $max_attempts; $i++) {
             $status = $this->api_request(
                 "/threads/{$thread_id}/runs/{$run_id}",
                 'GET'
             );
             
-            if (in_array($status['status'], ['completed', 'failed', 'cancelled', 'requires_action'])) {
+            $current_status = $status['status'] ?? 'unknown';
+            
+            // 즉시 반환 조건
+            if (in_array($current_status, ['completed', 'failed', 'cancelled', 'expired', 'requires_action'], true)) {
                 return $status;
             }
             
-            sleep(1);
+            // 적응형 대기: 점진적으로 증가
+            usleep($sleep_ms * 1000);
+            if ($sleep_ms < 1000) {
+                $sleep_ms = min(1000, $sleep_ms + 250);
+            }
         }
         
-        throw new Exception('Run timeout');
+        throw new Exception('Run timeout: 최대 대기 시간 초과');
     }
     
     private function handle_tool_calls($thread_id, $run_id, $run_status) {
+        $tool_calls = $run_status['required_action']['submit_tool_outputs']['tool_calls'] ?? [];
+        
+        if (empty($tool_calls)) {
+            return;
+        }
+        
         $tool_outputs = [];
         
-        foreach ($run_status['required_action']['submit_tool_outputs']['tool_calls'] as $tool_call) {
-            $function_name = $tool_call['function']['name'];
-            $arguments = json_decode($tool_call['function']['arguments'], true);
+        foreach ($tool_calls as $tool_call) {
+            $call_id = $tool_call['id'] ?? '';
+            $function_name = $tool_call['function']['name'] ?? '';
+            $arguments_json = $tool_call['function']['arguments'] ?? '{}';
+            
+            $arguments = json_decode($arguments_json, true);
+            if (!is_array($arguments)) {
+                $arguments = [];
+            }
             
             $output = $this->execute_function($function_name, $arguments);
             
             $tool_outputs[] = [
-                'tool_call_id' => $tool_call['id'],
+                'tool_call_id' => $call_id,
                 'output' => $output
             ];
         }
         
-        $this->api_request(
-            "/threads/{$thread_id}/runs/{$run_id}/submit_tool_outputs",
-            'POST',
-            ['tool_outputs' => $tool_outputs]
-        );
+        if (!empty($tool_outputs)) {
+            $this->api_request(
+                "/threads/{$thread_id}/runs/{$run_id}/submitToolOutputs",
+                'POST',
+                ['tool_outputs' => $tool_outputs]
+            );
+        }
     }
     
     private function execute_function($function_name, $arguments) {
@@ -1076,15 +1317,35 @@ class Azure_AI_API_Handler {
     
     private function get_latest_message($thread_id) {
         $messages = $this->api_request(
-            "/threads/{$thread_id}/messages?order=desc&limit=1",
+            "/threads/{$thread_id}/messages?limit=20",
             'GET'
         );
         
-        if (!empty($messages['data'][0]['content'][0]['text']['value'])) {
-            return $messages['data'][0]['content'][0]['text']['value'];
+        // Assistant의 첫 번째 메시지 찾기
+        $assistant_text = '';
+        $items = $messages['data'] ?? [];
+        
+        foreach ($items as $m) {
+            if (($m['role'] ?? '') === 'assistant') {
+                foreach (($m['content'] ?? []) as $p) {
+                    // output_text 타입 처리
+                    if (($p['type'] ?? '') === 'output_text') {
+                        $assistant_text .= ($p['text'] ?? '');
+                    }
+                    // text 타입 처리
+                    if (($p['type'] ?? '') === 'text' && isset($p['text']['value'])) {
+                        $assistant_text .= $p['text']['value'];
+                    }
+                }
+                
+                // 첫 번째 assistant 메시지를 찾았으면 중단
+                if ($assistant_text !== '') {
+                    break;
+                }
+            }
         }
         
-        return '응답을 받지 못했습니다.';
+        return $assistant_text !== '' ? $assistant_text : '응답을 받지 못했습니다.';
     }
     
     private function api_request($path, $method, $data = null) {
