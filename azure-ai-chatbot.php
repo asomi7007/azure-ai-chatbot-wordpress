@@ -960,18 +960,64 @@ class Azure_AI_API_Handler {
         $response = wp_remote_request($url, $args);
         
         if (is_wp_error($response)) {
-            throw new Exception($response->get_error_message());
+            throw new Exception('네트워크 오류: ' . $response->get_error_message());
         }
         
         $http_code = wp_remote_retrieve_response_code($response);
         $body = wp_remote_retrieve_body($response);
+        $response_data = json_decode($body, true);
         
         if ($http_code >= 400) {
             error_log("Azure AI API Error: HTTP {$http_code} - {$body}");
-            throw new Exception("API Error: HTTP {$http_code}");
+            
+            // 상세한 에러 메시지 구성
+            $error_message = "HTTP {$http_code}";
+            
+            // HTTP 상태 코드별 상세 설명
+            switch ($http_code) {
+                case 401:
+                    $error_message .= " - 인증 실패\n";
+                    $error_message .= "• API Key가 올바른지 확인해주세요\n";
+                    $error_message .= "• Endpoint URL이 정확한지 확인해주세요";
+                    break;
+                case 403:
+                    $error_message .= " - 권한 없음\n";
+                    $error_message .= "• API Key에 해당 에이전트 접근 권한이 있는지 확인해주세요";
+                    break;
+                case 404:
+                    $error_message .= " - 리소스를 찾을 수 없음\n";
+                    $error_message .= "• Endpoint URL이 정확한지 확인해주세요\n";
+                    $error_message .= "• Agent ID가 올바른지 확인해주세요";
+                    break;
+                case 429:
+                    $error_message .= " - 요청 한도 초과\n";
+                    $error_message .= "• 잠시 후 다시 시도해주세요";
+                    break;
+                case 500:
+                case 502:
+                case 503:
+                    $error_message .= " - Azure 서버 오류\n";
+                    $error_message .= "• Azure 서비스 상태를 확인해주세요\n";
+                    $error_message .= "• 잠시 후 다시 시도해주세요";
+                    break;
+                default:
+                    $error_message .= " - API 오류";
+            }
+            
+            // Azure API가 반환한 상세 오류 메시지 추가
+            if (!empty($response_data['error']['message'])) {
+                $error_message .= "\n\n상세 정보: " . $response_data['error']['message'];
+            } elseif (!empty($response_data['message'])) {
+                $error_message .= "\n\n상세 정보: " . $response_data['message'];
+            }
+            
+            // 요청 URL 정보 (디버깅용)
+            $error_message .= "\n\n요청 URL: " . parse_url($url, PHP_URL_SCHEME) . '://' . parse_url($url, PHP_URL_HOST) . $path;
+            
+            throw new Exception($error_message);
         }
         
-        return json_decode($body, true);
+        return $response_data;
     }
 }
 

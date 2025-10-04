@@ -189,14 +189,25 @@
                 },
                 success: function(response) {
                     if (response.success) {
-                        $result.html('<span style="color: #46b450; font-weight: bold;">✓ ' + response.data.message + '</span>');
+                        $result.html('<div style="color: #46b450; font-weight: bold; padding: 10px; background: #f0f9f3; border: 1px solid #46b450; border-radius: 4px;">✓ ' + response.data.message + '</div>');
                     } else {
-                        $result.html('<span style="color: #dc3232; font-weight: bold;">✗ ' + response.data.message + '</span>');
+                        // 에러 메시지를 줄바꿈 처리하여 표시
+                        const errorHtml = response.data.message.replace(/\n/g, '<br>');
+                        $result.html('<div style="color: #dc3232; padding: 15px; background: #fef7f7; border: 1px solid #dc3232; border-radius: 4px; font-family: \'Courier New\', monospace; font-size: 13px; line-height: 1.6; white-space: pre-wrap;"><strong>✗ 연결 실패</strong><br><br>' + errorHtml + '</div>');
                     }
                 },
                 error: function(xhr, status, error) {
-                    console.error('AJAX Error:', status, error);
-                    $result.html('<span style="color: #dc3232; font-weight: bold;">✗ 연결 테스트 중 오류가 발생했습니다.</span>');
+                    console.error('AJAX Error:', status, error, xhr);
+                    let errorMessage = '연결 테스트 중 오류가 발생했습니다.';
+                    
+                    if (xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.message) {
+                        errorMessage = xhr.responseJSON.data.message;
+                    } else if (xhr.responseText) {
+                        errorMessage += '\n\n상세 정보: ' + xhr.responseText;
+                    }
+                    
+                    const errorHtml = errorMessage.replace(/\n/g, '<br>');
+                    $result.html('<div style="color: #dc3232; padding: 15px; background: #fef7f7; border: 1px solid #dc3232; border-radius: 4px; font-family: \'Courier New\', monospace; font-size: 13px; line-height: 1.6; white-space: pre-wrap;"><strong>✗ 오류 발생</strong><br><br>' + errorHtml + '</div>');
                 },
                 complete: function() {
                     $button.prop('disabled', false).html('<span class="dashicons dashicons-arrow-right-alt"></span> 연결 테스트');
