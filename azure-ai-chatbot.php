@@ -1420,7 +1420,11 @@ class Azure_AI_API_Handler {
                 case 404:
                     $error_message .= " - 리소스를 찾을 수 없음\n";
                     $error_message .= "• Endpoint URL이 정확한지 확인해주세요\n";
-                    $error_message .= "• Agent ID가 올바른지 확인해주세요";
+                    if ($this->auth_type === 'entra_id') {
+                        $error_message .= "• Agent ID가 올바른지 확인해주세요";
+                    } else {
+                        $error_message .= "• 배포 이름(Deployment Name)이 올바른지 확인해주세요";
+                    }
                     break;
                 case 429:
                     $error_message .= " - 요청 한도 초과\n";
