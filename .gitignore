@@ -25,3 +25,7 @@ package-lock.json
 
 # Temp
 *.tmp
+temp-*/
+
+# Build
+*.zip
