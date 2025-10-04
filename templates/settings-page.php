@@ -251,8 +251,10 @@ $mode = $options['mode'] ?? 'chat';
                             <span class="dashicons dashicons-arrow-right-alt"></span>
                             연결 테스트
                         </button>
-                        <span id="test-result"></span>
                     </p>
+                    
+                    <!-- 테스트 결과 표시 영역 -->
+                    <div id="test-result" style="margin-top: 15px;"></div>
                 </div>
             </div>
             
@@ -339,35 +341,34 @@ $mode = $options['mode'] ?? 'chat';
                                 </p>
                             </td>
                         </tr>
+                        
+                        <tr>
+                            <th scope="row">
+                                <label>미리보기</label>
+                            </th>
+                            <td>
+                                <div id="widget-preview" style="position: relative; height: 200px; background: #f0f0f0; border-radius: 8px; overflow: hidden;">
+                                    <div class="preview-widget" style="position: absolute; bottom: 20px; right: 20px;">
+                                        <button class="preview-toggle" style="width: 60px; height: 60px; border-radius: 50%; border: none; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                                            <svg width="28" height="28" viewBox="0 0 24 24" fill="white">
+                                                <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <p class="description">
+                                    설정을 변경하면 실시간으로 미리보기가 업데이트됩니다.
+                                </p>
+                            </td>
+                        </tr>
                     </table>
-                </div>
-            </div>
-            
-            <!-- 미리보기 -->
-            <div class="postbox">
-                <h2 class="hndle">
-                    <span class="dashicons dashicons-visibility"></span>
-                    미리보기
-                </h2>
-                <div class="inside">
-                    <div id="widget-preview" style="position: relative; height: 200px; background: #f0f0f0; border-radius: 8px; overflow: hidden;">
-                        <div class="preview-widget" style="position: absolute; bottom: 20px; right: 20px;">
-                            <button class="preview-toggle" style="width: 60px; height: 60px; border-radius: 50%; border: none; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
-                                <svg width="28" height="28" viewBox="0 0 24 24" fill="white">
-                                    <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-                    <p class="description">
-                        설정을 변경하면 실시간으로 미리보기가 업데이트됩니다.
-                    </p>
                 </div>
             </div>
         </div>
         
         <p class="submit">
-            <a href="admin.php?page=azure-ai-chatbot-guide" class="button button-secondary button-large">
+            <?php submit_button('설정 저장', 'primary button-large', 'submit', false); ?>
+            <a href="admin.php?page=azure-ai-chatbot-guide" class="button button-secondary button-large" style="margin-left: 10px;">
                 <span class="dashicons dashicons-book"></span>
                 사용 가이드 보기
             </a>

@@ -560,7 +560,7 @@ class Azure_AI_Chatbot {
         }
         
         // Chat 모드 설정 (API Key)
-        $sanitized['chat_endpoint'] = esc_url_raw($input['chat_endpoint'] ?? '');
+        $sanitized['chat_endpoint'] = rtrim(sanitize_text_field($input['chat_endpoint'] ?? ''), '/');
         $sanitized['deployment_name'] = sanitize_text_field($input['deployment_name'] ?? '');
         
         // API Key 암호화하여 저장
