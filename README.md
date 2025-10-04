@@ -134,7 +134,36 @@ Agent 모드는 Azure AI Foundry의 **Assistants API v1**을 사용하여 다음
 - `2024-12-01-preview` 등 날짜 기반 버전은 Sweden Central 등 일부 리전에서 작동하지 않습니다
 - 본 플러그인은 `v1`을 사용하여 모든 리전에서 호환됩니다
 
-#### Azure Cloud Shell 완전 자동 설정 스크립트
+#### 📋 Azure Cloud Shell에서 대화형 테스트 (권장) ⭐
+
+Azure Cloud Shell ([shell.azure.com](https://shell.azure.com))에서 **한 줄 명령**으로 실행:
+
+```bash
+curl -sL https://raw.githubusercontent.com/asomi7007/azure-ai-chatbot-wordpress/main/test-agent-mode.sh | bash
+```
+
+**자동으로 처리됩니다:**
+1. 📋 Azure 구독 선택 (여러 개인 경우)
+2. 🏢 AI Foundry 리소스 선택
+3. 🔐 **Service Principal 자동 생성/확인**
+   - 기존 SP 있으면 재사용
+   - 없으면 새로 생성
+   - **Client Secret 자동 생성**
+   - **권한 자동 부여** (Cognitive Services User)
+4. 🤖 Agent 자동 선택 또는 생성
+5. 🧪 완전한 연결 테스트 (Thread → Message → Run)
+6. ✅ **WordPress 설정값 5개 모두 출력**:
+   - Agent 엔드포인트
+   - Agent ID
+   - Client ID
+   - Client Secret
+   - Tenant ID
+
+---
+
+#### 📝 수동 설정 스크립트 (선택사항)
+
+더 세밀한 제어가 필요한 경우:
 
 **⚡ 복사 → 붙여넣기 → 실행:**
 
