@@ -28,6 +28,14 @@ if (!empty($options['client_secret_encrypted'])) {
 
 // 현재 모드
 $mode = $options['mode'] ?? 'chat';
+
+// 엔드포인트에서 trailing slash 제거 (기존 저장된 값 정리)
+if (!empty($options['chat_endpoint'])) {
+    $options['chat_endpoint'] = rtrim($options['chat_endpoint'], '/');
+}
+if (!empty($options['agent_endpoint'])) {
+    $options['agent_endpoint'] = rtrim($options['agent_endpoint'], '/');
+}
 ?>
 
 <div class="wrap azure-chatbot-settings">
