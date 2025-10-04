@@ -188,6 +188,10 @@ if [ "$HTTP_CODE_1" == "200" ]; then
     echo "• Chat 엔드포인트: ${ENDPOINT}"
     echo "• 배포 이름: ${DEPLOYMENT_NAME}"
     echo "• API Key: ${API_KEY}"
+    echo ""
+    echo "📌 참고 정보:"
+    echo "• 리소스 이름: ${RESOURCE_NAME}"
+    echo "• 리소스 그룹: ${RESOURCE_GROUP}"
     exit 0
 else
     echo "❌ 실패: HTTP $HTTP_CODE_1"
@@ -229,6 +233,10 @@ if [ "$HTTP_CODE_2" == "200" ]; then
     echo "• Chat 엔드포인트: ${ENDPOINT}"
     echo "• 배포 이름: ${DEPLOYMENT_NAME}"
     echo "• API Key: ${API_KEY}"
+    echo ""
+    echo "📌 참고 정보:"
+    echo "• 리소스 이름: ${RESOURCE_NAME}"
+    echo "• 리소스 그룹: ${RESOURCE_GROUP}"
     echo ""
     echo "⚠️ 주의: 이 경로는 표준이 아닐 수 있습니다."
     exit 0
@@ -277,6 +285,10 @@ for VERSION in "${API_VERSIONS[@]}"; do
         echo "• 배포 이름: ${DEPLOYMENT_NAME}"
         echo "• API Key: ${API_KEY}"
         echo "• 권장 API 버전: ${VERSION}"
+        echo ""
+        echo "📌 참고 정보:"
+        echo "• 리소스 이름: ${RESOURCE_NAME}"
+        echo "• 리소스 그룹: ${RESOURCE_GROUP}"
         exit 0
     else
         echo "  ❌ 실패: HTTP $HTTP_CODE"
