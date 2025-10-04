@@ -82,7 +82,40 @@ $mode = $options['mode'] ?? 'chat';
                         <!-- Chat 모드 필드 -->
                         <tr class="mode-field mode-chat">
                             <th scope="row">
-                                <label for="chat_endpoint">Chat 엔드포인트 *</label>
+                                <label for="chat_provider">AI 제공자 *</label>
+                            </th>
+                            <td>
+                                <select id="chat_provider" 
+                                        name="azure_chatbot_settings[chat_provider]" 
+                                        class="regular-text">
+                                    <option value="azure-openai" <?php selected($options['chat_provider'] ?? 'azure-openai', 'azure-openai'); ?>>
+                                        Azure OpenAI
+                                    </option>
+                                    <option value="openai" <?php selected($options['chat_provider'] ?? '', 'openai'); ?>>
+                                        OpenAI
+                                    </option>
+                                    <option value="gemini" <?php selected($options['chat_provider'] ?? '', 'gemini'); ?>>
+                                        Google Gemini
+                                    </option>
+                                    <option value="claude" <?php selected($options['chat_provider'] ?? '', 'claude'); ?>>
+                                        Anthropic Claude
+                                    </option>
+                                    <option value="grok" <?php selected($options['chat_provider'] ?? '', 'grok'); ?>>
+                                        xAI Grok
+                                    </option>
+                                    <option value="other" <?php selected($options['chat_provider'] ?? '', 'other'); ?>>
+                                        기타 (OpenAI 호환)
+                                    </option>
+                                </select>
+                                <p class="description">
+                                    사용할 AI 제공자를 선택하세요
+                                </p>
+                            </td>
+                        </tr>
+                        
+                        <tr class="mode-field mode-chat">
+                            <th scope="row">
+                                <label for="chat_endpoint">엔드포인트 *</label>
                             </th>
                             <td>
                                 <input type="url" 
@@ -91,16 +124,16 @@ $mode = $options['mode'] ?? 'chat';
                                        value="<?php echo esc_attr($options['chat_endpoint'] ?? ''); ?>" 
                                        class="regular-text"
                                        placeholder="https://your-resource.openai.azure.com" />
-                                <p class="description">
+                                <p class="description" id="endpoint-description">
                                     Azure OpenAI 엔드포인트<br>
                                     예: https://your-resource.openai.azure.com
                                 </p>
                             </td>
                         </tr>
                         
-                        <tr class="mode-field mode-chat">
+                        <tr class="mode-field mode-chat chat-field-deployment">
                             <th scope="row">
-                                <label for="deployment_name">배포 이름 *</label>
+                                <label for="deployment_name">배포/모델 이름 *</label>
                             </th>
                             <td>
                                 <input type="text" 
@@ -109,7 +142,7 @@ $mode = $options['mode'] ?? 'chat';
                                        value="<?php echo esc_attr($options['deployment_name'] ?? ''); ?>" 
                                        class="regular-text"
                                        placeholder="gpt-4o" />
-                                <p class="description">
+                                <p class="description" id="deployment-description">
                                     Azure OpenAI 배포 이름 (예: gpt-4o, gpt-35-turbo)
                                 </p>
                             </td>
@@ -117,7 +150,7 @@ $mode = $options['mode'] ?? 'chat';
                         
                         <tr class="mode-field mode-chat">
                             <th scope="row">
-                                <label for="api_key">API Key *</label>
+                                <label for="api_key"><span id="api-key-label">API Key</span> *</label>
                             </th>
                             <td>
                                 <input type="password" 
@@ -129,8 +162,25 @@ $mode = $options['mode'] ?? 'chat';
                                 <button type="button" id="toggle-api-key" class="button">
                                     <span class="dashicons dashicons-visibility"></span>
                                 </button>
-                                <p class="description">
+                                <p class="description" id="api-key-description">
                                     API Key는 암호화되어 안전하게 저장됩니다. (AES-256 암호화)
+                                </p>
+                            </td>
+                        </tr>
+                        
+                        <tr class="mode-field mode-chat chat-field-region" style="display: none;">
+                            <th scope="row">
+                                <label for="chat_region">리전</label>
+                            </th>
+                            <td>
+                                <input type="text" 
+                                       id="chat_region" 
+                                       name="azure_chatbot_settings[chat_region]" 
+                                       value="<?php echo esc_attr($options['chat_region'] ?? ''); ?>" 
+                                       class="regular-text"
+                                       placeholder="us-west-2" />
+                                <p class="description" id="region-description">
+                                    선택사항: 일부 제공자는 리전 지정이 필요할 수 있습니다
                                 </p>
                             </td>
                         </tr>
@@ -380,6 +430,108 @@ $mode = $options['mode'] ?? 'chat';
 jQuery(document).ready(function($) {
     console.log('Settings page loaded');
     
+    // AI 제공자별 설정 정보
+    const providerConfig = {
+        'azure-openai': {
+            endpointPlaceholder: 'https://your-resource.openai.azure.com',
+            endpointDescription: '<strong>Azure OpenAI 엔드포인트</strong><br>예: https://your-resource.openai.azure.com',
+            deploymentLabel: '배포 이름',
+            deploymentPlaceholder: 'gpt-4o',
+            deploymentDescription: 'Azure OpenAI 배포 이름 (예: gpt-4o, gpt-35-turbo)',
+            apiKeyLabel: 'API Key',
+            apiKeyDescription: 'API Key는 암호화되어 안전하게 저장됩니다. (AES-256 암호화)',
+            showDeployment: true,
+            showRegion: false
+        },
+        'openai': {
+            endpointPlaceholder: 'https://api.openai.com',
+            endpointDescription: '<strong>OpenAI API 엔드포인트</strong><br>기본값: https://api.openai.com (변경 불필요)',
+            deploymentLabel: '모델 이름',
+            deploymentPlaceholder: 'gpt-4-turbo',
+            deploymentDescription: 'OpenAI 모델 이름 (예: gpt-4-turbo, gpt-3.5-turbo, gpt-4o)',
+            apiKeyLabel: 'API Key',
+            apiKeyDescription: 'OpenAI API Key (sk-로 시작)<br>암호화되어 안전하게 저장됩니다.',
+            showDeployment: true,
+            showRegion: false
+        },
+        'gemini': {
+            endpointPlaceholder: 'https://generativelanguage.googleapis.com',
+            endpointDescription: '<strong>Google Gemini API 엔드포인트</strong><br>기본값: https://generativelanguage.googleapis.com',
+            deploymentLabel: '모델 이름',
+            deploymentPlaceholder: 'gemini-2.0-flash-exp',
+            deploymentDescription: 'Gemini 모델 이름 (예: gemini-2.0-flash-exp, gemini-1.5-pro, gemini-1.5-flash)',
+            apiKeyLabel: 'API Key',
+            apiKeyDescription: 'Google AI Studio에서 발급받은 API Key<br>암호화되어 안전하게 저장됩니다.',
+            showDeployment: true,
+            showRegion: false
+        },
+        'claude': {
+            endpointPlaceholder: 'https://api.anthropic.com',
+            endpointDescription: '<strong>Anthropic Claude API 엔드포인트</strong><br>기본값: https://api.anthropic.com',
+            deploymentLabel: '모델 이름',
+            deploymentPlaceholder: 'claude-3-5-sonnet-20241022',
+            deploymentDescription: 'Claude 모델 이름 (예: claude-3-5-sonnet-20241022, claude-3-opus-20240229)',
+            apiKeyLabel: 'API Key',
+            apiKeyDescription: 'Anthropic API Key (sk-ant-로 시작)<br>암호화되어 안전하게 저장됩니다.',
+            showDeployment: true,
+            showRegion: false
+        },
+        'grok': {
+            endpointPlaceholder: 'https://api.x.ai',
+            endpointDescription: '<strong>xAI Grok API 엔드포인트</strong><br>기본값: https://api.x.ai',
+            deploymentLabel: '모델 이름',
+            deploymentPlaceholder: 'grok-beta',
+            deploymentDescription: 'Grok 모델 이름 (예: grok-beta)',
+            apiKeyLabel: 'API Key',
+            apiKeyDescription: 'xAI API Key<br>암호화되어 안전하게 저장됩니다.',
+            showDeployment: true,
+            showRegion: false
+        },
+        'other': {
+            endpointPlaceholder: 'https://your-api-endpoint.com',
+            endpointDescription: '<strong>API 엔드포인트</strong><br>OpenAI 호환 API 엔드포인트를 입력하세요',
+            deploymentLabel: '모델 이름',
+            deploymentPlaceholder: 'model-name',
+            deploymentDescription: '사용할 모델 이름을 입력하세요',
+            apiKeyLabel: 'API Key',
+            apiKeyDescription: 'API Key는 암호화되어 안전하게 저장됩니다. (AES-256 암호화)',
+            showDeployment: true,
+            showRegion: false
+        }
+    };
+    
+    // 제공자에 따라 필드 업데이트
+    function updateProviderFields() {
+        const provider = $('#chat_provider').val();
+        const config = providerConfig[provider] || providerConfig['azure-openai'];
+        
+        // 엔드포인트 필드 업데이트
+        $('#chat_endpoint').attr('placeholder', config.endpointPlaceholder);
+        $('#endpoint-description').html(config.endpointDescription);
+        
+        // 배포/모델 이름 필드 업데이트
+        $('label[for="deployment_name"]').text(config.deploymentLabel + ' *');
+        $('#deployment_name').attr('placeholder', config.deploymentPlaceholder);
+        $('#deployment-description').html(config.deploymentDescription);
+        
+        // API Key 필드 업데이트
+        $('#api-key-label').text(config.apiKeyLabel);
+        $('#api-key-description').html(config.apiKeyDescription);
+        
+        // 필드 표시/숨김
+        if (config.showDeployment) {
+            $('.chat-field-deployment').show();
+        } else {
+            $('.chat-field-deployment').hide();
+        }
+        
+        if (config.showRegion) {
+            $('.chat-field-region').show();
+        } else {
+            $('.chat-field-region').hide();
+        }
+    }
+    
     // 모드에 따라 필드 표시/숨김
     function toggleAuthFields() {
         const mode = $('input[name="azure_chatbot_settings[mode]"]:checked').val();
@@ -392,6 +544,9 @@ jQuery(document).ready(function($) {
             // Chat 필드는 필수, Agent 필드는 선택
             $('#chat_endpoint, #deployment_name, #api_key').prop('required', true);
             $('#agent_endpoint, #agent_id, #client_id, #client_secret, #tenant_id').prop('required', false);
+            
+            // 제공자별 필드 업데이트
+            updateProviderFields();
         } else {
             // Agent 모드: Entra ID 인증
             $('.mode-chat').hide();
@@ -409,6 +564,11 @@ jQuery(document).ready(function($) {
     // 모드 변경 시
     $('.mode-radio').on('change', function() {
         toggleAuthFields();
+    });
+    
+    // 제공자 변경 시
+    $('#chat_provider').on('change', function() {
+        updateProviderFields();
     });
     
     // Client Secret 토글 버튼
