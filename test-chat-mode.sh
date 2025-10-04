@@ -139,8 +139,9 @@ API_KEY=$(az cognitiveservices account keys list \
 
 echo "✅ 리소스: $RESOURCE_NAME"
 echo "✅ 그룹: $RESOURCE_GROUP"
+echo "✅ 배포: $DEPLOYMENT_NAME"
 echo "✅ 엔드포인트: $ENDPOINT"
-echo "✅ API Key: ${API_KEY:0:8}...${API_KEY: -4}"
+echo "✅ API Key: $API_KEY"
 echo ""
 
 # 엔드포인트 정리 (끝의 / 제거)
@@ -183,9 +184,10 @@ if [ "$HTTP_CODE_1" == "200" ]; then
     echo "========================================="
     echo ""
     echo "WordPress 플러그인 설정:"
+    echo "• 작동 모드: Chat 모드 (OpenAI 호환)"
     echo "• Chat 엔드포인트: ${ENDPOINT}"
     echo "• 배포 이름: ${DEPLOYMENT_NAME}"
-    echo "• API Key: (입력한 값 사용)"
+    echo "• API Key: ${API_KEY}"
     exit 0
 else
     echo "❌ 실패: HTTP $HTTP_CODE_1"
@@ -223,9 +225,10 @@ if [ "$HTTP_CODE_2" == "200" ]; then
     echo "========================================="
     echo ""
     echo "WordPress 플러그인 설정:"
+    echo "• 작동 모드: Chat 모드 (OpenAI 호환)"
     echo "• Chat 엔드포인트: ${ENDPOINT}"
     echo "• 배포 이름: ${DEPLOYMENT_NAME}"
-    echo "• API Key: (입력한 값 사용)"
+    echo "• API Key: ${API_KEY}"
     echo ""
     echo "⚠️ 주의: 이 경로는 표준이 아닐 수 있습니다."
     exit 0
@@ -269,9 +272,10 @@ for VERSION in "${API_VERSIONS[@]}"; do
         echo "========================================="
         echo ""
         echo "WordPress 플러그인 설정:"
+        echo "• 작동 모드: Chat 모드 (OpenAI 호환)"
         echo "• Chat 엔드포인트: ${ENDPOINT}"
         echo "• 배포 이름: ${DEPLOYMENT_NAME}"
-        echo "• API Key: (입력한 값 사용)"
+        echo "• API Key: ${API_KEY}"
         echo "• 권장 API 버전: ${VERSION}"
         exit 0
     else
