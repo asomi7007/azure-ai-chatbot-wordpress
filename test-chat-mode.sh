@@ -11,26 +11,118 @@ echo "Azure AI Chatbot - Chat 모드 연결 테스트"
 echo "========================================="
 echo ""
 
-# Azure 리소스 정보
-RESOURCE_NAME="your-resource-name"  # ← 여기만 수정하세요!
-RESOURCE_GROUP=""  # 자동 검색
-DEPLOYMENT_NAME="gpt-4o"
-
-echo "🔍 Azure OpenAI 리소스 검색 중..."
+# 1단계: 구독 선택
+echo "📋 1단계: Azure 구독 선택"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-# 리소스 그룹 자동 검색
-RESOURCE_GROUP=$(az cognitiveservices account list --query "[?name=='$RESOURCE_NAME'].resourceGroup | [0]" -o tsv)
-
-if [ -z "$RESOURCE_GROUP" ]; then
-    echo "❌ 리소스를 찾을 수 없습니다: $RESOURCE_NAME"
+# 현재 구독 표시
+CURRENT_SUB=$(az account show --query "{Name:name, ID:id}" -o tsv 2>/dev/null)
+if [ -n "$CURRENT_SUB" ]; then
+    echo "현재 구독: $CURRENT_SUB"
     echo ""
-    echo "사용 가능한 Azure OpenAI 리소스:"
-    az cognitiveservices account list --query "[?kind=='OpenAI'].{Name:name, ResourceGroup:resourceGroup, Location:location}" -o table
+    read -p "다른 구독을 선택하시겠습니까? (y/N): " CHANGE_SUB
+    
+    if [[ "$CHANGE_SUB" =~ ^[Yy]$ ]]; then
+        echo ""
+        echo "사용 가능한 구독 목록:"
+        az account list --query "[].{번호:name, ID:id}" -o table
+        echo ""
+        read -p "구독 이름 또는 ID 입력: " SUB_INPUT
+        az account set --subscription "$SUB_INPUT"
+        echo "✅ 구독 변경 완료"
+    fi
+else
+    echo "사용 가능한 구독 목록:"
+    az account list --query "[].{번호:name, ID:id}" -o table
+    echo ""
+    read -p "구독 이름 또는 ID 입력: " SUB_INPUT
+    az account set --subscription "$SUB_INPUT"
+    echo "✅ 구독 선택 완료"
+fi
+
+echo ""
+echo "� 2단계: Azure OpenAI 리소스 선택"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+# OpenAI 리소스 목록 조회
+echo "🔍 Azure OpenAI 리소스 검색 중..."
+OPENAI_RESOURCES=$(az cognitiveservices account list --query "[?kind=='OpenAI' || kind=='AIServices']" -o json)
+
+if [ "$OPENAI_RESOURCES" == "[]" ] || [ -z "$OPENAI_RESOURCES" ]; then
+    echo "❌ 현재 구독에 Azure OpenAI 리소스가 없습니다."
+    echo ""
+    echo "다른 구독을 확인하거나 Azure Portal에서 리소스를 생성해주세요."
+    echo "https://portal.azure.com"
     exit 1
 fi
 
-echo "✅ 리소스 발견: $RESOURCE_NAME (그룹: $RESOURCE_GROUP)"
+# 리소스 목록 표시
+echo ""
+echo "발견된 Azure OpenAI/AI Services 리소스:"
+echo ""
+echo "$OPENAI_RESOURCES" | jq -r '.[] | "\(.name) [\(.resourceGroup)] - \(.location)"' | nl
+echo ""
+
+# 리소스 개수 확인
+RESOURCE_COUNT=$(echo "$OPENAI_RESOURCES" | jq '. | length')
+
+if [ "$RESOURCE_COUNT" -eq 1 ]; then
+    # 리소스가 1개면 자동 선택
+    RESOURCE_NAME=$(echo "$OPENAI_RESOURCES" | jq -r '.[0].name')
+    RESOURCE_GROUP=$(echo "$OPENAI_RESOURCES" | jq -r '.[0].resourceGroup')
+    echo "✅ 자동 선택: $RESOURCE_NAME"
+else
+    # 여러 개면 선택
+    read -p "리소스 번호 선택 (1-$RESOURCE_COUNT): " RESOURCE_NUM
+    RESOURCE_INDEX=$((RESOURCE_NUM - 1))
+    RESOURCE_NAME=$(echo "$OPENAI_RESOURCES" | jq -r ".[$RESOURCE_INDEX].name")
+    RESOURCE_GROUP=$(echo "$OPENAI_RESOURCES" | jq -r ".[$RESOURCE_INDEX].resourceGroup")
+    echo "✅ 선택: $RESOURCE_NAME"
+fi
+
+echo ""
+echo "📊 3단계: 배포된 모델 확인"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+# 배포 목록 조회
+echo "🔍 배포된 모델 검색 중..."
+DEPLOYMENTS=$(az cognitiveservices account deployment list \
+    --name "$RESOURCE_NAME" \
+    --resource-group "$RESOURCE_GROUP" \
+    -o json 2>/dev/null)
+
+if [ -z "$DEPLOYMENTS" ] || [ "$DEPLOYMENTS" == "[]" ]; then
+    echo "❌ 배포된 모델이 없습니다."
+    echo ""
+    echo "Azure Portal에서 모델을 배포해주세요:"
+    echo "https://portal.azure.com → $RESOURCE_NAME → 모델 배포"
+    exit 1
+fi
+
+echo ""
+echo "배포된 모델 목록:"
+echo ""
+echo "$DEPLOYMENTS" | jq -r '.[] | "\(.name) (\(.properties.model.name) \(.properties.model.version))"' | nl
+echo ""
+
+DEPLOYMENT_COUNT=$(echo "$DEPLOYMENTS" | jq '. | length')
+
+if [ "$DEPLOYMENT_COUNT" -eq 1 ]; then
+    DEPLOYMENT_NAME=$(echo "$DEPLOYMENTS" | jq -r '.[0].name')
+    echo "✅ 자동 선택: $DEPLOYMENT_NAME"
+else
+    read -p "배포 번호 선택 (1-$DEPLOYMENT_COUNT): " DEPLOY_NUM
+    DEPLOY_INDEX=$((DEPLOY_NUM - 1))
+    DEPLOYMENT_NAME=$(echo "$DEPLOYMENTS" | jq -r ".[$DEPLOY_INDEX].name")
+    echo "✅ 선택: $DEPLOYMENT_NAME"
+fi
+
+echo ""
+echo "🔐 4단계: 인증 정보 가져오기"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
 # 엔드포인트 가져오기
@@ -45,8 +137,10 @@ API_KEY=$(az cognitiveservices account keys list \
     --resource-group "$RESOURCE_GROUP" \
     --query "key1" -o tsv)
 
-echo "📍 엔드포인트: $ENDPOINT"
-echo "🔑 API Key: ${API_KEY:0:8}...${API_KEY: -4}"
+echo "✅ 리소스: $RESOURCE_NAME"
+echo "✅ 그룹: $RESOURCE_GROUP"
+echo "✅ 엔드포인트: $ENDPOINT"
+echo "✅ API Key: ${API_KEY:0:8}...${API_KEY: -4}"
 echo ""
 
 # 엔드포인트 정리 (끝의 / 제거)
@@ -55,8 +149,9 @@ ENDPOINT="${ENDPOINT%/}"
 # API 버전 설정
 API_VERSION="2024-08-01-preview"
 
-# 테스트할 URL들
-echo "📍 테스트 시작..."
+echo ""
+echo "🧪 5단계: 연결 테스트"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
 # 방법 1: Azure OpenAI 표준 경로

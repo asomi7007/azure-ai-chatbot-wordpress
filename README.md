@@ -55,67 +55,56 @@ Azure AI Foundry의 강력한 AI 에이전트를 WordPress 웹사이트에 쉽�
 
 Chat 모드는 API Key만으로 즉시 사용 가능합니다!
 
-#### 📋 Azure Cloud Shell에서 자동 테스트 (Ctrl+V로 붙여넣기)
+#### 📋 Azure Cloud Shell에서 대화형 테스트 (권장) ⭐
 
-Azure Cloud Shell ([shell.azure.com](https://shell.azure.com))에서 아래 전체를 **Ctrl+V**로 붙여넣기하면 자동으로 테스트됩니다:
+Azure Cloud Shell ([shell.azure.com](https://shell.azure.com))에서 **한 줄 명령**으로 실행:
 
 ```bash
-cat > test_chat_mode.sh << 'SCRIPT_EOF'
-#!/bin/bash
-echo "========================================="
-echo "Azure AI Chatbot - Chat 모드 연결 테스트"
-echo "========================================="
-echo ""
-RESOURCE_NAME="your-resource-name"  # ← 여기만 수정하세요!
-DEPLOYMENT_NAME="gpt-4o"
-echo "🔍 Azure OpenAI 리소스 검색 중..."
-RESOURCE_GROUP=$(az cognitiveservices account list --query "[?name=='$RESOURCE_NAME'].resourceGroup | [0]" -o tsv)
-if [ -z "$RESOURCE_GROUP" ]; then
-    echo "❌ 리소스를 찾을 수 없습니다: $RESOURCE_NAME"
-    echo "사용 가능한 Azure OpenAI 리소스:"
-    az cognitiveservices account list --query "[?kind=='OpenAI'].{Name:name, ResourceGroup:resourceGroup}" -o table
-    exit 1
-fi
-ENDPOINT=$(az cognitiveservices account show --name "$RESOURCE_NAME" --resource-group "$RESOURCE_GROUP" --query "properties.endpoint" -o tsv)
-API_KEY=$(az cognitiveservices account keys list --name "$RESOURCE_NAME" --resource-group "$RESOURCE_GROUP" --query "key1" -o tsv)
-echo "✅ 리소스: $RESOURCE_NAME"
-echo "📍 엔드포인트: $ENDPOINT"
-echo "🔑 API Key: ${API_KEY:0:8}...${API_KEY: -4}"
-echo ""
-ENDPOINT="${ENDPOINT%/}"
-TEST_URL="${ENDPOINT}/openai/deployments/${DEPLOYMENT_NAME}/chat/completions?api-version=2024-08-01-preview"
-echo "🧪 Chat API 테스트 중..."
-RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST "${TEST_URL}" \
-  -H "Content-Type: application/json" \
-  -H "api-key: ${API_KEY}" \
-  -d '{"messages":[{"role":"user","content":"Hello"}],"max_tokens":10}')
-HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d':' -f2)
-if [ "$HTTP_CODE" == "200" ]; then
-    echo "✅ 성공! HTTP $HTTP_CODE"
-    echo "응답: $(echo "$RESPONSE" | sed '/HTTP_CODE:/d' | jq -r '.choices[0].message.content' 2>/dev/null)"
-    echo ""
-    echo "========================================="
-    echo "✅ WordPress 플러그인 설정값"
-    echo "========================================="
-    echo "작동 모드: Chat 모드 (OpenAI 호환)"
-    echo "Chat 엔드포인트: ${ENDPOINT}"
-    echo "배포 이름: ${DEPLOYMENT_NAME}"
-    echo "API Key: ${API_KEY}"
-else
-    echo "❌ 실패: HTTP $HTTP_CODE"
-    echo "$(echo "$RESPONSE" | sed '/HTTP_CODE:/d' | jq '.' 2>/dev/null)"
-fi
-SCRIPT_EOF
-chmod +x test_chat_mode.sh
-./test_chat_mode.sh
+curl -sL https://raw.githubusercontent.com/asomi7007/azure-ai-chatbot-wordpress/main/test-chat-mode.sh | bash
 ```
 
-> **💡 사용 방법:**
-> 1. 위 코드 전체를 복사 (Ctrl+C)
-> 2. Azure Cloud Shell 열기 ([shell.azure.com](https://shell.azure.com))
-> 3. 붙여넣기 (Ctrl+V) → Enter
-> 4. `RESOURCE_NAME="your-resource-name"` 부분만 실제 리소스명으로 수정
-> 5. Enter 키를 한 번 더 누르면 자동 실행!
+**대화형으로 진행됩니다:**
+1. 📋 Azure 구독 선택 (여러 개인 경우)
+2. 📦 Azure OpenAI 리소스 선택
+3. 📊 배포된 모델 선택
+4. 🔐 자동으로 엔드포인트/API Key 가져오기
+5. 🧪 연결 테스트 실행
+6. ✅ WordPress 설정값 출력
+
+---
+
+#### 📝 수동으로 설정값 확인 (선택사항)
+
+Azure Cloud Shell에서 직접 명령어 실행:
+
+```bash
+# 구독 목록 보기
+az account list --query "[].{Name:name, ID:id}" -o table
+
+# 특정 구독 선택
+az account set --subscription "your-subscription-name"
+
+# OpenAI 리소스 목록 보기
+az cognitiveservices account list --query "[?kind=='OpenAI'].{Name:name, RG:resourceGroup, Location:location}" -o table
+
+# 엔드포인트 확인
+az cognitiveservices account show \
+  --name "your-resource-name" \
+  --resource-group "your-rg" \
+  --query "properties.endpoint" -o tsv
+
+# API Key 확인
+az cognitiveservices account keys list \
+  --name "your-resource-name" \
+  --resource-group "your-rg" \
+  --query "key1" -o tsv
+
+# 배포된 모델 확인
+az cognitiveservices account deployment list \
+  --name "your-resource-name" \
+  --resource-group "your-rg" \
+  --query "[].{Name:name, Model:properties.model.name}" -o table
+```
 
 #### WordPress 플러그인 설정
 
