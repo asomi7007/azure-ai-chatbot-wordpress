@@ -3,7 +3,7 @@
  * Plugin Name: Azure AI Chatbot
  * Plugin URI: https://github.com/asomi7007/azure-ai-chatbot-wordpress
  * Description: Azure AI Foundry 에이전트를 WordPress에 통합하는 채팅 위젯
- * Version: 2.2.3
+ * Version: 2.2.4
  * Author: 엘던솔루션 (Elden Solution)
  * Author URI: https://www.eldensolution.kr
  * License: GPL-2.0+
@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
 }
 
 // 플러그인 상수 정의
-define('AZURE_CHATBOT_VERSION', '2.2.3');
+define('AZURE_CHATBOT_VERSION', '2.2.4');
 define('AZURE_CHATBOT_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('AZURE_CHATBOT_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('AZURE_CHATBOT_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -560,6 +560,7 @@ class Azure_AI_Chatbot {
         }
         
         // Chat 모드 설정 (API Key)
+        $sanitized['chat_provider'] = sanitize_text_field($input['chat_provider'] ?? 'azure-openai');
         $sanitized['chat_endpoint'] = rtrim(sanitize_text_field($input['chat_endpoint'] ?? ''), '/');
         $sanitized['deployment_name'] = sanitize_text_field($input['deployment_name'] ?? '');
         
@@ -1030,7 +1031,7 @@ class Azure_AI_API_Handler {
     
     private $endpoint;
     private $agent_id;
-    private $api_version = 'v1';  // Azure AI Foundry Assistants API - v1이 Sweden Central에서 작동
+    private $api_version;
     
     // 인증 관련
     private $auth_type; // 'api_key' or 'entra_id'
@@ -1049,6 +1050,15 @@ class Azure_AI_API_Handler {
         $this->client_id = $client_id;
         $this->client_secret = $client_secret;
         $this->tenant_id = $tenant_id;
+        
+        // API 버전 설정
+        if ($auth_type === 'entra_id') {
+            // Agent 모드 (Entra ID): v1
+            $this->api_version = 'v1';
+        } else {
+            // Chat 모드 (API Key): 날짜 형식
+            $this->api_version = '2024-08-01-preview';
+        }
         
         // Entra ID 인증이면 토큰 캐시 확인
         if ($this->auth_type === 'entra_id') {
@@ -1182,31 +1192,132 @@ class Azure_AI_API_Handler {
     
     /**
      * Chat Completions API를 사용한 메시지 전송 (Chat 모드용)
-     * OpenAI-compatible Chat Completions API 사용
+     * 제공자별로 다른 API 형식 사용
      */
     public function send_chat_message($message) {
-        // Chat Completions API 엔드포인트: /openai/deployments/{deployment}/chat/completions
-        $path = "/openai/deployments/{$this->agent_id}/chat/completions?api-version=2024-08-01-preview";
+        $options = get_option('azure_chatbot_settings', []);
+        $provider = $options['chat_provider'] ?? 'azure-openai';
         
-        $data = [
-            'messages' => [
-                ['role' => 'system', 'content' => 'You are a helpful assistant.'],
-                ['role' => 'user', 'content' => $message]
-            ],
-            'temperature' => 0.7,
-            'max_tokens' => 800
-        ];
+        // 제공자별 API 경로 및 데이터 구성
+        switch ($provider) {
+            case 'azure-openai':
+                // Azure OpenAI: /openai/deployments/{deployment}/chat/completions
+                $path = "/openai/deployments/{$this->agent_id}/chat/completions";
+                $data = [
+                    'messages' => [
+                        ['role' => 'system', 'content' => 'You are a helpful assistant.'],
+                        ['role' => 'user', 'content' => $message]
+                    ],
+                    'temperature' => 0.7,
+                    'max_tokens' => 800
+                ];
+                break;
+                
+            case 'openai':
+                // OpenAI: /v1/chat/completions
+                $path = "/v1/chat/completions";
+                $data = [
+                    'model' => $this->agent_id, // OpenAI는 model 파라미터 사용
+                    'messages' => [
+                        ['role' => 'system', 'content' => 'You are a helpful assistant.'],
+                        ['role' => 'user', 'content' => $message]
+                    ],
+                    'temperature' => 0.7,
+                    'max_tokens' => 800
+                ];
+                break;
+                
+            case 'gemini':
+                // Google Gemini: /v1beta/models/{model}:generateContent
+                $path = "/v1beta/models/{$this->agent_id}:generateContent";
+                $data = [
+                    'contents' => [
+                        [
+                            'parts' => [
+                                ['text' => $message]
+                            ]
+                        ]
+                    ]
+                ];
+                break;
+                
+            case 'claude':
+                // Anthropic Claude: /v1/messages
+                $path = "/v1/messages";
+                $data = [
+                    'model' => $this->agent_id,
+                    'messages' => [
+                        ['role' => 'user', 'content' => $message]
+                    ],
+                    'max_tokens' => 800
+                ];
+                break;
+                
+            case 'grok':
+                // xAI Grok: /v1/chat/completions (OpenAI 호환)
+                $path = "/v1/chat/completions";
+                $data = [
+                    'model' => $this->agent_id,
+                    'messages' => [
+                        ['role' => 'system', 'content' => 'You are a helpful assistant.'],
+                        ['role' => 'user', 'content' => $message]
+                    ],
+                    'temperature' => 0.7,
+                    'max_tokens' => 800
+                ];
+                break;
+                
+            case 'other':
+            default:
+                // Other (OpenAI 호환): /v1/chat/completions
+                $path = "/v1/chat/completions";
+                $data = [
+                    'model' => $this->agent_id,
+                    'messages' => [
+                        ['role' => 'system', 'content' => 'You are a helpful assistant.'],
+                        ['role' => 'user', 'content' => $message]
+                    ],
+                    'temperature' => 0.7,
+                    'max_tokens' => 800
+                ];
+                break;
+        }
         
         $response = $this->api_request($path, 'POST', $data);
         
-        // Chat Completions 응답 구조: choices[0].message.content
-        if (!empty($response['choices'][0]['message']['content'])) {
-            return [
-                'message' => $response['choices'][0]['message']['content']
-            ];
+        // 제공자별 응답 파싱
+        $content = $this->parse_chat_response($response, $provider);
+        
+        if (!empty($content)) {
+            return ['message' => $content];
         }
         
         throw new Exception('Chat API 응답에서 메시지를 찾을 수 없습니다.');
+    }
+    
+    /**
+     * 제공자별 Chat API 응답 파싱
+     */
+    private function parse_chat_response($response, $provider) {
+        switch ($provider) {
+            case 'azure-openai':
+            case 'openai':
+            case 'grok':
+            case 'other':
+                // OpenAI 호환 형식: choices[0].message.content
+                return $response['choices'][0]['message']['content'] ?? null;
+                
+            case 'gemini':
+                // Gemini 형식: candidates[0].content.parts[0].text
+                return $response['candidates'][0]['content']['parts'][0]['text'] ?? null;
+                
+            case 'claude':
+                // Claude 형식: content[0].text
+                return $response['content'][0]['text'] ?? null;
+                
+            default:
+                return null;
+        }
     }
     
     private function create_thread() {
@@ -1351,24 +1462,58 @@ class Azure_AI_API_Handler {
     private function api_request($path, $method, $data = null) {
         $url = $this->endpoint . $path;
         
-        if ($method === 'GET' && strpos($path, '?') === false) {
-            $url .= '?api-version=' . $this->api_version;
-        } elseif ($method === 'GET') {
-            $url .= '&api-version=' . $this->api_version;
-        } else {
-            $url .= '?api-version=' . $this->api_version;
+        // 제공자 정보 가져오기
+        $options = get_option('azure_chatbot_settings', []);
+        $provider = $options['chat_provider'] ?? 'azure-openai';
+        $mode = $options['mode'] ?? 'chat';
+        
+        // Azure OpenAI와 Agent 모드에서만 api-version 추가
+        if ($provider === 'azure-openai' || $mode === 'agent') {
+            if ($method === 'GET' && strpos($path, '?') === false) {
+                $url .= '?api-version=' . $this->api_version;
+            } elseif ($method === 'GET') {
+                $url .= '&api-version=' . $this->api_version;
+            } elseif (strpos($path, '?') === false) {
+                $url .= '?api-version=' . $this->api_version;
+            } else {
+                $url .= '&api-version=' . $this->api_version;
+            }
         }
         
-        // 인증 헤더 설정
+        // 제공자별 인증 헤더 설정
         $headers = ['Content-Type' => 'application/json'];
         
         if ($this->auth_type === 'entra_id') {
-            // Entra ID: Bearer 토큰 사용
+            // Entra ID: Bearer 토큰 사용 (Agent 모드)
             $access_token = $this->get_access_token();
             $headers['Authorization'] = 'Bearer ' . $access_token;
         } else {
-            // API Key: api-key 헤더 사용
-            $headers['api-key'] = $this->api_key;
+            // API Key 인증 (Chat 모드)
+            switch ($provider) {
+                case 'azure-openai':
+                    // Azure OpenAI: api-key 헤더
+                    $headers['api-key'] = $this->api_key;
+                    break;
+                    
+                case 'openai':
+                case 'grok':
+                case 'other':
+                    // OpenAI/Grok/Other: Authorization Bearer 헤더
+                    $headers['Authorization'] = 'Bearer ' . $this->api_key;
+                    break;
+                    
+                case 'gemini':
+                    // Google Gemini: 쿼리 파라미터로 key 전달
+                    $separator = strpos($url, '?') !== false ? '&' : '?';
+                    $url .= $separator . 'key=' . $this->api_key;
+                    break;
+                    
+                case 'claude':
+                    // Anthropic Claude: x-api-key 헤더
+                    $headers['x-api-key'] = $this->api_key;
+                    $headers['anthropic-version'] = '2023-06-01';
+                    break;
+            }
         }
         
         $args = [
