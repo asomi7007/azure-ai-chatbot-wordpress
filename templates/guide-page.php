@@ -188,6 +188,7 @@ if (!file_exists($guide_file)) {
     font-size: 85%;
     border-radius: 3px;
     font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    color: #24292f;
 }
 
 .markdown-content pre {
@@ -203,6 +204,7 @@ if (!file_exists($guide_file)) {
 .markdown-content pre code {
     background-color: transparent;
     padding: 0;
+    color: #24292f;
     margin: 0;
     font-size: 100%;
     border-radius: 0;
