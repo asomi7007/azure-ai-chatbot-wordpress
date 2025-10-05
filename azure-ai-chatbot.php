@@ -3,7 +3,7 @@
  * Plugin Name: Azure AI Chatbot
  * Plugin URI: https://www.eldensolution.kr
  * Description: Azure AI Foundry 에이전트를 WordPress에 통합하는 채팅 위젯
- * Version: 2.1.0
+ * Version: 2.2.0
  * Author: 엘던솔루션 (Elden Solution)
  * Author URI: https://www.eldensolution.kr
  * License: GPL-2.0+
@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
 }
 
 // 플러그인 상수 정의
-define('AZURE_CHATBOT_VERSION', '2.1.0');
+define('AZURE_CHATBOT_VERSION', '2.2.0');
 define('AZURE_CHATBOT_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('AZURE_CHATBOT_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('AZURE_CHATBOT_PLUGIN_BASENAME', plugin_basename(__FILE__));
