@@ -3,7 +3,7 @@ Contributors: eldensolution
 Tags: azure, ai, chatbot, chat, ai-assistant
 Requires at least: 6.0
 Tested up to: 6.8
-Stable tag: 2.2.1
+Stable tag: 2.2.2
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -85,27 +85,55 @@ Azure AI Chatbot은 Azure AI Foundry의 강력한 AI 에이전트를 WordPress �
 
 == Changelog ==
 
+= 2.2.2 - 2025-10-05 =
+* 변경: Plugin URI를 GitHub 저장소 링크로 업데이트
+* 개선: README에 최신 릴리즈 링크 및 버전 배지 추가
+* 개선: readme.txt에 전체 변경 이력 및 GitHub 링크 추가
+
+= 2.2.1 - 2025-10-05 =
+* 수정: 엔드포인트 입력 시 trailing slash 자동 제거 (blur 이벤트)
+* 개선: 실시간 입력 검증으로 404 에러 사전 방지
+
+= 2.2.0 - 2025-10-05 =
+* 추가: 다중 AI 제공자 지원 (Azure OpenAI, OpenAI, Google Gemini, Anthropic Claude, xAI Grok, 기타)
+* 추가: 동적 UI - 제공자 선택 시 엔드포인트/모델명/API Key 설명 자동 변경
+* 추가: Agent 모드 테스트 스크립트 (Service Principal 자동 생성 포함)
+* 추가: 모드별 오류 메시지 (Chat/Agent 구분)
+* 수정: Trailing slash 3중 제거 (로드/저장/생성자)
+* 개선: 설정 UI (테스트 결과 위치, 미리보기 통합, 저장 버튼)
+
+= 2.1.0 - 2025-10-05 =
+* 추가: 듀얼 모드 지원 (Chat 모드 + Agent 모드)
+* 추가: Azure AI Foundry Assistants API v1 통합
+* 추가: Entra ID OAuth 2.0 Client Credentials 인증
+* 추가: Thread 관리 및 적응형 폴링
+* 추가: 연결 테스트 및 자동 설정 스크립트
+* 보안: AES-256 Client Secret 암호화
+
 = 2.0.0 - 2025-10-04 =
 * 추가: 관리자 페이지에서 모든 설정 가능
 * 추가: AES-256 API Key 암호화
 * 추가: 색상 및 위젯 위치 커스터마이징
 * 추가: Azure AI 연결 테스트 기능
-* 추가: 편집 가능한 마크다운 가이드
-* 추가: 실시간 위젯 미리보기
-* 수정: JavaScript 기능 개선
-* 수정: 가이드 페이지 스크롤 및 네비게이션
-* 보안: OpenSSL 기반 암호화 강화
 
 = 1.0.0 - 2025-10-03 =
 * 초기 릴리즈
 
 == Upgrade Notice ==
 
-= 2.0.0 =
-주요 업데이트: 완전한 관리자 UI 및 보안 개선. 기존 설정은 유지됩니다.
+= 2.2.1 =
+Hotfix: 엔드포인트 입력 시 trailing slash 자동 제거로 404 에러 방지
+
+= 2.2.0 =
+주요 업데이트: 6개 AI 제공자 지원, Agent 모드 테스트 스크립트 추가
+
+= 2.1.0 =
+주요 업데이트: Chat/Agent 듀얼 모드 지원, Entra ID 인증 추가
 
 == Additional Info ==
 
-자세한 정보는 [GitHub 저장소](https://github.com/asomi7007/azure-ai-chatbot-wordpress)를 참고하세요.
+* GitHub: https://github.com/asomi7007/azure-ai-chatbot-wordpress
+* 최신 릴리즈: https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/latest
+* 문제 보고: https://github.com/asomi7007/azure-ai-chatbot-wordpress/issues
 
 문제 신고: [GitHub Issues](https://github.com/asomi7007/azure-ai-chatbot-wordpress/issues)
