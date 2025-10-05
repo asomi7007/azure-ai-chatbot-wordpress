@@ -7,18 +7,18 @@ Azure AI Foundry Project API를 사용하려면 **Entra ID (구 Azure AD) 인증
 
 ---
 
-## 🔑 Service Principal 정보
+## 🔑 Service Principal 정보 예시
 
-이미 생성된 Service Principal 정보입니다:
+생성된 Service Principal 정보는 다음과 같은 형식입니다:
 
-| 항목 | 값 |
-|------|-----|
-| **App ID (Client ID)** | `712140a9-b518-4380-bfac-7a717ceffbd4` |
-| **Client Secret** | ⚠️ 보안상 별도 전달 (GitHub에 기록 불가) |
-| **Tenant ID** | `f04fa9b8-2e34-4569-8ea3-3959d1de33db` |
-| **Display Name** | `azure-ai-chatbot-wordpress` |
-| **권한** | Cognitive Services User |
-| **범위** | `/subscriptions/3d56f885-63f4-4e57-86bb-fe73c761b46e/resourceGroups/rg-eduelden04-2296/providers/Microsoft.CognitiveServices/accounts/eduelden04-2296-resource` |
+| 항목 | 예시 값 | 설명 |
+|------|---------|------|
+| **App ID (Client ID)** | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` | 애플리케이션 고유 ID |
+| **Client Secret** | `xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` | 보안 비밀 키 (안전하게 보관!) |
+| **Tenant ID** | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` | Azure AD 테넌트 ID |
+| **Display Name** | `azure-ai-chatbot-wordpress` | Service Principal 표시 이름 |
+| **권한** | Cognitive Services User | 필요한 역할 권한 |
+| **범위** | `/subscriptions/{subscription-id}/resourceGroups/{rg-name}/providers/Microsoft.CognitiveServices/accounts/{account-name}` | 리소스 범위 |
 
 ---
 
@@ -35,15 +35,18 @@ WordPress 관리자 → Azure AI Chatbot → 설정 페이지:
 ```
 인증 방식: Entra ID (Service Principal)
 
-Client ID: 712140a9-b518-4380-bfac-7a717ceffbd4
-Client Secret: [별도 제공된 Secret 값 입력]
-Tenant ID: f04fa9b8-2e34-4569-8ea3-3959d1de33db
+Client ID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+Client Secret: [생성된 Secret 값 입력]
+Tenant ID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 
-Endpoint: https://eduelden04-2296-resource.services.ai.azure.com/api/projects/eduelden04-2296
+Endpoint: https://{your-resource-name}.services.ai.azure.com/api/projects/{your-project-name}
 Agent ID: asst_XXXXXXXXXXXXXXXXXXXXXXXX
 ```
 
-**중요**: Endpoint에 반드시 `/api/projects/{프로젝트명}` 경로를 포함해야 합니다!
+**중요**: 
+- Endpoint에 반드시 `/api/projects/{프로젝트명}` 경로를 포함해야 합니다!
+- `{your-resource-name}`: Azure AI 리소스 이름으로 교체
+- `{your-project-name}`: AI Foundry 프로젝트 이름으로 교체
 
 ---
 
@@ -73,30 +76,44 @@ sequenceDiagram
 
 ---
 
-## 🛠️ Service Principal 생성 방법 (참고)
+## 🛠️ Service Principal 생성 방법
 
-새로운 프로젝트를 위해 Service Principal을 생성하려면:
+### Azure CLI를 사용한 생성
 
 ```bash
 az ad sp create-for-rbac \
-  --name "azure-ai-chatbot-wordpress-prod" \
+  --name "azure-ai-chatbot-wordpress" \
   --role "Cognitive Services User" \
   --scopes "/subscriptions/{SUBSCRIPTION_ID}/resourceGroups/{RESOURCE_GROUP}/providers/Microsoft.CognitiveServices/accounts/{ACCOUNT_NAME}"
 ```
+
+**필수 값 설정**:
+- `{SUBSCRIPTION_ID}`: Azure 구독 ID
+- `{RESOURCE_GROUP}`: 리소스 그룹 이름
+- `{ACCOUNT_NAME}`: Azure AI 계정 이름
 
 **출력 예시**:
 ```json
 {
   "appId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "displayName": "azure-ai-chatbot-wordpress-prod",
+  "displayName": "azure-ai-chatbot-wordpress",
   "password": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
   "tenant": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 }
 ```
 
-- `appId` → Client ID
-- `password` → Client Secret
-- `tenant` → Tenant ID
+**값 매핑**:
+- `appId` → **Client ID** (WordPress 설정에 입력)
+- `password` → **Client Secret** (WordPress 설정에 입력, 안전하게 보관!)
+- `tenant` → **Tenant ID** (WordPress 설정에 입력)
+
+### Azure Portal을 사용한 생성
+
+1. **Azure Portal** → **Entra ID** → **App registrations** → **New registration**
+2. 이름 입력: `azure-ai-chatbot-wordpress`
+3. **Certificates & secrets** → **New client secret** → 생성
+4. **API permissions** → **Add permission** → **Azure Cognitive Services**
+5. Azure AI 리소스 → **Access control (IAM)** → **Add role assignment** → **Cognitive Services User**
 
 ---
 
@@ -152,6 +169,21 @@ az ad sp create-for-rbac \
 
 ---
 
-**작성일**: 2025-10-04  
-**버전**: 2.0.0  
-**작성자**: 허석 (Heo Seok)
+## 💡 자주 묻는 질문
+
+### Q: API Key 인증과 Entra ID 인증의 차이는?
+**A**: 
+- **API Key**: 간단하지만 계정 전체 접근 권한
+- **Entra ID**: 프로젝트 단위로 세밀한 권한 제어, AI Foundry Project API 필수
+
+### Q: Client Secret을 잃어버렸어요!
+**A**: Azure Portal에서 새 Secret을 생성하고 WordPress 설정을 업데이트하세요. 이전 Secret은 자동으로 무효화됩니다.
+
+### Q: Service Principal 권한 범위는 어떻게 설정하나요?
+**A**: Azure CLI에서 `--scopes` 옵션으로 특정 리소스만 접근하도록 제한할 수 있습니다.
+
+---
+
+**작성일**: 2025-10-05  
+**버전**: 2.2.4  
+**라이선스**: GPL-2.0+

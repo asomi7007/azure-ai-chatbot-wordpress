@@ -1,0 +1,354 @@
+# Azure AI Chatbot - English Translation
+# Copyright (C) 2025 Elden Solution
+# This file is distributed under the same license as the Azure AI Chatbot package.
+msgid ""
+msgstr ""
+"Project-Id-Version: Azure AI Chatbot 2.2.4\n"
+"Report-Msgid-Bugs-To: https://github.com/asomi7007/azure-ai-chatbot-wordpress/issues\n"
+"POT-Creation-Date: 2025-10-05 00:00+0000\n"
+"PO-Revision-Date: 2025-10-05 00:00+0900\n"
+"Last-Translator: Elden Solution <support@eldensolution.com>\n"
+"Language-Team: English\n"
+"Language: en_US\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Generator: Manual\n"
+
+# Plugin header translation
+#: azure-ai-chatbot.php
+msgctxt "plugin header"
+msgid "Integrate Azure AI Foundry agents and OpenAI-compatible chat models into WordPress with a modern chat widget"
+msgstr "Integrate Azure AI Foundry agents and OpenAI-compatible chat models into WordPress with a modern chat widget"
+
+# Default welcome message
+msgid "Hello! How can I help you?"
+msgstr "Hello! How can I help you?"
+
+# Default chat title
+msgid "AI Assistant"
+msgstr "AI Assistant"
+
+# Widget aria labels
+msgid "Open chat"
+msgstr "Open chat"
+
+msgid "Close chat"
+msgstr "Close chat"
+
+msgid "Message input"
+msgstr "Message input"
+
+msgid "Send message"
+msgstr "Send message"
+
+# Chatbot interface
+msgid "Generating response"
+msgstr "Generating response"
+
+msgid "Type your message..."
+msgstr "Type your message..."
+
+# Admin notices
+msgid "WordPress security keys have been automatically generated and added to wp-config.php!"
+msgstr "WordPress security keys have been automatically generated and added to wp-config.php!"
+
+msgid "Backup file: %s"
+msgstr "Backup file: %s"
+
+# Settings page - Page title
+msgid "Azure AI Chatbot 설정"
+msgstr "Azure AI Chatbot Settings"
+
+# Settings page - Section titles
+msgid "Azure AI 연결 설정"
+msgstr "Azure AI Connection Settings"
+
+msgid "외관 설정"
+msgstr "Appearance Settings"
+
+# Settings page - Operation Mode
+msgid "작동 모드"
+msgstr "Operation Mode"
+
+msgid "Chat 모드 (OpenAI 호환)"
+msgstr "Chat Mode (OpenAI Compatible)"
+
+msgid "간단한 대화형 챗봇 (API Key 인증)"
+msgstr "Simple conversational chatbot (API Key authentication)"
+
+msgid "Agent 모드 (Azure AI Foundry)"
+msgstr "Agent Mode (Azure AI Foundry)"
+
+msgid "고급 에이전트 기능 (Entra ID 인증 필수)"
+msgstr "Advanced agent features (Entra ID authentication required)"
+
+# Settings page - Field labels
+msgid "AI 제공자"
+msgstr "AI Provider"
+
+msgid "엔드포인트"
+msgstr "Endpoint"
+
+msgid "배포/모델 이름"
+msgstr "Deployment/Model Name"
+
+msgid "Agent 엔드포인트"
+msgstr "Agent Endpoint"
+
+msgid "Agent ID"
+msgstr "Agent ID"
+
+msgid "Client ID (App ID)"
+msgstr "Client ID (App ID)"
+
+msgid "Client Secret"
+msgstr "Client Secret"
+
+msgid "Tenant ID"
+msgstr "Tenant ID"
+
+msgid "위젯 활성화"
+msgstr "Widget Active"
+
+msgid "채팅 제목"
+msgstr "Chat Title"
+
+msgid "환영 메시지"
+msgstr "Welcome Message"
+
+msgid "위젯 위치"
+msgstr "Widget Position"
+
+msgid "메인 색상"
+msgstr "Primary Color"
+
+msgid "보조 색상"
+msgstr "Secondary Color"
+
+msgid "미리보기"
+msgstr "Preview"
+
+# Settings page - Options
+msgid "기타 (OpenAI 호환)"
+msgstr "Other (OpenAI Compatible)"
+
+msgid "오른쪽 하단"
+msgstr "Bottom Right"
+
+msgid "왼쪽 하단"
+msgstr "Bottom Left"
+
+msgid "오른쪽 상단"
+msgstr "Top Right"
+
+msgid "왼쪽 상단"
+msgstr "Top Left"
+
+# Settings page - Descriptions
+msgid "사용할 AI 제공자를 선택하세요"
+msgstr "Select the AI provider to use"
+
+msgid "API Key는 암호화되어 안전하게 저장됩니다. (AES-256 암호화)"
+msgstr "API Key is encrypted and stored securely (AES-256 encryption)"
+
+msgid "Client Secret은 암호화되어 안전하게 저장됩니다. (AES-256 암호화)"
+msgstr "Client Secret is encrypted and stored securely (AES-256 encryption)"
+
+msgid "채팅 위젯을 사이트에 표시합니다"
+msgstr "Display chat widget on site"
+
+msgid "메인 색상과 보조 색상으로 그라데이션이 적용됩니다."
+msgstr "Gradient is applied with primary and secondary colors."
+
+msgid "설정을 변경하면 실시간으로 미리보기가 업데이트됩니다."
+msgstr "Preview updates in real-time when settings are changed."
+
+# Settings page - Buttons
+msgid "설정 저장"
+msgstr "Save Settings"
+
+msgid "연결 테스트"
+msgstr "Test Connection"
+
+msgid "사용 가이드 보기"
+msgstr "View User Guide"
+
+# Settings page - Default values
+msgid "AI 도우미"
+msgstr "AI Assistant"
+
+msgid "안녕하세요! 무엇을 도와드릴까요?"
+msgstr "Hello! How can I help you?"
+
+msgid "Update time: %s"
+msgstr "Update time: %s"
+
+msgid "API Keys are now securely protected with AES-256 encryption."
+msgstr "API Keys are now securely protected with AES-256 encryption."
+
+msgid "Unable to automatically add WordPress security keys due to insufficient write permissions on wp-config.php."
+msgstr "Unable to automatically add WordPress security keys due to insufficient write permissions on wp-config.php."
+
+msgid "Please add manually:"
+msgstr "Please add manually:"
+
+msgid "File path: %s"
+msgstr "File path: %s"
+
+msgid "Generate WordPress Security Keys →"
+msgstr "Generate WordPress Security Keys →"
+
+msgid "An error occurred while automatically generating WordPress security keys."
+msgstr "An error occurred while automatically generating WordPress security keys."
+
+msgid "Error message: %s"
+msgstr "Error message: %s"
+
+# JavaScript translations
+msgid "테스트 중..."
+msgstr "Testing..."
+
+msgid "연결 테스트"
+msgstr "Test Connection"
+
+msgid "연결 실패"
+msgstr "Connection Failed"
+
+msgid "오류 발생"
+msgstr "Error Occurred"
+
+msgid "연결 테스트 중 오류가 발생했습니다."
+msgstr "An error occurred during connection testing."
+
+msgid "상세 정보"
+msgstr "Details"
+
+# Admin menu
+msgid "설정"
+msgstr "Settings"
+
+msgid "사용 가이드"
+msgstr "User Guide"
+
+# Settings page descriptions
+msgid "Chat 모드: Azure OpenAI 또는 OpenAI 호환 API 사용 (API Key 인증)"
+msgstr "Chat Mode: Use Azure OpenAI or OpenAI-compatible API (API Key authentication)"
+
+msgid "Agent 모드: Azure AI Foundry Assistants API 사용 (Entra ID 인증, threads/runs 지원)"
+msgstr "Agent Mode: Use Azure AI Foundry Assistants API (Entra ID authentication, threads/runs support)"
+
+msgid "설정 가이드 보기"
+msgstr "View Configuration Guide"
+
+msgid "프로젝트 경로 필수:"
+msgstr "Project path required:"
+
+# Chat mode fields
+msgid "기타 (OpenAI 호환)"
+msgstr "Other (OpenAI Compatible)"
+
+msgid "사용할 AI 제공자를 선택하세요"
+msgstr "Select your AI provider"
+
+msgid "Azure OpenAI 엔드포인트"
+msgstr "Azure OpenAI Endpoint"
+
+msgid "예: https://your-resource.openai.azure.com"
+msgstr "Example: https://your-resource.openai.azure.com"
+
+msgid "Azure OpenAI 배포 이름 (예: gpt-4o, gpt-35-turbo)"
+msgstr "Azure OpenAI deployment name (e.g., gpt-4o, gpt-35-turbo)"
+
+msgid "API Key를 입력하세요"
+msgstr "Enter your API Key"
+
+msgid "리전"
+msgstr "Region"
+
+msgid "선택사항: 일부 제공자는 리전 지정이 필요할 수 있습니다"
+msgstr "Optional: Some providers may require region specification"
+
+# Agent mode fields
+msgid "Azure AI Foundry에서 생성한 Agent ID"
+msgstr "Agent ID created in Azure AI Foundry"
+
+msgid "Service Principal의 Application (Client) ID"
+msgstr "Service Principal's Application (Client) ID"
+
+msgid "Client Secret을 입력하세요"
+msgstr "Enter your Client Secret"
+
+# Provider-specific descriptions (JavaScript)
+msgid "배포 이름"
+msgstr "Deployment Name"
+
+msgid "모델 이름"
+msgstr "Model Name"
+
+msgid "API Key는 암호화되어 안전하게 저장됩니다. (AES-256 암호화)"
+msgstr "API Key is securely encrypted and stored. (AES-256 encryption)"
+
+msgid "OpenAI API 엔드포인트"
+msgstr "OpenAI API Endpoint"
+
+msgid "기본값: https://api.openai.com (변경 불필요)"
+msgstr "Default: https://api.openai.com (no need to change)"
+
+msgid "OpenAI 모델 이름 (예: gpt-4-turbo, gpt-3.5-turbo, gpt-4o)"
+msgstr "OpenAI model name (e.g., gpt-4-turbo, gpt-3.5-turbo, gpt-4o)"
+
+msgid "OpenAI API Key (sk-로 시작)"
+msgstr "OpenAI API Key (starts with sk-)"
+
+msgid "암호화되어 안전하게 저장됩니다."
+msgstr "Securely encrypted and stored."
+
+msgid "Google Gemini API 엔드포인트"
+msgstr "Google Gemini API Endpoint"
+
+msgid "기본값: https://generativelanguage.googleapis.com"
+msgstr "Default: https://generativelanguage.googleapis.com"
+
+msgid "Gemini 모델 이름 (예: gemini-2.0-flash-exp, gemini-1.5-pro, gemini-1.5-flash)"
+msgstr "Gemini model name (e.g., gemini-2.0-flash-exp, gemini-1.5-pro, gemini-1.5-flash)"
+
+msgid "Google AI Studio에서 발급받은 API Key"
+msgstr "API Key issued from Google AI Studio"
+
+msgid "Anthropic Claude API 엔드포인트"
+msgstr "Anthropic Claude API Endpoint"
+
+msgid "기본값: https://api.anthropic.com"
+msgstr "Default: https://api.anthropic.com"
+
+msgid "Claude 모델 이름 (예: claude-3-5-sonnet-20241022, claude-3-opus-20240229)"
+msgstr "Claude model name (e.g., claude-3-5-sonnet-20241022, claude-3-opus-20240229)"
+
+msgid "Anthropic API Key (sk-ant-로 시작)"
+msgstr "Anthropic API Key (starts with sk-ant-)"
+
+msgid "xAI Grok API 엔드포인트"
+msgstr "xAI Grok API Endpoint"
+
+msgid "기본값: https://api.x.ai"
+msgstr "Default: https://api.x.ai"
+
+msgid "Grok 모델 이름 (예: grok-beta)"
+msgstr "Grok model name (e.g., grok-beta)"
+
+msgid "xAI API Key"
+msgstr "xAI API Key"
+
+msgid "API 엔드포인트"
+msgstr "API Endpoint"
+
+msgid "OpenAI 호환 API 엔드포인트를 입력하세요"
+msgstr "Enter OpenAI-compatible API endpoint"
+
+msgid "사용할 모델 이름을 입력하세요"
+msgstr "Enter the model name to use"
+
+msgid "Error message: %s"
+msgstr "Error message: %s"
