@@ -579,6 +579,22 @@ jQuery(document).ready(function($) {
         updateProviderFields();
     });
     
+    // 엔드포인트 입력 시 trailing slash 자동 제거
+    $('#chat_endpoint, #agent_endpoint').on('blur', function() {
+        const $input = $(this);
+        let value = $input.val().trim();
+        
+        // Trailing slash 제거
+        if (value.endsWith('/')) {
+            value = value.slice(0, -1);
+            $input.val(value);
+            
+            // 사용자에게 알림
+            const fieldName = $input.attr('id') === 'chat_endpoint' ? 'Chat 엔드포인트' : 'Agent 엔드포인트';
+            console.log(`${fieldName}: 끝의 슬래시(/)가 자동으로 제거되었습니다.`);
+        }
+    });
+    
     // Client Secret 토글 버튼
     $('#toggle-client-secret').on('click', function(e) {
         e.preventDefault();
