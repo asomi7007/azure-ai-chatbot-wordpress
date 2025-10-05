@@ -2,9 +2,9 @@
 /**
  * Plugin Name: Azure AI Chatbot
  * Plugin URI: https://github.com/asomi7007/azure-ai-chatbot-wordpress
- * Description: Azure AI Foundry 에이전트를 WordPress에 통합하는 채팅 위젯
+ * Description: Integrate Azure AI Foundry agents and OpenAI-compatible chat models into WordPress with a modern chat widget
  * Version: 2.2.4
- * Author: 엘던솔루션 (Elden Solution)
+ * Author: Elden Solution
  * Author URI: https://www.eldensolution.kr
  * License: GPL-2.0+
  * License URI: http://www.gnu.org/licenses/gpl-2.0.txt
@@ -192,8 +192,8 @@ class Azure_AI_Chatbot {
             'widget_position' => $stored_options['widget_position'] ?? 'bottom-right',
             'primary_color' => $stored_options['primary_color'] ?? '#667eea',
             'secondary_color' => $stored_options['secondary_color'] ?? '#764ba2',
-            'welcome_message' => $stored_options['welcome_message'] ?? '안녕하세요! 무엇을 도와드릴까요?',
-            'chat_title' => $stored_options['chat_title'] ?? 'AI 도우미'
+            'welcome_message' => $stored_options['welcome_message'] ?? __('Hello! How can I help you?', 'azure-ai-chatbot'),
+            'chat_title' => $stored_options['chat_title'] ?? __('AI Assistant', 'azure-ai-chatbot')
         ];
     }
     
@@ -201,6 +201,9 @@ class Azure_AI_Chatbot {
      * 훅 초기화
      */
     private function init_hooks() {
+        // 언어 파일 로드
+        add_action('plugins_loaded', [$this, 'load_textdomain']);
+        
         // 관리자 메뉴
         add_action('admin_menu', [$this, 'add_admin_menu']);
         add_action('admin_init', [$this, 'register_settings']);
@@ -229,6 +232,20 @@ class Azure_AI_Chatbot {
         
         // 플러그인 설정 링크
         add_filter('plugin_action_links_' . AZURE_CHATBOT_PLUGIN_BASENAME, [$this, 'add_settings_link']);
+    }
+    
+    /**
+     * 언어 파일 로드
+     */
+    public function load_textdomain() {
+        $domain = 'azure-ai-chatbot';
+        
+        // WordPress 표준 방식으로 언어 파일 로드
+        load_plugin_textdomain(
+            $domain,
+            false,
+            dirname(plugin_basename(__FILE__)) . '/languages/'
+        );
     }
     
     /**
@@ -498,8 +515,8 @@ class Azure_AI_Chatbot {
         
         add_submenu_page(
             'azure-ai-chatbot',
-            '설정',
-            '설정',
+            __('설정', 'azure-ai-chatbot'),
+            __('설정', 'azure-ai-chatbot'),
             'manage_options',
             'azure-ai-chatbot',
             [$this, 'render_settings_page']
@@ -507,8 +524,8 @@ class Azure_AI_Chatbot {
         
         add_submenu_page(
             'azure-ai-chatbot',
-            '사용 가이드',
-            '사용 가이드',
+            __('사용 가이드', 'azure-ai-chatbot'),
+            __('사용 가이드', 'azure-ai-chatbot'),
             'manage_options',
             'azure-ai-chatbot-guide',
             [$this, 'render_guide_page']
@@ -519,7 +536,7 @@ class Azure_AI_Chatbot {
      * 설정 링크 추가
      */
     public function add_settings_link($links) {
-        $settings_link = '<a href="admin.php?page=azure-ai-chatbot">설정</a>';
+        $settings_link = '<a href="admin.php?page=azure-ai-chatbot">' . __('설정', 'azure-ai-chatbot') . '</a>';
         array_unshift($links, $settings_link);
         return $links;
     }
@@ -580,8 +597,8 @@ class Azure_AI_Chatbot {
         $sanitized['widget_position'] = sanitize_text_field($input['widget_position'] ?? 'bottom-right');
         $sanitized['primary_color'] = sanitize_hex_color($input['primary_color'] ?? '#667eea');
         $sanitized['secondary_color'] = sanitize_hex_color($input['secondary_color'] ?? '#764ba2');
-        $sanitized['welcome_message'] = sanitize_textarea_field($input['welcome_message'] ?? '안녕하세요! 무엇을 도와드릴까요?');
-        $sanitized['chat_title'] = sanitize_text_field($input['chat_title'] ?? 'AI 도우미');
+        $sanitized['welcome_message'] = sanitize_textarea_field($input['welcome_message'] ?? __('Hello! How can I help you?', 'azure-ai-chatbot'));
+        $sanitized['chat_title'] = sanitize_text_field($input['chat_title'] ?? __('AI Assistant', 'azure-ai-chatbot'));
         
         return $sanitized;
     }
@@ -653,7 +670,15 @@ class Azure_AI_Chatbot {
         // AJAX URL과 nonce를 JavaScript에 전달
         wp_localize_script('azure-chatbot-admin-js', 'azureChatbotAdmin', [
             'ajaxUrl' => admin_url('admin-ajax.php'),
-            'nonce' => wp_create_nonce('azure_chatbot_test')
+            'nonce' => wp_create_nonce('azure_chatbot_test'),
+            'i18n' => [
+                'testing' => __('테스트 중...', 'azure-ai-chatbot'),
+                'testConnection' => __('연결 테스트', 'azure-ai-chatbot'),
+                'connectionFailed' => __('연결 실패', 'azure-ai-chatbot'),
+                'errorOccurred' => __('오류 발생', 'azure-ai-chatbot'),
+                'testError' => __('연결 테스트 중 오류가 발생했습니다.', 'azure-ai-chatbot'),
+                'details' => __('상세 정보', 'azure-ai-chatbot')
+            ]
         ]);
     }
     
@@ -714,7 +739,7 @@ class Azure_AI_Chatbot {
         $position_class = 'position-' . $this->options['widget_position'];
         ?>
         <div id="azure-chatbot-widget" class="<?php echo esc_attr($position_class); ?>">
-            <button id="azure-chatbot-toggle" class="chatbot-toggle" aria-label="채팅 열기">
+            <button id="azure-chatbot-toggle" class="chatbot-toggle" aria-label="<?php esc_attr_e('Open chat', 'azure-ai-chatbot'); ?>">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="white">
                     <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
                 </svg>
@@ -723,7 +748,7 @@ class Azure_AI_Chatbot {
             <div id="azure-chatbot-window" class="chatbot-window">
                 <div class="chatbot-header">
                     <h3><?php echo esc_html($this->options['chat_title']); ?></h3>
-                    <button id="azure-chatbot-close" aria-label="채팅 닫기">×</button>
+                    <button id="azure-chatbot-close" aria-label="<?php esc_attr_e('Close chat', 'azure-ai-chatbot'); ?>">×</button>
                 </div>
                 
                 <div id="azure-chatbot-messages" class="chatbot-messages">
@@ -736,15 +761,15 @@ class Azure_AI_Chatbot {
                 </div>
                 
                 <div class="chatbot-loading" style="display:none;">
-                    <span>답변 생성 중</span>
+                    <span><?php esc_html_e('Generating response', 'azure-ai-chatbot'); ?></span>
                     <div class="typing-indicator">
                         <span></span><span></span><span></span>
                     </div>
                 </div>
                 
                 <div class="chatbot-input">
-                    <input type="text" id="azure-chatbot-input" placeholder="메시지를 입력하세요..." aria-label="메시지 입력" />
-                    <button id="azure-chatbot-send" aria-label="메시지 전송">
+                    <input type="text" id="azure-chatbot-input" placeholder="<?php esc_attr_e('Type your message...', 'azure-ai-chatbot'); ?>" aria-label="<?php esc_attr_e('Message input', 'azure-ai-chatbot'); ?>" />
+                    <button id="azure-chatbot-send" aria-label="<?php esc_attr_e('Send message', 'azure-ai-chatbot'); ?>">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
                             <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
                         </svg>
