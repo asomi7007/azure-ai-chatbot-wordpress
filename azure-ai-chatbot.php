@@ -334,6 +334,12 @@ class Azure_AI_Chatbot {
             return false;
         }
         
+        // public_access 옵션 확인 (비로그인 사용자 접근 허용 여부)
+        // public_access가 false이고 사용자가 로그인하지 않은 경우 위젯 숨김
+        if (empty($this->options['public_access']) && !is_user_logged_in()) {
+            return false;
+        }
+        
         // 모드에 따라 필수 필드 검증
         if ($this->options['mode'] === 'agent') {
             // Agent 모드: Entra ID + Agent 필수
