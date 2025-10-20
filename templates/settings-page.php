@@ -298,6 +298,25 @@ if (!empty($options['agent_endpoint'])) {
                                 </label>
                             </td>
                         </tr>
+                        
+                        <tr>
+                            <th scope="row">
+                                <label for="public_access"><?php esc_html_e('비로그인 사용자 접근 허용', 'azure-ai-chatbot'); ?></label>
+                            </th>
+                            <td>
+                                <label>
+                                    <input type="checkbox" 
+                                           id="public_access" 
+                                           name="azure_chatbot_settings[public_access]" 
+                                           value="1" 
+                                           <?php checked(!empty($options['public_access']) || !isset($options['public_access'])); ?> />
+                                    <?php esc_html_e('로그인하지 않은 사용자도 챗봇을 사용할 수 있습니다', 'azure-ai-chatbot'); ?>
+                                </label>
+                                <p class="description">
+                                    <?php esc_html_e('체크 해제 시 WordPress에 로그인한 사용자만 챗봇을 사용할 수 있습니다.', 'azure-ai-chatbot'); ?>
+                                </p>
+                            </td>
+                        </tr>
                     </table>
                     
                     <p style="display: flex; align-items: center; gap: 10px;">
