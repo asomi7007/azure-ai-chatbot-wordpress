@@ -3,7 +3,7 @@ Contributors: eldensolution
 Tags: azure, ai, chatbot, chat, ai-assistant
 Requires at least: 6.0
 Tested up to: 6.8
-Stable tag: 2.2.6
+Stable tag: 2.2.7
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -84,6 +84,10 @@ Azure AI Chatbot은 Azure AI Foundry의 강력한 AI 에이전트를 WordPress �
 4. 사용 가이드 - 편집 가능한 마크다운 가이드
 
 == Changelog ==
+
+= 2.2.7 - 2025-10-21 =
+* 수정: public_access 설정 저장 오류 해결 (체크박스 해제가 저장되지 않던 문제)
+* 수정: sanitize_settings 함수에 public_access 처리 로직 추가
 
 = 2.2.6 - 2025-10-21 =
 * 개선: public_access 비활성화 시 비로그인 사용자에게 위젯 자체를 표시하지 않음
