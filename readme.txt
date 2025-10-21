@@ -49,24 +49,64 @@ Azure AI Chatbot은 Azure AI Foundry의 강력한 AI 에이전트를 WordPress �
 
 = 설정 =
 
+**빠른 시작: Azure 설정값 자동으로 가져오기**
+
+Azure Cloud Shell (https://shell.azure.com)에서 다음 명령어 중 하나를 실행하세요:
+
+Chat 모드 (간단):
+`curl -s https://raw.githubusercontent.com/asomi7007/azure-ai-chatbot-wordpress/main/test-chat-mode.sh | bash`
+
+Agent 모드 (고급):
+`curl -s https://raw.githubusercontent.com/asomi7007/azure-ai-chatbot-wordpress/main/test-agent-mode.sh | bash`
+
+스크립트가 자동으로:
+- Azure 리소스 검색
+- API Key 및 엔드포인트 추출
+- 배포된 모델 확인
+- 연결 테스트 실행
+- WordPress 설정값 출력
+
+**수동 설정 방법:**
+
 1. WordPress 관리자 → AI Chatbot → 설정
-2. Azure AI Foundry 정보 입력:
-   * 엔드포인트 URL
-   * API Key
-   * 에이전트 ID
-3. 연결 테스트 버튼으로 확인
-4. 위젯 활성화 체크
-5. 변경사항 저장
+2. 모드 선택 (Chat 또는 Agent)
+3. Azure 정보 입력:
+   * Chat 모드: API Key, 엔드포인트, 배포 이름
+   * Agent 모드: Client ID, Client Secret, Tenant ID, 에이전트 ID
+4. 연결 테스트 버튼으로 확인
+5. 위젯 활성화 및 디자인 설정
+6. 비로그인 사용자 접근 허용 여부 선택
+7. 변경사항 저장
+
+자세한 가이드: https://github.com/asomi7007/azure-ai-chatbot-wordpress/blob/main/docs/AZURE_SETUP.md
 
 == Frequently Asked Questions ==
 
+= Azure 설정을 쉽게 할 수 있나요? =
+
+네! Azure Cloud Shell에서 자동 설정 스크립트를 실행하세요:
+
+Chat 모드: `curl -s https://raw.githubusercontent.com/asomi7007/azure-ai-chatbot-wordpress/main/test-chat-mode.sh | bash`
+Agent 모드: `curl -s https://raw.githubusercontent.com/asomi7007/azure-ai-chatbot-wordpress/main/test-agent-mode.sh | bash`
+
+스크립트가 모든 필요한 정보를 자동으로 찾아서 출력해줍니다.
+
 = Azure AI Foundry 계정이 필요한가요? =
 
-네, Azure AI Foundry에서 에이전트를 생성하고 API Key를 발급받아야 합니다.
+네, Azure AI Foundry에서 에이전트를 생성하거나 Azure OpenAI 모델을 배포해야 합니다.
+
+= Chat 모드와 Agent 모드의 차이는 무엇인가요? =
+
+Chat 모드: 간단한 대화형 챗봇 (API Key만 필요)
+Agent 모드: 고급 기능 지원 (Function Calling, RAG, 파일 업로드 등, Entra ID 인증 필요)
 
 = API Key는 안전하게 저장되나요? =
 
-네, API Key는 AES-256 암호화로 안전하게 저장됩니다.
+네, API Key와 Client Secret은 AES-256 암호화로 안전하게 저장됩니다.
+
+= 비로그인 사용자도 챗봇을 사용할 수 있나요? =
+
+네, 설정 페이지에서 "비로그인 사용자 접근 허용" 옵션을 체크하면 모든 방문자가 사용할 수 있습니다. (기본값: 허용)
 
 = 무료로 사용할 수 있나요? =
 
@@ -74,7 +114,7 @@ Azure AI Chatbot은 Azure AI Foundry의 강력한 AI 에이전트를 WordPress �
 
 = 다국어를 지원하나요? =
 
-현재 한국어를 기본으로 지원하며, 향후 다국어 지원 예정입니다.
+현재 한국어와 영어를 지원하며, 추가 언어는 향후 지원 예정입니다.
 
 == Screenshots ==
 
