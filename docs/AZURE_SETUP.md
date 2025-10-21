@@ -12,7 +12,245 @@
 
 Chat 모드는 **API Key만으로 즉시 사용 가능**합니다.
 
-### 1단계: Azure Portal에서 정보 확인
+### ⚡ 원클릭 자동 설정 스크립트
+
+**Azure Cloud Shell (https://shell.azure.com)에서 실행:**
+
+```bash
+curl -s https://raw.githubusercontent.com/asomi7007/azure-ai-chatbot-wordpress/main/test-chat-mode.sh | bash
+```
+
+또는 직접 실행:
+
+```bash
+cat > setup_chat_mode.sh << 'EOFSCRIPT'
+#!/bin/bash
+set -e
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 🚀 Azure AI Chatbot WordPress - Chat 모드 자동 설정
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🔍 Azure 구독 정보 확인 중..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# 구독 목록 표시
+SUBSCRIPTIONS=$(az account list --query "[].{Name:name, ID:id, State:state}" -o table)
+echo "$SUBSCRIPTIONS"
+echo ""
+
+SUBSCRIPTION_ID=$(az account show --query "id" -o tsv)
+SUBSCRIPTION_NAME=$(az account show --query "name" -o tsv)
+
+echo "✅ 현재 구독: $SUBSCRIPTION_NAME"
+echo "   ID: $SUBSCRIPTION_ID"
+echo ""
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🔍 Azure OpenAI 리소스 검색 중..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Cognitive Services 계정 찾기 (Azure OpenAI 포함)
+ACCOUNTS=$(az cognitiveservices account list \
+  --query "[?kind=='OpenAI' || kind=='AIServices'].{Name:name, ResourceGroup:resourceGroup, Location:location, Kind:kind}" \
+  -o json)
+
+ACCOUNT_COUNT=$(echo $ACCOUNTS | jq '. | length')
+
+if [ "$ACCOUNT_COUNT" == "0" ]; then
+    echo "❌ Azure OpenAI 리소스를 찾을 수 없습니다!"
+    echo ""
+    echo "다음 단계를 진행하세요:"
+    echo "1. Azure Portal (https://portal.azure.com)에서 Azure OpenAI 리소스 생성"
+    echo "2. 모델 배포 (예: gpt-4o, gpt-4, gpt-35-turbo)"
+    echo "3. 이 스크립트 다시 실행"
+    exit 1
+fi
+
+echo "✅ $ACCOUNT_COUNT 개의 Azure OpenAI 리소스 발견!"
+echo ""
+echo $ACCOUNTS | jq -r '.[] | "  - \(.Name) (\(.ResourceGroup), \(.Location))"'
+echo ""
+
+# 리소스 선택
+if [ "$ACCOUNT_COUNT" == "1" ]; then
+    ACCOUNT_NAME=$(echo $ACCOUNTS | jq -r '.[0].Name')
+    RESOURCE_GROUP=$(echo $ACCOUNTS | jq -r '.[0].ResourceGroup')
+    echo "✅ 자동 선택: $ACCOUNT_NAME"
+else
+    echo "사용 가능한 리소스:"
+    echo $ACCOUNTS | jq -r '.[] | "  \(.Name) (\(.ResourceGroup))"'
+    echo ""
+    read -p "리소스 이름을 입력하세요: " ACCOUNT_NAME
+    RESOURCE_GROUP=$(echo $ACCOUNTS | jq -r ".[] | select(.Name==\"$ACCOUNT_NAME\") | .ResourceGroup")
+fi
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📋 리소스 정보 수집 중..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# API Key 가져오기
+API_KEY=$(az cognitiveservices account keys list \
+  --name "$ACCOUNT_NAME" \
+  --resource-group "$RESOURCE_GROUP" \
+  --query "key1" -o tsv)
+
+# 엔드포인트 가져오기
+ENDPOINT=$(az cognitiveservices account show \
+  --name "$ACCOUNT_NAME" \
+  --resource-group "$RESOURCE_GROUP" \
+  --query "properties.endpoint" -o tsv)
+
+echo "✅ API Key: ${API_KEY:0:10}...${API_KEY: -4}"
+echo "✅ Endpoint: $ENDPOINT"
+echo ""
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🤖 배포된 모델 확인 중..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# 배포된 모델 목록
+DEPLOYMENTS=$(az cognitiveservices account deployment list \
+  --name "$ACCOUNT_NAME" \
+  --resource-group "$RESOURCE_GROUP" \
+  --query "[].{Name:name, Model:properties.model.name, Version:properties.model.version, Status:properties.provisioningState}" \
+  -o json)
+
+DEPLOYMENT_COUNT=$(echo $DEPLOYMENTS | jq '. | length')
+
+if [ "$DEPLOYMENT_COUNT" == "0" ]; then
+    echo "⚠️  배포된 모델이 없습니다!"
+    echo ""
+    echo "다음 단계를 진행하세요:"
+    echo "1. Azure Portal에서 '$ACCOUNT_NAME' 리소스 열기"
+    echo "2. 'Model deployments' 메뉴에서 모델 배포"
+    echo "3. 권장 모델: gpt-4o, gpt-4, gpt-35-turbo"
+    DEPLOYMENT_NAME="[모델 배포 후 입력 필요]"
+else
+    echo "✅ $DEPLOYMENT_COUNT 개의 배포된 모델 발견!"
+    echo ""
+    echo $DEPLOYMENTS | jq -r '.[] | "  - \(.Name) (\(.Model) \(.Version)) - \(.Status)"'
+    echo ""
+    
+    if [ "$DEPLOYMENT_COUNT" == "1" ]; then
+        DEPLOYMENT_NAME=$(echo $DEPLOYMENTS | jq -r '.[0].Name')
+        MODEL_NAME=$(echo $DEPLOYMENTS | jq -r '.[0].Model')
+        echo "✅ 자동 선택: $DEPLOYMENT_NAME ($MODEL_NAME)"
+    else
+        read -p "사용할 배포 이름을 입력하세요: " DEPLOYMENT_NAME
+    fi
+fi
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🧪 연결 테스트 중..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+if [ "$DEPLOYMENT_NAME" != "[모델 배포 후 입력 필요]" ]; then
+    # API 버전 (Chat Completions API)
+    API_VERSION="2024-08-01-preview"
+    
+    # 테스트 요청
+    TEST_RESPONSE=$(curl -s "${ENDPOINT}openai/deployments/${DEPLOYMENT_NAME}/chat/completions?api-version=${API_VERSION}" \
+      -H "Content-Type: application/json" \
+      -H "api-key: $API_KEY" \
+      -d '{
+        "messages": [
+          {"role": "system", "content": "You are a helpful assistant."},
+          {"role": "user", "content": "Say hello in Korean"}
+        ],
+        "max_tokens": 100
+      }')
+    
+    # 응답 확인
+    if echo "$TEST_RESPONSE" | jq -e '.choices[0].message.content' > /dev/null 2>&1; then
+        RESPONSE_TEXT=$(echo "$TEST_RESPONSE" | jq -r '.choices[0].message.content')
+        echo "✅ 연결 테스트 성공!"
+        echo ""
+        echo "AI 응답:"
+        echo "\"$RESPONSE_TEXT\""
+    else
+        ERROR_MESSAGE=$(echo "$TEST_RESPONSE" | jq -r '.error.message // "알 수 없는 오류"')
+        echo "⚠️  연결 테스트 실패: $ERROR_MESSAGE"
+        echo ""
+        echo "이 설정값은 여전히 유효합니다. WordPress에서 다시 테스트하세요."
+    fi
+else
+    echo "⏭️  모델 배포가 필요하여 테스트를 건너뜁니다."
+fi
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "✅ Chat 모드 설정 완료!"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "📋 WordPress에 아래 값을 복사하여 입력하세요:"
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "작동 모드:"
+echo "Chat 모드 (OpenAI 호환)"
+echo ""
+echo "AI 제공자:"
+echo "Azure OpenAI"
+echo ""
+echo "Chat 엔드포인트:"
+echo "$ENDPOINT"
+echo ""
+echo "배포 이름:"
+echo "$DEPLOYMENT_NAME"
+echo ""
+echo "API Key:"
+echo "$API_KEY"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "⚠️  중요: API Key는 안전한 곳에 저장하세요!"
+echo ""
+echo "📖 다음 단계:"
+echo "1. WordPress 관리자 페이지 접속"
+echo "2. Azure AI Chatbot → 설정 메뉴 이동"
+echo "3. 위 정보 입력 후 '설정 저장' 클릭"
+echo "4. '연결 테스트' 버튼으로 확인"
+echo "5. '위젯 활성화' 체크 후 저장"
+echo ""
+EOFSCRIPT
+
+chmod +x setup_chat_mode.sh
+./setup_chat_mode.sh
+```
+
+### 출력 예시
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Chat 모드 설정 완료!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📋 WordPress에 아래 값을 복사하여 입력하세요:
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+작동 모드:
+Chat 모드 (OpenAI 호환)
+
+AI 제공자:
+Azure OpenAI
+
+Chat 엔드포인트:
+https://your-account.openai.azure.com/
+
+배포 이름:
+gpt-4o
+
+API Key:
+a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+### 수동 설정 (스크립트 사용 불가 시)
+
+#### 1단계: Azure Portal에서 정보 확인
 
 ```bash
 # Azure Cloud Shell에서 실행
@@ -38,7 +276,7 @@ az cognitiveservices account deployment list \
   --query "[].name" -o table
 ```
 
-### 2단계: WordPress 설정
+#### 2단계: WordPress 설정
 
 ```
 작동 모드: Chat 모드 (OpenAI 호환)
