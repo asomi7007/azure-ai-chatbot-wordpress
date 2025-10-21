@@ -4,7 +4,7 @@
 
 Azure AI Foundry 에이전트와 OpenAI 호환 채팅 모델을 완전한 Assistants API 통합과 함께 WordPress 웹사이트에 제공하는 현대적인 플러그인입니다.
 
-[![Version](https://img.shields.io/badge/version-2.2.4-blue.svg)](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/latest)
+[![Version](https://img.shields.io/badge/version-2.2.7-blue.svg)](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/latest)
 [![WordPress](https://img.shields.io/badge/wordpress-6.0%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/php-7.4%2B-purple.svg)](https://www.php.net/)
 [![License](https://img.shields.io/badge/license-GPL--2.0%2B-green.svg)](LICENSE)
@@ -361,7 +361,32 @@ define('WP_DEBUG_DISPLAY', false);
 
 ## 버전 히스토리
 
-### 최신 릴리즈: v2.2.4 (2025-10-05)
+### 최신 릴리즈: v2.2.7 (2025-10-21)
+
+**버그 수정:**
+- 🐛 **public_access 설정 저장 오류**: 체크박스 해제가 저장되지 않던 문제 수정
+- 🔧 **sanitize_settings 함수**: public_access 필드 처리 로직 추가
+
+[v2.2.7 다운로드](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/tag/v2.2.7)
+
+### v2.2.6 (2025-10-21)
+
+**개선사항:**
+- 🎨 **스마트 위젯 표시**: public_access 비활성화 시 비로그인 사용자에게 위젯 미표시
+- ✨ **UX 개선**: 사용 불가능한 위젯이 보이지 않도록 개선
+- 📦 **ZIP 파일 최적화**: Bandizip으로 46% 크기 감소
+
+[v2.2.6 다운로드](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/tag/v2.2.6)
+
+### v2.2.5 (2025-10-21)
+
+**추가기능:**
+- ✨ **비로그인 사용자 접근 옵션**: 설정 페이지 체크박스 추가
+- 🔓 **익명 사용자 지원**: 로그인하지 않은 방문자도 사용 가능 (기본값: 허용)
+
+[v2.2.5 다운로드](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/tag/v2.2.5)
+
+### v2.2.4 (2025-10-05)
 
 **수정사항:**
 - Chat 모드 HTTP 404 오류 수정
@@ -370,7 +395,7 @@ define('WP_DEBUG_DISPLAY', false);
 
 [v2.2.4 다운로드](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/tag/v2.2.4)
 
-### 최근 업데이트
+### 이전 버전
 
 **v2.2.3** - 문서 및 FAQ 개선  
 **v2.2.2** - GitHub 배지 및 변경 이력 추가  
@@ -381,6 +406,7 @@ define('WP_DEBUG_DISPLAY', false);
 **v1.0.0** - 초기 릴리즈
 
 [전체 변경 이력](CHANGELOG.md)
+[모든 릴리즈 보기](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases)
 
 ---
 

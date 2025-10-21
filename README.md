@@ -1,6 +1,6 @@
 # Azure AI Chatbot for WordPress
 
-[![Version](https://img.shields.io/badge/version-2.2.4-blue.svg)](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/latest)
+[![Version](https://img.shields.io/badge/version-2.2.7-blue.svg)](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/latest)
 [![WordPress](https://img.shields.io/badge/wordpress-6.0%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/php-7.4%2B-purple.svg)](https://www.php.net/)
 [![License](https://img.shields.io/badge/license-GPL--2.0%2B-green.svg)](LICENSE)
@@ -363,7 +363,32 @@ Log location: `/wp-content/debug.log`
 
 ## Version History
 
-### Latest Release: v2.2.4 (2025-10-05)
+### Latest Release: v2.2.7 (2025-10-21)
+
+**Bug Fixes:**
+- 🐛 **Fixed public_access setting**: Checkbox unchecking now persists after saving
+- 🔧 **Enhanced sanitize_settings**: Added proper handling for public_access field
+
+[Download v2.2.7](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/tag/v2.2.7)
+
+### v2.2.6 (2025-10-21)
+
+**Improvements:**
+- 🎨 **Smart widget display**: Widget hidden for anonymous users when public_access is disabled
+- ✨ **Better UX**: Unavailable widgets no longer shown to restricted users
+- 📦 **File optimization**: 46% smaller with Bandizip compression
+
+[Download v2.2.6](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/tag/v2.2.6)
+
+### v2.2.5 (2025-10-21)
+
+**New Features:**
+- ✨ **Public access option**: Settings page checkbox for controlling anonymous user access
+- 🔓 **Anonymous user support**: Visitors without login can now use the chatbot (default: enabled)
+
+[Download v2.2.5](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/tag/v2.2.5)
+
+### v2.2.4 (2025-10-05)
 
 **Fixes:**
 - Fixed HTTP 404 errors in Chat mode
@@ -372,7 +397,7 @@ Log location: `/wp-content/debug.log`
 
 [Download v2.2.4](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/tag/v2.2.4)
 
-### Recent Updates
+### Earlier Versions
 
 **v2.2.3** - Documentation and FAQ improvements  
 **v2.2.2** - GitHub badges and changelog additions  
@@ -383,6 +408,7 @@ Log location: `/wp-content/debug.log`
 **v1.0.0** - Initial release
 
 [Full Changelog](CHANGELOG.md)
+[View All Releases](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases)
 
 ---
 
