@@ -352,3 +352,191 @@ msgstr "Enter the model name to use"
 
 msgid "Error message: %s"
 msgstr "Error message: %s"
+
+# OAuth Auto Setup - Added in v2.3.0
+msgid "Azure 자동 설정 (OAuth)"
+msgstr "Azure Auto Setup (OAuth)"
+
+msgid "자동 설정을 사용하려면 OAuth 설정이 필요합니다."
+msgstr "OAuth configuration is required to use auto setup."
+
+msgid "Azure Portal에서 App Registration을 생성하거나 아래 자동 설정 스크립트를 사용하세요."
+msgstr "Create an App Registration in Azure Portal or use the auto setup script below."
+
+msgid "Azure App Registration 자동 설정"
+msgstr "Azure App Registration Auto Setup"
+
+msgid "방법 1: Azure Cloud Shell 사용 (추천)"
+msgstr "Method 1: Use Azure Cloud Shell (Recommended)"
+
+msgid "Azure Cloud Shell 열기"
+msgstr "Open Azure Cloud Shell"
+
+msgid "아래 명령어를 복사해서 Cloud Shell에 붙여넣으세요:"
+msgstr "Copy and paste the command below into Cloud Shell:"
+
+msgid "복사"
+msgstr "Copy"
+
+msgid "WordPress 사이트 URL 입력 (예: https://example.com)"
+msgstr "Enter WordPress site URL (e.g., https://example.com)"
+
+msgid "생성된 Client ID, Client Secret, Tenant ID를 복사"
+msgstr "Copy the generated Client ID, Client Secret, Tenant ID"
+
+msgid "Azure Portal에서 Admin Consent 부여"
+msgstr "Grant Admin Consent in Azure Portal"
+
+msgid "방법 2: Azure Portal에서 수동 설정"
+msgstr "Method 2: Manual Setup in Azure Portal"
+
+msgid "Azure Portal에서 App Registration 생성"
+msgstr "Create App Registration in Azure Portal"
+
+msgid "Redirect URI 설정:"
+msgstr "Set Redirect URI:"
+
+msgid "API 권한 추가: Microsoft Graph (User.Read), Azure Service Management (user_impersonation)"
+msgstr "Add API permissions: Microsoft Graph (User.Read), Azure Service Management (user_impersonation)"
+
+msgid "Client Secret 생성"
+msgstr "Create Client Secret"
+
+msgid "Admin Consent 부여"
+msgstr "Grant Admin Consent"
+
+msgid "자세한 설정 가이드 보기"
+msgstr "View detailed setup guide"
+
+msgid "OAuth 설정"
+msgstr "OAuth Configuration"
+
+msgid "Client ID"
+msgstr "Client ID"
+
+msgid "Client Secret"
+msgstr "Client Secret"
+
+msgid "Tenant ID"
+msgstr "Tenant ID"
+
+msgid "OAuth 설정 저장"
+msgstr "Save OAuth Settings"
+
+msgid "OAuth 설정 초기화"
+msgstr "Reset OAuth Settings"
+
+msgid "Azure 인증"
+msgstr "Azure Authentication"
+
+msgid "Azure 계정으로 인증"
+msgstr "Authenticate with Azure Account"
+
+msgid "세션 지우기"
+msgstr "Clear Session"
+
+msgid "리소스 선택"
+msgstr "Select Resources"
+
+msgid "모드 선택"
+msgstr "Select Mode"
+
+msgid "Chat 모드 (Azure OpenAI)"
+msgstr "Chat Mode (Azure OpenAI)"
+
+msgid "Agent 모드 (AI Foundry)"
+msgstr "Agent Mode (AI Foundry)"
+
+msgid "Subscription"
+msgstr "Subscription"
+
+msgid "구독을 선택하세요"
+msgstr "Select a subscription"
+
+msgid "Resource Group"
+msgstr "Resource Group"
+
+msgid "리소스 그룹을 선택하세요"
+msgstr "Select a resource group"
+
+msgid "Resource"
+msgstr "Resource"
+
+msgid "리소스를 선택하세요"
+msgstr "Select a resource"
+
+msgid "Agent"
+msgstr "Agent"
+
+msgid "에이전트를 선택하세요"
+msgstr "Select an agent"
+
+msgid "값 가져오기"
+msgstr "Fetch Values"
+
+msgid "Azure 인증에 성공했습니다! 이제 리소스를 선택하세요."
+msgstr "Azure authentication successful! Now select your resources."
+
+msgid "인증 실패: "
+msgstr "Authentication failed: "
+
+msgid "명령어가 클립보드에 복사되었습니다!"
+msgstr "Command copied to clipboard!"
+
+msgid "Redirect URI가 클립보드에 복사되었습니다!"
+msgstr "Redirect URI copied to clipboard!"
+
+msgid "먼저 구독을 선택하세요."
+msgstr "Please select a subscription first."
+
+msgid "먼저 리소스 그룹을 선택하세요."
+msgstr "Please select a resource group first."
+
+msgid "먼저 리소스를 선택하세요."
+msgstr "Please select a resource first."
+
+msgid "Agent 모드에서는 에이전트를 선택해야 합니다."
+msgstr "You must select an agent in Agent mode."
+
+msgid "Chat 모드 값이 자동으로 입력되었습니다.\\n\\nEndpoint: "
+msgstr "Chat mode values have been auto-filled.\\n\\nEndpoint: "
+
+msgid "Agent 모드 값이 자동으로 입력되었습니다.\\n\\nProject Endpoint: "
+msgstr "Agent mode values have been auto-filled.\\n\\nProject Endpoint: "
+
+msgid "\\nAgent ID: "
+msgstr "\\nAgent ID: "
+
+msgid "Auto Setting"
+msgstr "Auto Setting"
+
+msgid "설정 저장"
+msgstr "Save Settings"
+
+msgid "먼저 리소스를 선택하세요."
+msgstr "Please select a resource first."
+
+msgid "추출 중..."
+msgstr "Extracting..."
+
+msgid "Chat 모드 값이 자동으로 입력되었습니다."
+msgstr "Chat mode values have been auto-filled."
+
+msgid "Endpoint:"
+msgstr "Endpoint:"
+
+msgid "설정을 저장하세요."
+msgstr "Please save the settings."
+
+msgid "Agent 모드 값이 자동으로 입력되었습니다."
+msgstr "Agent mode values have been auto-filled."
+
+msgid "Project Endpoint:"
+msgstr "Project Endpoint:"
+
+msgid "Agent ID:"
+msgstr "Agent ID:"
+
+msgid "키 추출 실패:"
+msgstr "Failed to extract keys:"
+

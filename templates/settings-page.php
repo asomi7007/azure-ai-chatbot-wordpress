@@ -48,6 +48,11 @@ if (!empty($options['agent_endpoint'])) {
         <?php settings_fields('azure_chatbot_settings_group'); ?>
         
         <div class="settings-container">
+            <!-- Azure OAuth 자동 설정 (기본 숨김) -->
+            <div id="oauth-auto-setup-section" style="display: none;">
+                <?php include AZURE_CHATBOT_PLUGIN_DIR . 'templates/oauth-auto-setup.php'; ?>
+            </div>
+            
             <!-- API 설정 -->
             <div class="postbox">
                 <h2 class="hndle">
@@ -444,6 +449,10 @@ if (!empty($options['agent_endpoint'])) {
         </div>
         
         <p class="submit">
+            <button type="button" id="toggle-auto-setup" class="button button-secondary button-large" style="margin-right: 10px;">
+                <span class="dashicons dashicons-admin-network"></span>
+                <?php esc_html_e('Auto Setting', 'azure-ai-chatbot'); ?>
+            </button>
             <?php submit_button(__('설정 저장', 'azure-ai-chatbot'), 'primary button-large', 'submit', false); ?>
             <a href="admin.php?page=azure-ai-chatbot-guide" class="button button-secondary button-large" style="margin-left: 10px;">
                 <span class="dashicons dashicons-book"></span>
@@ -456,6 +465,17 @@ if (!empty($options['agent_endpoint'])) {
 <script>
 jQuery(document).ready(function($) {
     console.log('Settings page loaded');
+    
+    // Auto Setting 버튼 토글
+    $('#toggle-auto-setup').on('click', function() {
+        const section = $('#oauth-auto-setup-section');
+        section.slideToggle(300);
+        
+        // 버튼 텍스트 변경
+        const isVisible = section.is(':visible');
+        const icon = isVisible ? 'dashicons-arrow-up-alt2' : 'dashicons-admin-network';
+        $(this).find('.dashicons').attr('class', 'dashicons ' + icon);
+    });
     
     // AI 제공자별 설정 정보 (PHP에서 번역된 텍스트 전달)
     const providerConfig = {

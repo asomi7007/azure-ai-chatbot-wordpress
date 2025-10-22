@@ -1,5 +1,21 @@
 # 변경 이력
 
+## [2.3.0] - 2025-10-22
+
+### 추가됨 (Added)
+- ✨ **OAuth 2.0 자동 설정 기능**: Azure 리소스 자동 검색 및 설정
+- 🔐 **Azure App Registration 통합**: OAuth 인증으로 안전한 Azure API 접근
+- 🤖 **Agent ID 자동 조회**: AI Foundry Project의 Agent 목록 자동 검색
+- 🎯 **모드별 자동화**: Chat/Agent 모드에 따라 다른 자동화 동작
+- 📋 **설정 마법사 UI**: Azure Cloud Shell 스크립트 및 Portal 가이드 제공
+- 📚 **OAuth 설정 가이드**: 자세한 설정 문서 및 스크립트 제공
+
+### 개선됨 (Improved)
+- 🎨 **관리자 UI 개선**: 리소스 선택 드롭다운 캐스케이드
+- 🔄 **자동 토큰 갱신**: Access Token 자동 갱신 기능
+- 🛡️ **보안 강화**: CSRF 보호, 세션 기반 토큰 저장
+- 📱 **복사 버튼**: Cloud Shell 명령어, Redirect URI 원클릭 복사
+
 ## [2.2.7] - 2025-10-21
 
 ### 수정됨 (Fixed)
