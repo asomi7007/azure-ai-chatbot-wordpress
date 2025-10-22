@@ -59,14 +59,17 @@ $has_token = isset($_SESSION['azure_access_token']) && !empty($_SESSION['azure_a
                     </li>
                     <li>
                         <?php esc_html_e('아래 명령어를 복사해서 Cloud Shell에 붙여넣으세요:', 'azure-ai-chatbot'); ?>
+                        <?php
+                        $site_url = get_site_url();
+                        $oauth_command = "bash <(curl -s https://raw.githubusercontent.com/asomi7007/azure-ai-chatbot-wordpress/main/scripts/setup-oauth-app.sh) " . esc_url($site_url);
+                        ?>
                         <div style="background: #2d2d2d; color: #f8f8f8; padding: 10px; margin: 10px 0; border-radius: 4px; font-family: monospace; position: relative;">
-                            <code id="oauth-setup-command">curl -s https://raw.githubusercontent.com/asomi7007/azure-ai-chatbot-wordpress/main/scripts/setup-oauth-app.sh | bash</code>
+                            <code id="oauth-setup-command"><?php echo esc_html($oauth_command); ?></code>
                             <button type="button" class="button button-small" onclick="copyOAuthCommand()" style="position: absolute; right: 10px; top: 10px;">
                                 <?php esc_html_e('복사', 'azure-ai-chatbot'); ?>
                             </button>
                         </div>
                     </li>
-                    <li><?php esc_html_e('WordPress 사이트 URL 입력 (예: https://example.com)', 'azure-ai-chatbot'); ?></li>
                     <li><?php esc_html_e('생성된 Client ID, Client Secret, Tenant ID를 복사', 'azure-ai-chatbot'); ?></li>
                     <li><?php esc_html_e('Azure Portal에서 Admin Consent 부여', 'azure-ai-chatbot'); ?></li>
                 </ol>
