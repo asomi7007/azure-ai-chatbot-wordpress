@@ -10,11 +10,25 @@ echo "Azure AI Chatbot OAuth App Setup"
 echo "========================================="
 echo ""
 
-# 사용자 입력 받기
-read -p "WordPress 사이트 URL을 입력하세요 (예: https://example.com): " SITE_URL
+# WordPress URL 파라미터로 받기 또는 입력받기
+SITE_URL="$1"
 
 if [ -z "$SITE_URL" ]; then
+    read -p "WordPress 사이트 URL을 입력하세요 (예: https://example.com): " SITE_URL
+fi
+
+if [ -z "$SITE_URL" ]; then
+    echo ""
     echo "❌ 사이트 URL이 필요합니다."
+    echo ""
+    echo "💡 사용법:"
+    echo "   bash <(curl -s https://raw.githubusercontent.com/asomi7007/azure-ai-chatbot-wordpress/main/scripts/setup-oauth-app.sh) https://your-site.com"
+    echo ""
+    echo "   또는"
+    echo ""
+    echo "   curl -s https://raw.githubusercontent.com/asomi7007/azure-ai-chatbot-wordpress/main/scripts/setup-oauth-app.sh > setup.sh"
+    echo "   bash setup.sh https://your-site.com"
+    echo ""
     exit 1
 fi
 
