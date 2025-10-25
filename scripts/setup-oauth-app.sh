@@ -54,8 +54,22 @@ if [ "$SUBSCRIPTION_COUNT" = "0" ]; then
     exit 1
 fi
 
-# 구독이 여러 개인 경우 선택
-if [ "$SUBSCRIPTION_COUNT" -gt "1" ]; then
+# 현재 구독 정보 먼저 표시
+CURRENT_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+CURRENT_SUBSCRIPTION_NAME=$(az account show --query name -o tsv)
+
+# 항상 구독 목록 표시
+if [ "$SUBSCRIPTION_COUNT" -eq "1" ]; then
+    echo ""
+    echo "✅ 사용 가능한 구독: $CURRENT_SUBSCRIPTION_NAME ($CURRENT_SUBSCRIPTION_ID)"
+    echo ""
+    read -p "이 구독을 사용하시겠습니까? (y/n): " USE_CURRENT
+    
+    if [ "$USE_CURRENT" != "y" ] && [ "$USE_CURRENT" != "Y" ]; then
+        echo "❌ 작업이 취소되었습니다."
+        exit 1
+    fi
+else
     echo ""
     echo "🔍 사용 가능한 구독 목록:"
     echo ""
@@ -75,7 +89,7 @@ if [ "$SUBSCRIPTION_COUNT" -gt "1" ]; then
     echo "✅ 선택한 구독으로 설정 완료"
 fi
 
-# 현재 구독 정보 표시
+# 최종 구독 정보 표시
 SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 SUBSCRIPTION_NAME=$(az account show --query name -o tsv)
 echo "✅ 사용 중인 구독: $SUBSCRIPTION_NAME ($SUBSCRIPTION_ID)"
@@ -138,11 +152,34 @@ az ad app permission add --id "$APP_ID" \
 echo "✅ API 권한 추가 완료"
 echo ""
 
-# Admin Consent 자동 부여
-echo "🔐 관리자 동의 부여 중..."
-CONSENT_RESULT=$(az ad app permission admin-consent --id "$APP_ID" 2>&1)
+# Admin Consent 자동 부여 (타임아웃 10초)
+echo "🔐 관리자 동의 부여 중... (최대 10초 대기)"
 
-if echo "$CONSENT_RESULT" | grep -q "Forbidden\|forbidden\|denied"; then
+# timeout 사용 (GNU coreutils) 또는 background job으로 처리
+if command -v timeout > /dev/null 2>&1; then
+    # timeout 명령어가 있는 경우
+    CONSENT_RESULT=$(timeout 10s az ad app permission admin-consent --id "$APP_ID" 2>&1 || echo "TIMEOUT")
+else
+    # timeout이 없는 경우 (Cloud Shell 등)
+    CONSENT_RESULT=$(az ad app permission admin-consent --id "$APP_ID" 2>&1 &
+        CONSENT_PID=$!
+        sleep 10
+        if kill -0 $CONSENT_PID 2>/dev/null; then
+            kill $CONSENT_PID 2>/dev/null
+            echo "TIMEOUT"
+        else
+            wait $CONSENT_PID
+        fi
+    )
+fi
+
+if echo "$CONSENT_RESULT" | grep -q "TIMEOUT"; then
+    echo "⚠️  관리자 동의 부여가 타임아웃되었습니다."
+    echo "   Azure Portal에서 수동으로 동의를 부여하세요:"
+    echo "   1. https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/CallAnAPI/appId/$APP_ID"
+    echo "   2. 'API permissions' 클릭"
+    echo "   3. 'Grant admin consent for [조직명]' 클릭"
+elif echo "$CONSENT_RESULT" | grep -q "Forbidden\|forbidden\|denied"; then
     echo "⚠️  관리자 권한이 부족하여 자동 동의를 부여할 수 없습니다."
     echo "   Azure Portal에서 수동으로 동의를 부여하세요:"
     echo "   1. https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/CallAnAPI/appId/$APP_ID"
