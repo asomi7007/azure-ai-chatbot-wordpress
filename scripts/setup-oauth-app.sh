@@ -36,24 +36,49 @@ fi
 SITE_URL=$(echo "$SITE_URL" | sed 's:/*$::')
 
 # Redirect URI 생성
-REDIRECT_URI="${SITE_URL}/wp-admin/admin.php?page=azure-chatbot-settings&azure_callback=1"
+REDIRECT_URI="${SITE_URL}/wp-admin/admin.php?page=azure-ai-chatbot&azure_callback=1"
 
 echo ""
 echo "✅ Redirect URI: $REDIRECT_URI"
 echo ""
 
-# 현재 구독 확인
-echo "📋 현재 Azure 구독 확인 중..."
-SUBSCRIPTION_ID=$(az account show --query id -o tsv 2>/dev/null || echo "")
+# Azure 구독 선택
+echo "📋 Azure 구독 확인 중..."
 
-if [ -z "$SUBSCRIPTION_ID" ]; then
+# 사용 가능한 구독 목록 가져오기
+SUBSCRIPTION_COUNT=$(az account list --query "length(@)" -o tsv 2>/dev/null || echo "0")
+
+if [ "$SUBSCRIPTION_COUNT" = "0" ]; then
     echo "❌ Azure에 로그인이 필요합니다."
     echo "   다음 명령어를 실행하세요: az login"
     exit 1
 fi
 
+# 구독이 여러 개인 경우 선택
+if [ "$SUBSCRIPTION_COUNT" -gt "1" ]; then
+    echo ""
+    echo "🔍 사용 가능한 구독 목록:"
+    echo ""
+    az account list --query "[].{Number:to_string(to_number(to_string(null))), Name:name, SubscriptionId:id, State:state}" -o table | nl
+    echo ""
+    read -p "사용할 구독 번호를 입력하세요 (1-$SUBSCRIPTION_COUNT): " SUB_NUM
+    
+    if [ -z "$SUB_NUM" ] || [ "$SUB_NUM" -lt 1 ] || [ "$SUB_NUM" -gt "$SUBSCRIPTION_COUNT" ]; then
+        echo "❌ 잘못된 번호입니다."
+        exit 1
+    fi
+    
+    # 선택한 구독으로 설정
+    SUBSCRIPTION_ID=$(az account list --query "[$(($SUB_NUM - 1))].id" -o tsv)
+    az account set --subscription "$SUBSCRIPTION_ID"
+    echo ""
+    echo "✅ 선택한 구독으로 설정 완료"
+fi
+
+# 현재 구독 정보 표시
+SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 SUBSCRIPTION_NAME=$(az account show --query name -o tsv)
-echo "✅ 구독: $SUBSCRIPTION_NAME ($SUBSCRIPTION_ID)"
+echo "✅ 사용 중인 구독: $SUBSCRIPTION_NAME ($SUBSCRIPTION_ID)"
 echo ""
 
 # App Registration 생성
@@ -113,12 +138,23 @@ az ad app permission add --id "$APP_ID" \
 echo "✅ API 권한 추가 완료"
 echo ""
 
-# Admin Consent 안내
-echo "⚠️  관리자 동의 필요"
-echo "   Azure Portal에서 다음 단계를 수행하세요:"
-echo "   1. https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/CallAnAPI/appId/$APP_ID"
-echo "   2. 'API permissions' 클릭"
-echo "   3. 'Grant admin consent for [조직명]' 클릭"
+# Admin Consent 자동 부여
+echo "🔐 관리자 동의 부여 중..."
+CONSENT_RESULT=$(az ad app permission admin-consent --id "$APP_ID" 2>&1)
+
+if echo "$CONSENT_RESULT" | grep -q "Forbidden\|forbidden\|denied"; then
+    echo "⚠️  관리자 권한이 부족하여 자동 동의를 부여할 수 없습니다."
+    echo "   Azure Portal에서 수동으로 동의를 부여하세요:"
+    echo "   1. https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/CallAnAPI/appId/$APP_ID"
+    echo "   2. 'API permissions' 클릭"
+    echo "   3. 'Grant admin consent for [조직명]' 클릭"
+elif echo "$CONSENT_RESULT" | grep -q "error\|Error\|ERROR"; then
+    echo "⚠️  관리자 동의 부여 중 오류 발생"
+    echo "   Azure Portal에서 수동으로 동의를 부여하세요:"
+    echo "   https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/CallAnAPI/appId/$APP_ID"
+else
+    echo "✅ 관리자 동의 자동 부여 완료!"
+fi
 echo ""
 
 # 결과 출력

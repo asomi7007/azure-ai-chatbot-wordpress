@@ -79,7 +79,7 @@ $has_token = isset($_SESSION['azure_access_token']) && !empty($_SESSION['azure_a
                     <li>
                         <?php
                         $site_url = get_site_url();
-                        $redirect_uri = admin_url('admin.php?page=azure-chatbot-settings&azure_callback=1');
+                        $redirect_uri = admin_url('admin.php?page=azure-ai-chatbot&azure_callback=1');
                         $app_reg_url = 'https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/CreateApplicationBlade';
                         ?>
                         <a href="<?php echo esc_url($app_reg_url); ?>" target="_blank" class="button">

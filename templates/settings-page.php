@@ -48,18 +48,23 @@ if (!empty($options['agent_endpoint'])) {
         <?php settings_fields('azure_chatbot_settings_group'); ?>
         
         <div class="settings-container">
-            <!-- Azure OAuth 자동 설정 (기본 숨김) -->
-            <div id="oauth-auto-setup-section" style="display: none;">
-                <?php include AZURE_CHATBOT_PLUGIN_DIR . 'templates/oauth-auto-setup.php'; ?>
-            </div>
-            
             <!-- API 설정 -->
             <div class="postbox">
                 <h2 class="hndle">
                     <span class="dashicons dashicons-cloud"></span>
                     <?php esc_html_e('Azure AI Connection Settings', 'azure-ai-chatbot'); ?>
+                    <button type="button" id="toggle-auto-setup" class="button button-secondary" style="float: right; margin-top: -3px;">
+                        <span class="dashicons dashicons-admin-network" style="margin-top: 3px;"></span>
+                        <?php esc_html_e('Auto Setting', 'azure-ai-chatbot'); ?>
+                    </button>
                 </h2>
                 <div class="inside">
+                    
+                    <!-- Azure OAuth 자동 설정 (기본 숨김) -->
+                    <div id="oauth-auto-setup-section" style="display: none; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #ddd;">
+                        <?php include AZURE_CHATBOT_PLUGIN_DIR . 'templates/oauth-auto-setup.php'; ?>
+                    </div>
+                    
                     <table class="form-table">
                         <tr>
                             <th scope="row">
@@ -449,10 +454,6 @@ if (!empty($options['agent_endpoint'])) {
         </div>
         
         <p class="submit">
-            <button type="button" id="toggle-auto-setup" class="button button-secondary button-large" style="margin-right: 10px;">
-                <span class="dashicons dashicons-admin-network"></span>
-                <?php esc_html_e('Auto Setting', 'azure-ai-chatbot'); ?>
-            </button>
             <?php submit_button(__('설정 저장', 'azure-ai-chatbot'), 'primary button-large', 'submit', false); ?>
             <a href="admin.php?page=azure-ai-chatbot-guide" class="button button-secondary button-large" style="margin-left: 10px;">
                 <span class="dashicons dashicons-book"></span>
