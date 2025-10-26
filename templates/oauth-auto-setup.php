@@ -485,9 +485,13 @@ if (isset($_GET['oauth_error'])) {
             
             <!-- OAuth 설정 재구성 -->
             <p style="margin-top: 20px;">
-                <a href="#" onclick="resetOAuthConfig(); return false;">
+                <button type="button" class="button" onclick="return resetOAuthConfig();">
+                    <span class="dashicons dashicons-admin-generic" style="margin-top: 3px;"></span>
                     <?php esc_html_e('OAuth 설정 변경', 'azure-ai-chatbot'); ?>
-                </a>
+                </button>
+                <span class="description" style="margin-left: 10px;">
+                    <?php esc_html_e('Client ID, Secret, Tenant ID를 변경하려면 클릭하세요', 'azure-ai-chatbot'); ?>
+                </span>
             </p>
             
         <?php endif; ?>
@@ -1193,13 +1197,30 @@ jQuery(document).ready(function($) {
 });
 
 function resetOAuthConfig() {
-    if (!confirm('OAuth 설정을 초기화하시겠습니까?')) return;
+    if (!confirm('<?php esc_html_e('OAuth 설정을 초기화하시겠습니까? 저장된 Client ID, Client Secret, Tenant ID가 모두 삭제됩니다.', 'azure-ai-chatbot'); ?>')) {
+        return false;
+    }
+    
+    // 버튼 비활성화 및 로딩 표시
+    var button = jQuery(event.target);
+    button.prop('disabled', true).text('<?php esc_html_e('초기화 중...', 'azure-ai-chatbot'); ?>');
     
     jQuery.post(ajaxurl, {
         action: 'azure_oauth_reset_config',
         nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>'
-    }, function() {
-        location.reload();
+    }, function(response) {
+        if (response.success) {
+            alert('<?php esc_html_e('OAuth 설정이 초기화되었습니다. 페이지를 새로고침합니다.', 'azure-ai-chatbot'); ?>');
+            location.reload();
+        } else {
+            alert('<?php esc_html_e('초기화 실패:', 'azure-ai-chatbot'); ?> ' + (response.data.message || '알 수 없는 오류'));
+            button.prop('disabled', false).text('<?php esc_html_e('OAuth 설정 변경', 'azure-ai-chatbot'); ?>');
+        }
+    }).fail(function(xhr, status, error) {
+        alert('<?php esc_html_e('AJAX 오류:', 'azure-ai-chatbot'); ?> ' + error);
+        button.prop('disabled', false).text('<?php esc_html_e('OAuth 설정 변경', 'azure-ai-chatbot'); ?>');
     });
+    
+    return false;
 }
 </script>
