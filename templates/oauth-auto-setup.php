@@ -249,7 +249,76 @@ if (isset($_GET['oauth_error'])) {
                             <td>
                                 <select id="oauth_resource_group" class="regular-text" disabled>
                                     <option value=""><?php esc_html_e('먼저 Subscription을 선택하세요', 'azure-ai-chatbot'); ?></option>
+                                    <option value="__CREATE_NEW__"><?php esc_html_e('➕ 새 Resource Group 만들기', 'azure-ai-chatbot'); ?></option>
                                 </select>
+                                <button type="button" class="button" onclick="loadResourceGroups()" style="display:none;" id="refresh-rg-btn">
+                                    <span class="dashicons dashicons-update"></span>
+                                    <?php esc_html_e('새로고침', 'azure-ai-chatbot'); ?>
+                                </button>
+                                
+                                <!-- 새 Resource Group 생성 폼 -->
+                                <div id="new-rg-form" style="display:none; margin-top:10px; padding:15px; background:#f0f6fc; border-left:4px solid #0078d4;">
+                                    <p><strong><?php esc_html_e('새 Resource Group 만들기', 'azure-ai-chatbot'); ?></strong></p>
+                                    
+                                    <p style="margin:10px 0;">
+                                        <label>
+                                            <input type="radio" name="rg_name_mode" value="auto" checked onchange="toggleRgNameInput()">
+                                            <?php esc_html_e('자동 생성 이름 사용 (권장)', 'azure-ai-chatbot'); ?>
+                                        </label>
+                                        <br>
+                                        <label>
+                                            <input type="radio" name="rg_name_mode" value="manual" onchange="toggleRgNameInput()">
+                                            <?php esc_html_e('직접 입력', 'azure-ai-chatbot'); ?>
+                                        </label>
+                                    </p>
+                                    
+                                    <div id="auto-rg-name" style="margin:10px 0;">
+                                        <input type="text" id="new_rg_name_auto" class="regular-text" 
+                                               value="" readonly 
+                                               placeholder="rg-aichatbot-prod-koreacentral"
+                                               style="background:#f5f5f5;">
+                                        <p class="description">
+                                            💡 <?php esc_html_e('Azure 명명 규칙: rg-{워크로드}-{환경}-{지역}', 'azure-ai-chatbot'); ?>
+                                        </p>
+                                    </div>
+                                    
+                                    <div id="manual-rg-name" style="margin:10px 0; display:none;">
+                                        <input type="text" id="new_rg_name_manual" class="regular-text" 
+                                               placeholder="my-resource-group"
+                                               pattern="[a-z0-9-]{3,24}">
+                                        <p class="description">
+                                            <?php esc_html_e('소문자, 숫자, 하이픈만 사용 (3-24자)', 'azure-ai-chatbot'); ?>
+                                        </p>
+                                    </div>
+                                    
+                                    <p style="margin:10px 0;">
+                                        <label for="new_rg_location"><?php esc_html_e('위치 (Region)', 'azure-ai-chatbot'); ?> *</label><br>
+                                        <select id="new_rg_location" class="regular-text">
+                                            <option value="koreacentral">Korea Central (한국 중부)</option>
+                                            <option value="koreasouth">Korea South (한국 남부)</option>
+                                            <option value="eastus">East US (미국 동부)</option>
+                                            <option value="eastus2">East US 2 (미국 동부 2)</option>
+                                            <option value="westus">West US (미국 서부)</option>
+                                            <option value="westus2">West US 2 (미국 서부 2)</option>
+                                            <option value="westeurope">West Europe (서유럽)</option>
+                                            <option value="northeurope">North Europe (북유럽)</option>
+                                            <option value="japaneast">Japan East (일본 동부)</option>
+                                            <option value="japanwest">Japan West (일본 서부)</option>
+                                            <option value="southeastasia">Southeast Asia (동남아시아)</option>
+                                            <option value="eastasia">East Asia (동아시아)</option>
+                                        </select>
+                                    </p>
+                                    
+                                    <p style="margin:10px 0;">
+                                        <button type="button" class="button button-primary" onclick="createResourceGroup()">
+                                            <span class="dashicons dashicons-plus"></span>
+                                            <?php esc_html_e('Resource Group 생성', 'azure-ai-chatbot'); ?>
+                                        </button>
+                                        <button type="button" class="button" onclick="cancelNewResourceGroup()">
+                                            <?php esc_html_e('취소', 'azure-ai-chatbot'); ?>
+                                        </button>
+                                    </p>
+                                </div>
                             </td>
                         </tr>
                         <tr>
@@ -275,7 +344,76 @@ if (isset($_GET['oauth_error'])) {
                             <td>
                                 <select id="oauth_resource" class="regular-text" disabled>
                                     <option value=""><?php esc_html_e('먼저 Resource Group을 선택하세요', 'azure-ai-chatbot'); ?></option>
+                                    <option value="__CREATE_NEW__"><?php esc_html_e('➕ 새 AI 리소스 만들기', 'azure-ai-chatbot'); ?></option>
                                 </select>
+                                
+                                <!-- 새 AI 리소스 생성 폼 -->
+                                <div id="new-ai-resource-form" style="display:none; margin-top:10px; padding:15px; background:#f0f6fc; border-left:4px solid #0078d4;">
+                                    <p><strong><?php esc_html_e('새 AI 리소스 만들기', 'azure-ai-chatbot'); ?></strong></p>
+                                    
+                                    <p style="margin:10px 0;">
+                                        <label>
+                                            <input type="radio" name="ai_name_mode" value="auto" checked onchange="toggleAiNameInput()">
+                                            <?php esc_html_e('자동 생성 이름 사용 (권장)', 'azure-ai-chatbot'); ?>
+                                        </label>
+                                        <br>
+                                        <label>
+                                            <input type="radio" name="ai_name_mode" value="manual" onchange="toggleAiNameInput()">
+                                            <?php esc_html_e('직접 입력', 'azure-ai-chatbot'); ?>
+                                        </label>
+                                    </p>
+                                    
+                                    <div id="auto-ai-name" style="margin:10px 0;">
+                                        <input type="text" id="new_ai_name_auto" class="regular-text" 
+                                               value="" readonly 
+                                               placeholder="ai-chatbot-prod"
+                                               style="background:#f5f5f5;">
+                                        <p class="description">
+                                            💡 <span id="ai-naming-convention"></span>
+                                        </p>
+                                    </div>
+                                    
+                                    <div id="manual-ai-name" style="margin:10px 0; display:none;">
+                                        <input type="text" id="new_ai_name_manual" class="regular-text" 
+                                               placeholder="my-ai-resource"
+                                               pattern="[a-z0-9-]{3,24}">
+                                        <p class="description">
+                                            <?php esc_html_e('소문자, 숫자, 하이픈만 사용 (3-24자)', 'azure-ai-chatbot'); ?>
+                                        </p>
+                                    </div>
+                                    
+                                    <p style="margin:10px 0;">
+                                        <label for="new_ai_sku"><?php esc_html_e('가격 계층 (SKU)', 'azure-ai-chatbot'); ?> *</label><br>
+                                        <select id="new_ai_sku" class="regular-text">
+                                            <option value="S0">S0 - Standard (프로덕션 권장)</option>
+                                            <option value="F0">F0 - Free (테스트용, 제한적)</option>
+                                        </select>
+                                    </p>
+                                    
+                                    <p style="margin:10px 0;" id="ai-location-container">
+                                        <label for="new_ai_location"><?php esc_html_e('위치 (Region)', 'azure-ai-chatbot'); ?></label><br>
+                                        <input type="text" id="new_ai_location" class="regular-text" readonly 
+                                               value="" 
+                                               style="background:#f5f5f5;">
+                                        <span class="description">
+                                            <?php esc_html_e('(Resource Group과 동일한 위치 사용)', 'azure-ai-chatbot'); ?>
+                                        </span>
+                                    </p>
+                                    
+                                    <p style="margin:10px 0;">
+                                        <button type="button" class="button button-primary" onclick="createAIResource()">
+                                            <span class="dashicons dashicons-plus"></span>
+                                            <span id="create-ai-btn-text"><?php esc_html_e('AI 리소스 생성', 'azure-ai-chatbot'); ?></span>
+                                        </button>
+                                        <button type="button" class="button" onclick="cancelNewAIResource()">
+                                            <?php esc_html_e('취소', 'azure-ai-chatbot'); ?>
+                                        </button>
+                                    </p>
+                                    
+                                    <p class="description" style="margin-top:10px; font-size:12px; color:#666;">
+                                        ⏱️ <?php esc_html_e('리소스 생성은 1-2분 정도 소요됩니다.', 'azure-ai-chatbot'); ?>
+                                    </p>
+                                </div>
                             </td>
                         </tr>
                         
@@ -645,6 +783,225 @@ function clearOAuthSession() {
         location.reload();
     });
 }
+
+// Resource Group 생성 관련 함수들
+function toggleRgNameInput() {
+    var mode = jQuery('input[name="rg_name_mode"]:checked').val();
+    if (mode === 'auto') {
+        jQuery('#auto-rg-name').show();
+        jQuery('#manual-rg-name').hide();
+        generateResourceGroupName();
+    } else {
+        jQuery('#auto-rg-name').hide();
+        jQuery('#manual-rg-name').show();
+    }
+}
+
+function generateResourceGroupName() {
+    var location = jQuery('#new_rg_location').val();
+    var timestamp = new Date().toISOString().slice(0,10).replace(/-/g, '');
+    var name = 'rg-aichatbot-prod-' + location;
+    jQuery('#new_rg_name_auto').val(name);
+}
+
+function createResourceGroup() {
+    var nameMode = jQuery('input[name="rg_name_mode"]:checked').val();
+    var name = nameMode === 'auto' ? 
+        jQuery('#new_rg_name_auto').val() : 
+        jQuery('#new_rg_name_manual').val();
+    var location = jQuery('#new_rg_location').val();
+    var subscription = jQuery('#oauth_subscription').val();
+    
+    if (!name || !location) {
+        alert('<?php esc_html_e('모든 필드를 입력하세요.', 'azure-ai-chatbot'); ?>');
+        return;
+    }
+    
+    // 이름 유효성 검사
+    if (!/^[a-z0-9-]{3,24}$/.test(name)) {
+        alert('<?php esc_html_e('리소스 그룹 이름은 소문자, 숫자, 하이픈만 사용하며 3-24자여야 합니다.', 'azure-ai-chatbot'); ?>');
+        return;
+    }
+    
+    jQuery('#new-rg-form button').prop('disabled', true);
+    jQuery('#new-rg-form').prepend('<p class="notice notice-info inline"><span class="dashicons dashicons-update spin"></span> <?php esc_html_e('리소스 그룹 생성 중...', 'azure-ai-chatbot'); ?></p>');
+    
+    jQuery.post(ajaxurl, {
+        action: 'azure_oauth_create_resource_group',
+        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
+        name: name,
+        location: location,
+        subscription: subscription
+    }, function(response) {
+        jQuery('#new-rg-form .notice').remove();
+        jQuery('#new-rg-form button').prop('disabled', false);
+        
+        if (response.success) {
+            alert('<?php esc_html_e('리소스 그룹이 성공적으로 생성되었습니다!', 'azure-ai-chatbot'); ?>');
+            
+            // 폼 숨기기
+            jQuery('#new-rg-form').hide();
+            jQuery('#oauth_resource_group').val('');
+            
+            // 리소스 그룹 목록 새로고침
+            loadResourceGroups();
+        } else {
+            alert('<?php esc_html_e('생성 실패:', 'azure-ai-chatbot'); ?> ' + response.data.message);
+        }
+    });
+}
+
+function cancelNewResourceGroup() {
+    jQuery('#new-rg-form').hide();
+    jQuery('#oauth_resource_group').val('');
+}
+
+// AI 리소스 생성 관련 함수들
+function toggleAiNameInput() {
+    var mode = jQuery('input[name="ai_name_mode"]:checked').val();
+    if (mode === 'auto') {
+        jQuery('#auto-ai-name').show();
+        jQuery('#manual-ai-name').hide();
+        generateAIResourceName();
+    } else {
+        jQuery('#auto-ai-name').hide();
+        jQuery('#manual-ai-name').show();
+    }
+}
+
+function generateAIResourceName() {
+    var chatMode = jQuery('input[name="oauth_mode"]:checked').val();
+    var timestamp = new Date().toISOString().slice(0,10).replace(/-/g, '');
+    var name;
+    var convention;
+    
+    if (chatMode === 'chat') {
+        name = 'oai-chatbot-prod';
+        convention = '<?php esc_html_e('Azure OpenAI 명명 규칙: oai-{워크로드}-{환경}', 'azure-ai-chatbot'); ?>';
+        jQuery('#create-ai-btn-text').text('<?php esc_html_e('Azure OpenAI 리소스 생성', 'azure-ai-chatbot'); ?>');
+    } else {
+        name = 'ai-chatbot-prod';
+        convention = '<?php esc_html_e('AI Foundry 명명 규칙: ai-{워크로드}-{환경}', 'azure-ai-chatbot'); ?>';
+        jQuery('#create-ai-btn-text').text('<?php esc_html_e('AI Foundry Project 생성', 'azure-ai-chatbot'); ?>');
+    }
+    
+    jQuery('#new_ai_name_auto').val(name);
+    jQuery('#ai-naming-convention').text(convention);
+}
+
+function createAIResource() {
+    var nameMode = jQuery('input[name="ai_name_mode"]:checked').val();
+    var name = nameMode === 'auto' ? 
+        jQuery('#new_ai_name_auto').val() : 
+        jQuery('#new_ai_name_manual').val();
+    var sku = jQuery('#new_ai_sku').val();
+    var location = jQuery('#new_ai_location').val();
+    var resourceGroup = jQuery('#oauth_resource_group').val();
+    var subscription = jQuery('#oauth_subscription').val();
+    var mode = jQuery('input[name="oauth_mode"]:checked').val();
+    
+    if (!name || !sku || !location || !resourceGroup) {
+        alert('<?php esc_html_e('모든 필드를 입력하세요.', 'azure-ai-chatbot'); ?>');
+        return;
+    }
+    
+    // 이름 유효성 검사
+    if (!/^[a-z0-9-]{3,24}$/.test(name)) {
+        alert('<?php esc_html_e('리소스 이름은 소문자, 숫자, 하이픈만 사용하며 3-24자여야 합니다.', 'azure-ai-chatbot'); ?>');
+        return;
+    }
+    
+    jQuery('#new-ai-resource-form button').prop('disabled', true);
+    jQuery('#new-ai-resource-form').prepend('<p class="notice notice-info inline"><span class="dashicons dashicons-update spin"></span> <?php esc_html_e('리소스 생성 중... (1-2분 소요)', 'azure-ai-chatbot'); ?></p>');
+    
+    jQuery.post(ajaxurl, {
+        action: 'azure_oauth_create_ai_resource',
+        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
+        name: name,
+        sku: sku,
+        location: location,
+        resource_group: resourceGroup,
+        subscription: subscription,
+        mode: mode
+    }, function(response) {
+        jQuery('#new-ai-resource-form .notice').remove();
+        jQuery('#new-ai-resource-form button').prop('disabled', false);
+        
+        if (response.success) {
+            alert('<?php esc_html_e('AI 리소스가 성공적으로 생성되었습니다!', 'azure-ai-chatbot'); ?>');
+            
+            // 폼 숨기기
+            jQuery('#new-ai-resource-form').hide();
+            jQuery('#oauth_resource').val('');
+            
+            // 리소스 목록 새로고침
+            loadResources();
+        } else {
+            alert('<?php esc_html_e('생성 실패:', 'azure-ai-chatbot'); ?> ' + response.data.message);
+        }
+    });
+}
+
+function cancelNewAIResource() {
+    jQuery('#new-ai-resource-form').hide();
+    jQuery('#oauth_resource').val('');
+}
+
+// Resource Group 선택 이벤트 처리 수정
+jQuery(document).ready(function($) {
+    $('#oauth_resource_group').on('change', function() {
+        var value = $(this).val();
+        
+        if (value === '__CREATE_NEW__') {
+            $('#new-rg-form').slideDown(300);
+            generateResourceGroupName();
+        } else {
+            $('#new-rg-form').slideUp(300);
+            
+            if (value) {
+                // 선택된 Resource Group의 location 가져오기
+                var selectedOption = $(this).find('option:selected');
+                var location = selectedOption.data('location');
+                if (location) {
+                    $('#new_ai_location').val(location);
+                }
+            }
+            
+            loadResources();
+        }
+    });
+    
+    // AI 리소스 선택 이벤트 처리
+    $('#oauth_resource').on('change', function() {
+        var value = $(this).val();
+        
+        if (value === '__CREATE_NEW__') {
+            $('#new-ai-resource-form').slideDown(300);
+            generateAIResourceName();
+            
+            // Resource Group의 location 설정
+            var rgLocation = $('#new_ai_location').val();
+            if (!rgLocation) {
+                var selectedRg = $('#oauth_resource_group option:selected');
+                $('#new_ai_location').val(selectedRg.data('location') || 'koreacentral');
+            }
+        } else {
+            $('#new-ai-resource-form').slideUp(300);
+        }
+    });
+    
+    // 모드 변경 시 AI 리소스 이름 재생성
+    $('input[name="oauth_mode"]').on('change', function() {
+        generateAIResourceName();
+    });
+    
+    // Location 변경 시 Resource Group 이름 재생성
+    $('#new_rg_location').on('change', function() {
+        if ($('input[name="rg_name_mode"]:checked').val() === 'auto') {
+            generateResourceGroupName();
+        }
+    });
+});
 
 function resetOAuthConfig() {
     if (!confirm('OAuth 설정을 초기화하시겠습니까?')) return;

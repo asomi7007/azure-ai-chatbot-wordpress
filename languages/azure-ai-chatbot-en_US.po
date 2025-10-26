@@ -546,3 +546,94 @@ msgstr "Bash command copied to clipboard!"
 msgid "PowerShell 명령어가 클립보드에 복사되었습니다!"
 msgstr "PowerShell command copied to clipboard!"
 
+# Resource creation
+msgid "➕ 새 Resource Group 만들기"
+msgstr "➕ Create New Resource Group"
+
+msgid "새 Resource Group 만들기"
+msgstr "Create New Resource Group"
+
+msgid "자동 생성 이름 사용 (권장)"
+msgstr "Use Auto-Generated Name (Recommended)"
+
+msgid "직접 입력"
+msgstr "Enter Manually"
+
+msgid "Azure 명명 규칙: rg-{워크로드}-{환경}-{지역}"
+msgstr "Azure naming convention: rg-{workload}-{env}-{region}"
+
+msgid "소문자, 숫자, 하이픈만 사용 (3-24자)"
+msgstr "Use lowercase, numbers, and hyphens only (3-24 chars)"
+
+msgid "위치 (Region)"
+msgstr "Location (Region)"
+
+msgid "Resource Group 생성"
+msgstr "Create Resource Group"
+
+msgid "취소"
+msgstr "Cancel"
+
+msgid "➕ 새 AI 리소스 만들기"
+msgstr "➕ Create New AI Resource"
+
+msgid "새 AI 리소스 만들기"
+msgstr "Create New AI Resource"
+
+msgid "Azure OpenAI 명명 규칙: oai-{워크로드}-{환경}"
+msgstr "Azure OpenAI naming convention: oai-{workload}-{env}"
+
+msgid "AI Foundry 명명 규칙: ai-{워크로드}-{환경}"
+msgstr "AI Foundry naming convention: ai-{workload}-{env}"
+
+msgid "가격 계층 (SKU)"
+msgstr "Pricing Tier (SKU)"
+
+msgid "(Resource Group과 동일한 위치 사용)"
+msgstr "(Using same location as Resource Group)"
+
+msgid "AI 리소스 생성"
+msgstr "Create AI Resource"
+
+msgid "Azure OpenAI 리소스 생성"
+msgstr "Create Azure OpenAI Resource"
+
+msgid "AI Foundry Project 생성"
+msgstr "Create AI Foundry Project"
+
+msgid "리소스 생성은 1-2분 정도 소요됩니다."
+msgstr "Resource creation takes about 1-2 minutes."
+
+msgid "모든 필드를 입력하세요."
+msgstr "Please fill in all fields."
+
+msgid "리소스 그룹 이름은 소문자, 숫자, 하이픈만 사용하며 3-24자여야 합니다."
+msgstr "Resource group name must use lowercase, numbers, hyphens only and be 3-24 characters."
+
+msgid "리소스 그룹 생성 중..."
+msgstr "Creating resource group..."
+
+msgid "리소스 그룹이 성공적으로 생성되었습니다!"
+msgstr "Resource group created successfully!"
+
+msgid "생성 실패:"
+msgstr "Creation failed:"
+
+msgid "리소스 이름은 소문자, 숫자, 하이픈만 사용하며 3-24자여야 합니다."
+msgstr "Resource name must use lowercase, numbers, hyphens only and be 3-24 characters."
+
+msgid "리소스 생성 중... (1-2분 소요)"
+msgstr "Creating resource... (takes 1-2 minutes)"
+
+msgid "AI 리소스가 성공적으로 생성되었습니다!"
+msgstr "AI resource created successfully!"
+
+msgid "인증은 완료되었지만 세션 정보가 없습니다. 페이지를 새로고침 하거나 다시 인증하세요."
+msgstr "Authentication completed but session information is missing. Please refresh the page or re-authenticate."
+
+msgid "새로고침"
+msgstr "Refresh"
+
+msgid "Azure 인증에 성공했습니다! 아래에서 리소스를 선택하세요."
+msgstr "Azure authentication successful! Select resources below."
+
