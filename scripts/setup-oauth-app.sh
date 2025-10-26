@@ -175,13 +175,14 @@ else
     echo "🔍 사용 가능한 구독 목록:"
     echo ""
     
-    # 구독 목록을 번호와 함께 표시 (탭으로 구분)
-    echo -e "   No.\tName\t\t\t\tSubscriptionId\t\t\t\tState"
-    echo -e "   ----\t--------------------------------\t------------------------------------\t--------"
-    
-    # TSV 출력을 탭 구분자로 파싱
-    az account list --query "[].{Name:name, SubscriptionId:id, State:state}" -o tsv | awk -F'\t' '{
-        printf "   %d\t%-30s\t%s\t%s\n", NR, $1, $2, $3
+    # 구독 목록을 번호와 함께 표시
+    az account list --query "[].{Name:name, SubscriptionId:id, State:state}" -o tsv | awk -F'\t' '
+    BEGIN {
+        printf "   %-4s %-32s %-38s %-10s\n", "No.", "Name", "SubscriptionId", "State"
+        printf "   %-4s %-32s %-38s %-10s\n", "----", "--------------------------------", "--------------------------------------", "----------"
+    }
+    {
+        printf "   %-4d %-32s %-38s %-10s\n", NR, $1, $2, $3
     }'
     
     echo ""
@@ -285,16 +286,22 @@ else
     echo ""
     
     # 토큰 만료 체크를 위해 stderr 캡처
+    echo "[디버그] az ad app create 실행 중..."
     APP_CREATE_OUTPUT=$(az ad app create \
         --display-name "$APP_NAME" \
         --sign-in-audience "AzureADMyOrg" \
         --web-redirect-uris "$REDIRECT_URI" \
         --query appId -o tsv 2>&1)
     
+    echo "[디버그] 출력 결과: $APP_CREATE_OUTPUT"
+    echo ""
+    
     # GUID 형식 검증 (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
     if echo "$APP_CREATE_OUTPUT" | grep -qE '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'; then
         APP_ID="$APP_CREATE_OUTPUT"
+        echo "[디버그] GUID 검증 성공"
     else
+        echo "[디버그] GUID 검증 실패 - 에러 처리 시작"
         # 에러 발생
         echo "❌ App Registration 생성 실패"
         echo ""
@@ -304,6 +311,12 @@ else
             echo "   다음 명령어를 실행한 후 다시 시도하세요:"
             echo ""
             echo "   az login"
+            echo ""
+        elif echo "$APP_CREATE_OUTPUT" | grep -qi "insufficient privileges\|authorization\|permission"; then
+            echo "⚠️  Azure AD 앱 생성 권한이 없습니다."
+            echo "   Azure Portal에서 관리자에게 다음 권한을 요청하세요:"
+            echo "   - Application Developer 역할 또는"
+            echo "   - Application Administrator 역할"
             echo ""
         else
             echo "   오류 내용:"
