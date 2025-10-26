@@ -5,10 +5,111 @@
 
 set -e
 
+# Language Selection / 언어 선택
 echo "========================================="
 echo "Azure AI Chatbot OAuth App Setup"
 echo "========================================="
 echo ""
+echo "Select language / 언어를 선택하세요:"
+echo "1) English"
+echo "2) 한국어 (Korean)"
+echo ""
+read -p "Choose (1-2) / 선택 (1-2): " LANG_CHOICE
+
+case "$LANG_CHOICE" in
+    1)
+        LANG="en"
+        ;;
+    2)
+        LANG="ko"
+        ;;
+    *)
+        echo "Invalid choice. Defaulting to English."
+        echo "잘못된 선택입니다. 영어로 진행합니다."
+        LANG="en"
+        ;;
+esac
+
+echo ""
+
+# Multilingual message function
+msg() {
+    local key="$1"
+    case "$LANG" in
+        ko)
+            case "$key" in
+                "enter_url") echo "WordPress 사이트 URL을 입력하세요 (예: https://example.com): " ;;
+                "url_required") echo "❌ 사이트 URL이 필요합니다." ;;
+                "usage") echo "💡 사용법:" ;;
+                "redirect_uri") echo "✅ Redirect URI:" ;;
+                "checking_subscription") echo "📋 Azure 구독 확인 중..." ;;
+                "no_login") echo "❌ Azure에 로그인이 필요합니다." ;;
+                "login_cmd") echo "   다음 명령어를 실행하세요: az login" ;;
+                "available_subscription") echo "✅ 사용 가능한 구독:" ;;
+                "use_subscription") echo "이 구독을 사용하시겠습니까? (y/n): " ;;
+                "cancelled") echo "❌ 작업이 취소되었습니다." ;;
+                "subscription_list") echo "🔍 사용 가능한 구독 목록:" ;;
+                "select_subscription") echo "사용할 구독 번호를 입력하세요 (1-$2): " ;;
+                "invalid_number") echo "❌ 잘못된 번호입니다." ;;
+                "subscription_set") echo "✅ 선택한 구독으로 설정 완료" ;;
+                "current_subscription") echo "✅ 사용 중인 구독:" ;;
+                "creating_app") echo "🔧 App Registration 생성 중:" ;;
+                "client_id") echo "✅ Application (Client) ID:" ;;
+                "tenant_id") echo "✅ Directory (Tenant) ID:" ;;
+                "creating_secret") echo "🔑 Client Secret 생성 중..." ;;
+                "secret_value") echo "✅ Client Secret:" ;;
+                "save_secret") echo "⚠️  이 Secret 값을 안전하게 저장하세요. 다시 볼 수 없습니다!" ;;
+                "adding_permissions") echo "🔐 API 권한 추가 중..." ;;
+                "permissions_done") echo "✅ API 권한 추가 완료" ;;
+                "granting_consent") echo "🔐 관리자 동의 처리 중..." ;;
+                "consent_timeout") echo "⚠️  자동 동의 부여에 실패했습니다." ;;
+                "consent_success") echo "✅ 관리자 동의가 성공적으로 부여되었습니다!" ;;
+                "consent_manual") echo "📌 관리자 동의 수동 처리 필요:" ;;
+                "setup_complete") echo "✅ OAuth App 설정 완료!" ;;
+                "wordpress_values") echo "📝 WordPress 플러그인에 입력할 값:" ;;
+                "next_steps") echo "🚀 다음 단계:" ;;
+                "guide") echo "📖 상세 가이드:" ;;
+                *) echo "$key" ;;
+            esac
+            ;;
+        en|*)
+            case "$key" in
+                "enter_url") echo "Enter WordPress site URL (e.g., https://example.com): " ;;
+                "url_required") echo "❌ Site URL is required." ;;
+                "usage") echo "💡 Usage:" ;;
+                "redirect_uri") echo "✅ Redirect URI:" ;;
+                "checking_subscription") echo "📋 Checking Azure subscriptions..." ;;
+                "no_login") echo "❌ Azure login required." ;;
+                "login_cmd") echo "   Please run: az login" ;;
+                "available_subscription") echo "✅ Available subscription:" ;;
+                "use_subscription") echo "Use this subscription? (y/n): " ;;
+                "cancelled") echo "❌ Operation cancelled." ;;
+                "subscription_list") echo "🔍 Available subscriptions:" ;;
+                "select_subscription") echo "Enter subscription number (1-$2): " ;;
+                "invalid_number") echo "❌ Invalid number." ;;
+                "subscription_set") echo "✅ Subscription configured successfully" ;;
+                "current_subscription") echo "✅ Using subscription:" ;;
+                "creating_app") echo "🔧 Creating App Registration:" ;;
+                "client_id") echo "✅ Application (Client) ID:" ;;
+                "tenant_id") echo "✅ Directory (Tenant) ID:" ;;
+                "creating_secret") echo "🔑 Creating Client Secret..." ;;
+                "secret_value") echo "✅ Client Secret:" ;;
+                "save_secret") echo "⚠️  Save this secret value securely. You won't be able to see it again!" ;;
+                "adding_permissions") echo "🔐 Adding API permissions..." ;;
+                "permissions_done") echo "✅ API permissions added successfully" ;;
+                "granting_consent") echo "🔐 Processing admin consent..." ;;
+                "consent_timeout") echo "⚠️  Automatic consent grant failed." ;;
+                "consent_success") echo "✅ Admin consent granted successfully!" ;;
+                "consent_manual") echo "📌 Manual admin consent required:" ;;
+                "setup_complete") echo "✅ OAuth App Setup Complete!" ;;
+                "wordpress_values") echo "📝 Values to enter in WordPress plugin:" ;;
+                "next_steps") echo "🚀 Next Steps:" ;;
+                "guide") echo "📖 Detailed Guide:" ;;
+                *) echo "$key" ;;
+            esac
+            ;;
+    esac
+}
 
 # WordPress URL 파라미터로 받기 또는 입력받기
 SITE_URL="$1"
@@ -73,7 +174,10 @@ else
     echo ""
     echo "🔍 사용 가능한 구독 목록:"
     echo ""
-    az account list --query "[].{Number:to_string(to_number(to_string(null))), Name:name, SubscriptionId:id, State:state}" -o table | nl
+    
+    # 구독 목록을 번호와 함께 표시
+    az account list --query "[].{Name:name, SubscriptionId:id, State:state}" -o table | awk 'NR==1 {print "   No. " $0} NR>1 {printf "   %2d  %s\n", NR-1, $0}'
+    
     echo ""
     read -p "사용할 구독 번호를 입력하세요 (1-$SUBSCRIPTION_COUNT): " SUB_NUM
     
@@ -152,45 +256,87 @@ az ad app permission add --id "$APP_ID" \
 echo "✅ API 권한 추가 완료"
 echo ""
 
-# Admin Consent 자동 부여 (타임아웃 10초)
-echo "🔐 관리자 동의 부여 중... (최대 10초 대기)"
+# Admin Consent 자동 부여 (여러 방법 시도)
+echo "🔐 관리자 동의 처리 중..."
+echo ""
 
-# timeout 사용 (GNU coreutils) 또는 background job으로 처리
-if command -v timeout > /dev/null 2>&1; then
-    # timeout 명령어가 있는 경우
-    CONSENT_RESULT=$(timeout 10s az ad app permission admin-consent --id "$APP_ID" 2>&1 || echo "TIMEOUT")
+CONSENT_GRANTED=false
+
+# 방법 1: az ad app permission admin-consent (표준 방법)
+echo "📌 방법 1: Azure CLI 명령어로 시도 중..."
+CONSENT_RESULT=$(timeout 5s az ad app permission admin-consent --id "$APP_ID" 2>&1 || echo "FAILED")
+
+if ! echo "$CONSENT_RESULT" | grep -qi "FAILED\|error\|forbidden\|timeout"; then
+    echo "   ✅ 성공!"
+    CONSENT_GRANTED=true
 else
-    # timeout이 없는 경우 (Cloud Shell 등)
-    CONSENT_RESULT=$(az ad app permission admin-consent --id "$APP_ID" 2>&1 &
-        CONSENT_PID=$!
-        sleep 10
-        if kill -0 $CONSENT_PID 2>/dev/null; then
-            kill $CONSENT_PID 2>/dev/null
-            echo "TIMEOUT"
-        else
-            wait $CONSENT_PID
-        fi
-    )
+    echo "   ⚠️  실패: $(echo "$CONSENT_RESULT" | head -n 1)"
+    echo ""
+    
+    # 방법 2: az ad app permission grant (대안 방법)
+    echo "📌 방법 2: Permission Grant API로 시도 중..."
+    
+    # Microsoft Graph permission grant
+    GRANT_RESULT_1=$(az ad app permission grant --id "$APP_ID" \
+        --api 00000003-0000-0000-c000-000000000000 \
+        --scope "User.Read" 2>&1 || echo "FAILED")
+    
+    # Azure Service Management permission grant
+    GRANT_RESULT_2=$(az ad app permission grant --id "$APP_ID" \
+        --api 797f4846-ba00-4fd7-ba43-dac1f8f63013 \
+        --scope "user_impersonation" 2>&1 || echo "FAILED")
+    
+    if ! echo "$GRANT_RESULT_1$GRANT_RESULT_2" | grep -qi "FAILED\|error"; then
+        echo "   ✅ Permission Grant 성공!"
+        CONSENT_GRANTED=true
+    else
+        echo "   ⚠️  실패"
+        echo ""
+    fi
 fi
 
-if echo "$CONSENT_RESULT" | grep -q "TIMEOUT"; then
-    echo "⚠️  관리자 동의 부여가 타임아웃되었습니다."
-    echo "   Azure Portal에서 수동으로 동의를 부여하세요:"
-    echo "   1. https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/CallAnAPI/appId/$APP_ID"
-    echo "   2. 'API permissions' 클릭"
-    echo "   3. 'Grant admin consent for [조직명]' 클릭"
-elif echo "$CONSENT_RESULT" | grep -q "Forbidden\|forbidden\|denied"; then
-    echo "⚠️  관리자 권한이 부족하여 자동 동의를 부여할 수 없습니다."
-    echo "   Azure Portal에서 수동으로 동의를 부여하세요:"
-    echo "   1. https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/CallAnAPI/appId/$APP_ID"
-    echo "   2. 'API permissions' 클릭"
-    echo "   3. 'Grant admin consent for [조직명]' 클릭"
-elif echo "$CONSENT_RESULT" | grep -q "error\|Error\|ERROR"; then
-    echo "⚠️  관리자 동의 부여 중 오류 발생"
-    echo "   Azure Portal에서 수동으로 동의를 부여하세요:"
-    echo "   https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/CallAnAPI/appId/$APP_ID"
+# 권한 상태 확인 (최대 20초 대기)
+if [ "$CONSENT_GRANTED" = true ]; then
+    echo ""
+    echo "⏳ 권한 적용 대기 중 (최대 20초)..."
+    
+    for i in {1..4}; do
+        sleep 5
+        
+        # 권한 상태 확인
+        PERMISSION_STATUS=$(az ad app permission list --id "$APP_ID" --query "[].{Resource:resourceAppId, Permission:resourceAccess[0].id, Consent:oauth2PermissionGrants}" -o json 2>/dev/null || echo "[]")
+        
+        if echo "$PERMISSION_STATUS" | grep -q "User.Read\|user_impersonation"; then
+            echo "   ✅ 권한 적용 확인됨! ($((i * 5))초 소요)"
+            break
+        else
+            echo "   ⏳ 대기 중... ($((i * 5))초)"
+        fi
+    done
+    echo ""
+fi
+
+# 최종 결과 출력
+if [ "$CONSENT_GRANTED" = true ]; then
+    echo "✅ 관리자 동의가 성공적으로 처리되었습니다!"
+    echo ""
 else
-    echo "✅ 관리자 동의 자동 부여 완료!"
+    echo "⚠️  자동 동의 부여에 실패했습니다."
+    echo ""
+    echo "📌 다음 방법으로 수동 승인하세요:"
+    echo ""
+    echo "방법 A - Azure Portal 사용 (권장):"
+    echo "   1. 브라우저에서 다음 URL 열기:"
+    echo "      https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/CallAnAPI/appId/$APP_ID"
+    echo "   2. 'API permissions' 클릭"
+    echo "   3. 'Grant admin consent for [조직명]' 버튼 클릭"
+    echo ""
+    echo "방법 B - Azure CLI 명령어:"
+    echo "   az ad app permission admin-consent --id $APP_ID"
+    echo ""
+    echo "방법 C - 관리자 동의 URL (브라우저에서 열기):"
+    echo "   https://login.microsoftonline.com/$TENANT_ID/adminconsent?client_id=$APP_ID"
+    echo ""
 fi
 echo ""
 
