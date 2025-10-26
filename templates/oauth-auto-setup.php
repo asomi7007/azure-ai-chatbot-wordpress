@@ -494,6 +494,50 @@ if (isset($_GET['oauth_error'])) {
                 </span>
             </p>
             
+            <script type="text/javascript">
+            (function($) {
+                console.log('Script loaded, looking for button...');
+                var button = $('#reset-oauth-button');
+                console.log('Button found:', button.length);
+                
+                $('#reset-oauth-button').on('click', function(e) {
+                    e.preventDefault();
+                    console.log('Reset OAuth button clicked!');
+                    
+                    if (!confirm('<?php esc_html_e('OAuth 설정을 초기화하시겠습니까? 저장된 Client ID, Client Secret, Tenant ID가 모두 삭제됩니다.', 'azure-ai-chatbot'); ?>')) {
+                        console.log('User cancelled');
+                        return false;
+                    }
+                    
+                    var btn = $(this);
+                    var originalHtml = btn.html();
+                    btn.prop('disabled', true).html('<span class="dashicons dashicons-update" style="animation: rotation 2s infinite linear;"></span> <?php esc_html_e('초기화 중...', 'azure-ai-chatbot'); ?>');
+                    
+                    $.post(ajaxurl, {
+                        action: 'azure_oauth_reset_config',
+                        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>'
+                    })
+                    .done(function(response) {
+                        console.log('Response:', response);
+                        if (response.success) {
+                            alert('<?php esc_html_e('OAuth 설정이 초기화되었습니다. 페이지를 새로고침합니다.', 'azure-ai-chatbot'); ?>');
+                            location.reload();
+                        } else {
+                            alert('<?php esc_html_e('초기화 실패:', 'azure-ai-chatbot'); ?> ' + (response.data && response.data.message ? response.data.message : '알 수 없는 오류'));
+                            btn.prop('disabled', false).html(originalHtml);
+                        }
+                    })
+                    .fail(function(xhr, status, error) {
+                        console.error('AJAX Error:', xhr, status, error);
+                        alert('<?php esc_html_e('AJAX 오류:', 'azure-ai-chatbot'); ?> ' + error);
+                        btn.prop('disabled', false).html(originalHtml);
+                    });
+                    
+                    return false;
+                });
+            })(jQuery);
+            </script>
+            
         <?php endif; ?>
     </div>
 </div>
@@ -1195,48 +1239,5 @@ jQuery(document).ready(function($) {
         }
     });
 });
-
-// OAuth 설정 초기화 버튼
-jQuery(document).ready(function($) {
-    $('#reset-oauth-button').on('click', function(e) {
-        e.preventDefault();
-        console.log('Reset OAuth button clicked'); // 디버깅용
-        
-        if (!confirm('<?php esc_html_e('OAuth 설정을 초기화하시겠습니까? 저장된 Client ID, Client Secret, Tenant ID가 모두 삭제됩니다.', 'azure-ai-chatbot'); ?>')) {
-            console.log('User cancelled reset'); // 디버깅용
-            return false;
-        }
-        
-        console.log('User confirmed reset'); // 디버깅용
-        
-        // 버튼 비활성화 및 로딩 표시
-        var button = $(this);
-        var originalHtml = button.html();
-        button.prop('disabled', true).html('<span class="dashicons dashicons-update spin" style="margin-top:3px;"></span> <?php esc_html_e('초기화 중...', 'azure-ai-chatbot'); ?>');
-        
-        console.log('Sending AJAX request...'); // 디버깅용
-        
-        $.post(ajaxurl, {
-            action: 'azure_oauth_reset_config',
-            nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>'
-        }, function(response) {
-            console.log('AJAX response:', response); // 디버깅용
-            
-            if (response.success) {
-                alert('<?php esc_html_e('OAuth 설정이 초기화되었습니다. 페이지를 새로고침합니다.', 'azure-ai-chatbot'); ?>');
-                location.reload();
-            } else {
-                var errorMsg = response.data && response.data.message ? response.data.message : '알 수 없는 오류';
-                alert('<?php esc_html_e('초기화 실패:', 'azure-ai-chatbot'); ?> ' + errorMsg);
-                button.prop('disabled', false).html(originalHtml);
-            }
-        }).fail(function(xhr, status, error) {
-            console.error('AJAX Error:', xhr, status, error); // 디버깅용
-            alert('<?php esc_html_e('AJAX 오류:', 'azure-ai-chatbot'); ?> ' + error);
-            button.prop('disabled', false).html(originalHtml);
-        });
-        
-        return false;
-    });
-});
 </script>
+
