@@ -2,7 +2,7 @@
 # This script creates a distribution ZIP file for the plugin
 
 param(
-    [string]$Version = "2.4.2"
+    [string]$Version = "2.5.0"
 )
 
 $ZipFileName = "azure-ai-chatbot-wordpress-$Version.zip"
