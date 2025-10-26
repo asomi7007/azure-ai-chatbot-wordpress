@@ -175,13 +175,13 @@ else
     echo "🔍 사용 가능한 구독 목록:"
     echo ""
     
-    # 구독 목록을 번호와 함께 표시
-    printf "   %-4s %-30s %-38s %-10s\n" "No." "Name" "SubscriptionId" "State"
-    printf "   %-4s %-30s %-38s %-10s\n" "----" "------------------------------" "--------------------------------------" "----------"
+    # 구독 목록을 번호와 함께 표시 (탭으로 구분)
+    echo -e "   No.\tName\t\t\t\tSubscriptionId\t\t\t\tState"
+    echo -e "   ----\t--------------------------------\t------------------------------------\t--------"
     
-    # TSV 출력을 탭 구분자로 파싱 (공백이 포함된 이름 처리)
+    # TSV 출력을 탭 구분자로 파싱
     az account list --query "[].{Name:name, SubscriptionId:id, State:state}" -o tsv | awk -F'\t' '{
-        printf "   %-4d %-30s %-38s %-10s\n", NR, $1, $2, $3
+        printf "   %d\t%-30s\t%s\t%s\n", NR, $1, $2, $3
     }'
     
     echo ""
@@ -282,6 +282,7 @@ else
     APP_NAME="WordPress-Azure-AI-Chatbot-$(date +%Y%m%d%H%M%S)"
     
     echo "🔧 App Registration 생성 중: $APP_NAME"
+    echo ""
     
     # 토큰 만료 체크를 위해 stderr 캡처
     APP_CREATE_OUTPUT=$(az ad app create \
@@ -290,21 +291,24 @@ else
         --web-redirect-uris "$REDIRECT_URI" \
         --query appId -o tsv 2>&1)
     
-    APP_ID=$(echo "$APP_CREATE_OUTPUT" | grep -v "ERROR" | head -1)
-    
-    if [ -z "$APP_ID" ] || echo "$APP_CREATE_OUTPUT" | grep -q "ERROR"; then
-        echo ""
+    # GUID 형식 검증 (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+    if echo "$APP_CREATE_OUTPUT" | grep -qE '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'; then
+        APP_ID="$APP_CREATE_OUTPUT"
+    else
+        # 에러 발생
         echo "❌ App Registration 생성 실패"
+        echo ""
         
-        if echo "$APP_CREATE_OUTPUT" | grep -q "token is expired"; then
-            echo ""
+        if echo "$APP_CREATE_OUTPUT" | grep -qi "token is expired\|token has expired\|lifetime validation failed"; then
             echo "⚠️  Azure 토큰이 만료되었습니다."
             echo "   다음 명령어를 실행한 후 다시 시도하세요:"
             echo ""
             echo "   az login"
             echo ""
         else
-            echo "   오류: $APP_CREATE_OUTPUT"
+            echo "   오류 내용:"
+            echo "   $APP_CREATE_OUTPUT"
+            echo ""
         fi
         exit 1
     fi
