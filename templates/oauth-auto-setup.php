@@ -294,19 +294,15 @@ if (isset($_GET['oauth_error'])) {
                                     <p style="margin:10px 0;">
                                         <label for="new_rg_location"><?php esc_html_e('위치 (Region)', 'azure-ai-chatbot'); ?> *</label><br>
                                         <select id="new_rg_location" class="regular-text">
-                                            <option value="koreacentral">Korea Central (한국 중부)</option>
-                                            <option value="koreasouth">Korea South (한국 남부)</option>
-                                            <option value="eastus">East US (미국 동부)</option>
-                                            <option value="eastus2">East US 2 (미국 동부 2)</option>
-                                            <option value="westus">West US (미국 서부)</option>
-                                            <option value="westus2">West US 2 (미국 서부 2)</option>
-                                            <option value="westeurope">West Europe (서유럽)</option>
-                                            <option value="northeurope">North Europe (북유럽)</option>
-                                            <option value="japaneast">Japan East (일본 동부)</option>
-                                            <option value="japanwest">Japan West (일본 서부)</option>
-                                            <option value="southeastasia">Southeast Asia (동남아시아)</option>
-                                            <option value="eastasia">East Asia (동아시아)</option>
+                                            <option value=""><?php esc_html_e('로딩 중...', 'azure-ai-chatbot'); ?></option>
                                         </select>
+                                        <button type="button" class="button button-small" onclick="loadAvailableLocations()" style="margin-left:5px;">
+                                            <span class="dashicons dashicons-update"></span>
+                                            <?php esc_html_e('새로고침', 'azure-ai-chatbot'); ?>
+                                        </button>
+                                        <p class="description">
+                                            💡 <?php esc_html_e('AI Foundry 사용 가능 지역만 표시됩니다', 'azure-ai-chatbot'); ?>
+                                        </p>
                                     </p>
                                     
                                     <p style="margin:10px 0;">
@@ -349,7 +345,7 @@ if (isset($_GET['oauth_error'])) {
                                 
                                 <!-- 새 AI 리소스 생성 폼 -->
                                 <div id="new-ai-resource-form" style="display:none; margin-top:10px; padding:15px; background:#f0f6fc; border-left:4px solid #0078d4;">
-                                    <p><strong><?php esc_html_e('새 AI 리소스 만들기', 'azure-ai-chatbot'); ?></strong></p>
+                                    <p><strong><?php esc_html_e('새 AI Foundry Project 만들기', 'azure-ai-chatbot'); ?></strong></p>
                                     
                                     <p style="margin:10px 0;">
                                         <label>
@@ -369,7 +365,7 @@ if (isset($_GET['oauth_error'])) {
                                                placeholder="ai-chatbot-prod"
                                                style="background:#f5f5f5;">
                                         <p class="description">
-                                            💡 <span id="ai-naming-convention"></span>
+                                            💡 <?php esc_html_e('Azure 명명 규칙: ai-{워크로드}-{환경}', 'azure-ai-chatbot'); ?>
                                         </p>
                                     </div>
                                     
@@ -400,10 +396,47 @@ if (isset($_GET['oauth_error'])) {
                                         </span>
                                     </p>
                                     
+                                    <!-- Chat 모드 전용: 모델 선택 -->
+                                    <div id="chat-model-selection" style="display:none;">
+                                        <p style="margin:10px 0;">
+                                            <label for="new_ai_model"><?php esc_html_e('배포할 모델', 'azure-ai-chatbot'); ?> *</label><br>
+                                            <select id="new_ai_model" class="regular-text">
+                                                <option value=""><?php esc_html_e('지역을 선택하면 사용 가능한 모델이 표시됩니다', 'azure-ai-chatbot'); ?></option>
+                                            </select>
+                                            <button type="button" class="button button-small" onclick="loadAvailableModels()" style="margin-left:5px;">
+                                                <span class="dashicons dashicons-update"></span>
+                                            </button>
+                                        </p>
+                                        
+                                        <p style="margin:10px 0;">
+                                            <label for="new_ai_deployment_name"><?php esc_html_e('배포 이름 (Deployment Name)', 'azure-ai-chatbot'); ?></label><br>
+                                            <input type="text" id="new_ai_deployment_name" class="regular-text" 
+                                                   value="" readonly 
+                                                   style="background:#f5f5f5;">
+                                            <p class="description">
+                                                💡 <?php esc_html_e('자동 생성: {model-name}-deployment', 'azure-ai-chatbot'); ?>
+                                            </p>
+                                        </p>
+                                        
+                                        <p style="margin:10px 0;">
+                                            <label for="new_ai_capacity"><?php esc_html_e('용량 (Capacity)', 'azure-ai-chatbot'); ?></label><br>
+                                            <select id="new_ai_capacity" class="regular-text">
+                                                <option value="10">10K TPM (테스트용)</option>
+                                                <option value="30" selected>30K TPM (권장)</option>
+                                                <option value="50">50K TPM</option>
+                                                <option value="100">100K TPM</option>
+                                                <option value="240">240K TPM (최대)</option>
+                                            </select>
+                                            <p class="description">
+                                                TPM = Tokens Per Minute (분당 토큰 수)
+                                            </p>
+                                        </p>
+                                    </div>
+                                    
                                     <p style="margin:10px 0;">
                                         <button type="button" class="button button-primary" onclick="createAIResource()">
                                             <span class="dashicons dashicons-plus"></span>
-                                            <span id="create-ai-btn-text"><?php esc_html_e('AI 리소스 생성', 'azure-ai-chatbot'); ?></span>
+                                            <span id="create-ai-btn-text"><?php esc_html_e('AI Foundry Project 생성', 'azure-ai-chatbot'); ?></span>
                                         </button>
                                         <button type="button" class="button" onclick="cancelNewAIResource()">
                                             <?php esc_html_e('취소', 'azure-ai-chatbot'); ?>
@@ -411,7 +444,7 @@ if (isset($_GET['oauth_error'])) {
                                     </p>
                                     
                                     <p class="description" style="margin-top:10px; font-size:12px; color:#666;">
-                                        ⏱️ <?php esc_html_e('리소스 생성은 1-2분 정도 소요됩니다.', 'azure-ai-chatbot'); ?>
+                                        ⏱️ <span id="creation-time-estimate"><?php esc_html_e('리소스 생성은 1-2분 정도 소요됩니다.', 'azure-ai-chatbot'); ?></span>
                                     </p>
                                 </div>
                             </td>
@@ -797,6 +830,99 @@ function toggleRgNameInput() {
     }
 }
 
+// 사용 가능한 Azure 지역 로드
+function loadAvailableLocations() {
+    var subscription = jQuery('#oauth_subscription').val();
+    var mode = jQuery('input[name="oauth_mode"]:checked').val();
+    
+    if (!subscription) {
+        alert('<?php esc_html_e('먼저 Subscription을 선택하세요.', 'azure-ai-chatbot'); ?>');
+        return;
+    }
+    
+    jQuery('#new_rg_location').html('<option value=""><?php esc_html_e('로딩 중...', 'azure-ai-chatbot'); ?></option>');
+    
+    jQuery.post(ajaxurl, {
+        action: 'azure_oauth_get_available_locations',
+        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
+        subscription: subscription,
+        mode: mode,
+        resource_type: mode === 'chat' ? 'Microsoft.CognitiveServices/accounts' : 'Microsoft.MachineLearningServices/workspaces'
+    }, function(response) {
+        if (response.success && response.data.locations) {
+            var html = '';
+            response.data.locations.forEach(function(location) {
+                html += '<option value="' + location.name + '">' + location.displayName + '</option>';
+            });
+            jQuery('#new_rg_location').html(html);
+            
+            // 첫 번째 지역 선택 시 RG 이름 자동 생성
+            if (jQuery('input[name="rg_name_mode"]:checked').val() === 'auto') {
+                generateResourceGroupName();
+            }
+        } else {
+            // 실패 시 기본 지역 목록 표시
+            var defaultLocations = [
+                {name: 'koreacentral', display: 'Korea Central (한국 중부)'},
+                {name: 'eastus', display: 'East US (미국 동부)'},
+                {name: 'eastus2', display: 'East US 2 (미국 동부 2)'},
+                {name: 'westus', display: 'West US (미국 서부)'},
+                {name: 'westus2', display: 'West US 2 (미국 서부 2)'},
+                {name: 'westeurope', display: 'West Europe (서유럽)'},
+                {name: 'northeurope', display: 'North Europe (북유럽)'},
+                {name: 'southeastasia', display: 'Southeast Asia (동남아시아)'},
+                {name: 'japaneast', display: 'Japan East (일본 동부)'}
+            ];
+            
+            var html = '';
+            defaultLocations.forEach(function(location) {
+                html += '<option value="' + location.name + '">' + location.display + '</option>';
+            });
+            jQuery('#new_rg_location').html(html);
+        }
+    });
+}
+
+// 사용 가능한 OpenAI 모델 로드 (Chat 모드 전용)
+function loadAvailableModels() {
+    var location = jQuery('#new_ai_location').val() || jQuery('#new_rg_location').val();
+    
+    if (!location) {
+        alert('<?php esc_html_e('먼저 위치를 선택하세요.', 'azure-ai-chatbot'); ?>');
+        return;
+    }
+    
+    jQuery('#new_ai_model').html('<option value=""><?php esc_html_e('로딩 중...', 'azure-ai-chatbot'); ?></option>');
+    
+    jQuery.post(ajaxurl, {
+        action: 'azure_oauth_get_available_models',
+        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
+        location: location
+    }, function(response) {
+        if (response.success && response.data.models) {
+            var html = '<option value=""><?php esc_html_e('모델을 선택하세요', 'azure-ai-chatbot'); ?></option>';
+            response.data.models.forEach(function(model) {
+                html += '<option value="' + model.name + '">' + model.displayName + ' (' + model.version + ')</option>';
+            });
+            jQuery('#new_ai_model').html(html);
+        } else {
+            // 실패 시 기본 모델 목록
+            var defaultModels = [
+                {name: 'gpt-4o', display: 'GPT-4o', version: '2024-08-06'},
+                {name: 'gpt-4o-mini', display: 'GPT-4o Mini', version: '2024-07-18'},
+                {name: 'gpt-4', display: 'GPT-4 Turbo', version: '0125-Preview'},
+                {name: 'gpt-35-turbo', display: 'GPT-3.5 Turbo', version: '0125'}
+            ];
+            
+            var html = '<option value=""><?php esc_html_e('모델을 선택하세요', 'azure-ai-chatbot'); ?></option>';
+            defaultModels.forEach(function(model) {
+                html += '<option value="' + model.name + '">' + model.display + ' (' + model.version + ')</option>';
+            });
+            jQuery('#new_ai_model').html(html);
+        }
+    });
+}
+
 function generateResourceGroupName() {
     var location = jQuery('#new_rg_location').val();
     var timestamp = new Date().toISOString().slice(0,10).replace(/-/g, '');
@@ -873,21 +999,38 @@ function generateAIResourceName() {
     var chatMode = jQuery('input[name="oauth_mode"]:checked').val();
     var timestamp = new Date().toISOString().slice(0,10).replace(/-/g, '');
     var name;
-    var convention;
     
     if (chatMode === 'chat') {
-        name = 'oai-chatbot-prod';
-        convention = '<?php esc_html_e('Azure OpenAI 명명 규칙: oai-{워크로드}-{환경}', 'azure-ai-chatbot'); ?>';
-        jQuery('#create-ai-btn-text').text('<?php esc_html_e('Azure OpenAI 리소스 생성', 'azure-ai-chatbot'); ?>');
+        name = 'ai-chatbot-prod';
+        jQuery('#create-ai-btn-text').text('<?php esc_html_e('Project 생성 및 모델 배포', 'azure-ai-chatbot'); ?>');
+        jQuery('#chat-model-selection').show();
+        jQuery('#creation-time-estimate').text('<?php esc_html_e('AI Foundry Project 생성 및 모델 배포는 2-3분 정도 소요됩니다.', 'azure-ai-chatbot'); ?>');
+        
+        // 지역이 선택되어 있으면 모델 목록 로드
+        var location = jQuery('#new_ai_location').val() || jQuery('#new_rg_location').val();
+        if (location) {
+            loadAvailableModels();
+        }
     } else {
         name = 'ai-chatbot-prod';
-        convention = '<?php esc_html_e('AI Foundry 명명 규칙: ai-{워크로드}-{환경}', 'azure-ai-chatbot'); ?>';
         jQuery('#create-ai-btn-text').text('<?php esc_html_e('AI Foundry Project 생성', 'azure-ai-chatbot'); ?>');
+        jQuery('#chat-model-selection').hide();
+        jQuery('#creation-time-estimate').text('<?php esc_html_e('AI Foundry Project 생성은 1-2분 정도 소요됩니다.', 'azure-ai-chatbot'); ?>');
     }
     
     jQuery('#new_ai_name_auto').val(name);
-    jQuery('#ai-naming-convention').text(convention);
 }
+
+// 모델 선택 시 배포 이름 자동 생성
+jQuery(document).ready(function($) {
+    $('#new_ai_model').on('change', function() {
+        var modelName = $(this).val();
+        if (modelName) {
+            var deploymentName = modelName + '-deployment';
+            $('#new_ai_deployment_name').val(deploymentName);
+        }
+    });
+});
 
 function createAIResource() {
     var nameMode = jQuery('input[name="ai_name_mode"]:checked').val();
@@ -900,23 +1043,69 @@ function createAIResource() {
     var subscription = jQuery('#oauth_subscription').val();
     var mode = jQuery('input[name="oauth_mode"]:checked').val();
     
+    // Chat 모드일 때는 모델 정보도 필요
+    var model = mode === 'chat' ? jQuery('#new_ai_model').val() : '';
+    var deploymentName = mode === 'chat' ? jQuery('#new_ai_deployment_name').val() : '';
+    var capacity = mode === 'chat' ? jQuery('#new_ai_capacity').val() : '';
+    
     if (!name || !sku || !location || !resourceGroup) {
         alert('<?php esc_html_e('모든 필드를 입력하세요.', 'azure-ai-chatbot'); ?>');
         return;
     }
     
-    // 이름 유효성 검사
-    if (!/^[a-z0-9-]{3,24}$/.test(name)) {
-        alert('<?php esc_html_e('리소스 이름은 소문자, 숫자, 하이픈만 사용하며 3-24자여야 합니다.', 'azure-ai-chatbot'); ?>');
+    // Chat 모드 추가 검증
+    if (mode === 'chat' && (!model || !deploymentName)) {
+        alert('<?php esc_html_e('모델과 배포 이름을 선택하세요.', 'azure-ai-chatbot'); ?>');
         return;
     }
     
+    // 이름 유효성 검사
+    if (!/^[a-z0-9-]{3,64}$/.test(name)) {
+        alert('<?php esc_html_e('리소스 이름은 소문자, 숫자, 하이픈만 사용하며 3-64자여야 합니다.', 'azure-ai-chatbot'); ?>');
+        return;
+    }
+    
+    var progressMsg = mode === 'chat' ? 
+        '<?php esc_html_e('AI Foundry Project 생성 및 모델 배포 중... (2-3분 소요)', 'azure-ai-chatbot'); ?>' :
+        '<?php esc_html_e('AI Foundry Project 생성 중... (1-2분 소요)', 'azure-ai-chatbot'); ?>';
+    
     jQuery('#new-ai-resource-form button').prop('disabled', true);
-    jQuery('#new-ai-resource-form').prepend('<p class="notice notice-info inline"><span class="dashicons dashicons-update spin"></span> <?php esc_html_e('리소스 생성 중... (1-2분 소요)', 'azure-ai-chatbot'); ?></p>');
+    jQuery('#new-ai-resource-form').prepend('<p class="notice notice-info inline"><span class="dashicons dashicons-update spin"></span> ' + progressMsg + '</p>');
     
     jQuery.post(ajaxurl, {
         action: 'azure_oauth_create_ai_resource',
         nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
+        name: name,
+        sku: sku,
+        location: location,
+        resource_group: resourceGroup,
+        subscription: subscription,
+        mode: mode,
+        model: model,
+        deployment_name: deploymentName,
+        capacity: capacity
+    }, function(response) {
+        jQuery('#new-ai-resource-form .notice').remove();
+        jQuery('#new-ai-resource-form button').prop('disabled', false);
+        
+        if (response.success) {
+            var successMsg = mode === 'chat' ?
+                '<?php esc_html_e('AI Foundry Project와 모델이 성공적으로 배포되었습니다!', 'azure-ai-chatbot'); ?>' :
+                '<?php esc_html_e('AI Foundry Project가 성공적으로 생성되었습니다!', 'azure-ai-chatbot'); ?>';
+            
+            alert(successMsg);
+            
+            // 폼 숨기기
+            jQuery('#new-ai-resource-form').hide();
+            jQuery('#oauth_resource').val('');
+            
+            // 리소스 목록 새로고침
+            loadResources();
+        } else {
+            alert('<?php esc_html_e('생성 실패:', 'azure-ai-chatbot'); ?> ' + response.data.message);
+        }
+    });
+}
         name: name,
         sku: sku,
         location: location,

@@ -575,16 +575,13 @@ msgid "취소"
 msgstr "Cancel"
 
 msgid "➕ 새 AI 리소스 만들기"
-msgstr "➕ Create New AI Resource"
+msgstr "➕ Create New AI Foundry Project"
 
-msgid "새 AI 리소스 만들기"
-msgstr "Create New AI Resource"
+msgid "새 AI Foundry Project 만들기"
+msgstr "Create New AI Foundry Project"
 
-msgid "Azure OpenAI 명명 규칙: oai-{워크로드}-{환경}"
-msgstr "Azure OpenAI naming convention: oai-{workload}-{env}"
-
-msgid "AI Foundry 명명 규칙: ai-{워크로드}-{환경}"
-msgstr "AI Foundry naming convention: ai-{workload}-{env}"
+msgid "Azure 명명 규칙: ai-{워크로드}-{환경}"
+msgstr "Azure naming convention: ai-{workload}-{env}"
 
 msgid "가격 계층 (SKU)"
 msgstr "Pricing Tier (SKU)"
@@ -592,14 +589,17 @@ msgstr "Pricing Tier (SKU)"
 msgid "(Resource Group과 동일한 위치 사용)"
 msgstr "(Using same location as Resource Group)"
 
-msgid "AI 리소스 생성"
-msgstr "Create AI Resource"
-
-msgid "Azure OpenAI 리소스 생성"
-msgstr "Create Azure OpenAI Resource"
-
 msgid "AI Foundry Project 생성"
 msgstr "Create AI Foundry Project"
+
+msgid "Project 생성 및 모델 배포"
+msgstr "Create Project & Deploy Model"
+
+msgid "AI Foundry Project 생성은 1-2분 정도 소요됩니다."
+msgstr "AI Foundry Project creation takes about 1-2 minutes."
+
+msgid "AI Foundry Project 생성 및 모델 배포는 2-3분 정도 소요됩니다."
+msgstr "AI Foundry Project creation and model deployment take about 2-3 minutes."
 
 msgid "리소스 생성은 1-2분 정도 소요됩니다."
 msgstr "Resource creation takes about 1-2 minutes."
@@ -619,14 +619,29 @@ msgstr "Resource group created successfully!"
 msgid "생성 실패:"
 msgstr "Creation failed:"
 
-msgid "리소스 이름은 소문자, 숫자, 하이픈만 사용하며 3-24자여야 합니다."
-msgstr "Resource name must use lowercase, numbers, hyphens only and be 3-24 characters."
+msgid "리소스 이름은 소문자, 숫자, 하이픈만 사용하며 3-64자여야 합니다."
+msgstr "Resource name must use lowercase, numbers, hyphens only and be 3-64 characters."
 
 msgid "리소스 생성 중... (1-2분 소요)"
 msgstr "Creating resource... (takes 1-2 minutes)"
 
+msgid "AI Foundry Project 생성 중... (1-2분 소요)"
+msgstr "Creating AI Foundry Project... (takes 1-2 minutes)"
+
+msgid "AI Foundry Project 생성 및 모델 배포 중... (2-3분 소요)"
+msgstr "Creating AI Foundry Project and deploying model... (takes 2-3 minutes)"
+
+msgid "AI Foundry Project와 모델이 성공적으로 배포되었습니다!"
+msgstr "AI Foundry Project and model deployed successfully!"
+
+msgid "AI Foundry Project가 성공적으로 생성되었습니다!"
+msgstr "AI Foundry Project created successfully!"
+
 msgid "AI 리소스가 성공적으로 생성되었습니다!"
 msgstr "AI resource created successfully!"
+
+msgid "AI Foundry 사용 가능 지역만 표시됩니다"
+msgstr "Only AI Foundry available regions are displayed"
 
 msgid "인증은 완료되었지만 세션 정보가 없습니다. 페이지를 새로고침 하거나 다시 인증하세요."
 msgstr "Authentication completed but session information is missing. Please refresh the page or re-authenticate."

@@ -1,5 +1,41 @@
 # 변경 이력
 
+## [2.4.0] - 2025-10-26
+
+### 추가됨 (Added)
+- 🏗️ **Azure 리소스 자동 생성**: Resource Group, AI Foundry Project 자동 생성
+- 🤖 **모델 자동 배포**: Chat 모드에서 AI Foundry에 모델 자동 배포
+- 🌍 **동적 지역 선택**: Azure 구독에서 실제 사용 가능한 지역 동적 조회
+- 📦 **동적 모델 선택**: 선택한 지역에서 사용 가능한 GPT 모델 목록 동적 조회
+- ⚙️ **모드별 자동화**: Chat/Agent 모드에 따라 다른 리소스 생성 프로세스
+- 🏷️ **Azure 명명 규칙**: 자동 생성되는 리소스 이름에 Azure 표준 명명 규칙 적용
+- 🎯 **TPM 용량 선택**: Chat 모드에서 모델 배포 시 토큰 처리량(10K-240K TPM) 선택
+
+### 개선됨 (Improved)
+- 🔄 **AI Foundry 통합**: 모든 모드에서 Azure AI Foundry 기반으로 통합
+- 📊 **리소스 생성 UI**: 단계별 안내와 예상 시간 표시
+- 🌐 **다국어 지원**: 영어/한국어 번역 추가 (40+ 새 문자열)
+- 🔧 **API 호출 확장**: PUT/POST/DELETE HTTP 메서드 지원, 전체 URL 처리
+- ⏱️ **타임아웃 증가**: 리소스 생성을 위해 60초로 타임아웃 연장
+- ✅ **검증 강화**: 리소스 이름 패턴 검증 (3-64자, Azure 표준 준수)
+
+### 변경됨 (Changed)
+- 🔄 **Chat 모드 아키텍처**: Azure OpenAI → AI Foundry Project + Model Deployment
+- 📝 **명명 규칙 통일**: 모든 모드에서 `ai-{워크로드}-{환경}` 패턴 사용
+- 🗺️ **지역 필터링**: AI Foundry 지원 지역만 표시 (이전: OpenAI 지역)
+
+### 수정됨 (Fixed)
+- 🐛 **에러 처리 개선**: Azure API 호출 시 HTTP 상태 코드 및 JSON 파싱 에러 처리
+- 🔧 **call_azure_api 메서드 확장**: 다양한 HTTP 메서드 및 요청 본문 지원
+
+### 기술 세부사항
+- **생성 프로세스**: Hub(30초) → Project → Model Deployment(Chat만)
+- **소요 시간**: Chat 모드 2-3분, Agent 모드 1-2분
+- **API 엔드포인트**: 
+  - 지역 조회: `Microsoft.MachineLearningServices` 프로바이더
+  - 모델 배포: AI Foundry Online Endpoints
+  - 리소스 생성: Azure Resource Manager API
+
 ## [2.3.0] - 2025-10-22
 
 ### 추가됨 (Added)
