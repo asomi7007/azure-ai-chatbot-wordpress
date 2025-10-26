@@ -8,11 +8,36 @@ if (!defined('ABSPATH')) exit;
 $oauth = new Azure_Chatbot_OAuth();
 $is_configured = $oauth->is_configured();
 
+// 세션에 토큰이 있는지 확인
+if (!session_id()) {
+    session_start();
+}
+$has_token = isset($_SESSION['azure_access_token']) && !empty($_SESSION['azure_access_token']);
+
 // OAuth 성공/실패 메시지 표시
 if (isset($_GET['oauth_success'])) {
-    echo '<div class="notice notice-success is-dismissible"><p>';
-    esc_html_e('Azure 인증에 성공했습니다! 이제 리소스를 선택하세요.', 'azure-ai-chatbot');
-    echo '</p></div>';
+    if ($has_token) {
+        echo '<div class="notice notice-success is-dismissible"><p>';
+        esc_html_e('Azure 인증에 성공했습니다! 아래에서 리소스를 선택하세요.', 'azure-ai-chatbot');
+        echo '</p></div>';
+        
+        // 리소스 선택 섹션으로 자동 스크롤
+        echo '<script>
+        jQuery(document).ready(function($) {
+            setTimeout(function() {
+                $("html, body").animate({
+                    scrollTop: $(".oauth-step-2").offset().top - 100
+                }, 500);
+            }, 100);
+        });
+        </script>';
+    } else {
+        echo '<div class="notice notice-warning is-dismissible"><p>';
+        echo esc_html__('인증은 완료되었지만 세션 정보가 없습니다. 페이지를 새로고침 하거나 다시 인증하세요.', 'azure-ai-chatbot');
+        echo ' <a href="' . esc_url(admin_url('admin.php?page=azure-ai-chatbot')) . '" class="button button-small">';
+        echo esc_html__('새로고침', 'azure-ai-chatbot');
+        echo '</a></p></div>';
+    }
 }
 
 if (isset($_GET['oauth_error'])) {
@@ -22,10 +47,6 @@ if (isset($_GET['oauth_error'])) {
     echo esc_html__('인증 실패: ', 'azure-ai-chatbot') . esc_html($error_msg ?: '알 수 없는 오류');
     echo '</p></div>';
 }
-
-// 세션에 토큰이 있는지 확인
-session_start();
-$has_token = isset($_SESSION['azure_access_token']) && !empty($_SESSION['azure_access_token']);
 ?>
 
 <div class="postbox azure-oauth-section">
@@ -61,14 +82,28 @@ $has_token = isset($_SESSION['azure_access_token']) && !empty($_SESSION['azure_a
                         <?php esc_html_e('아래 명령어를 복사해서 Cloud Shell에 붙여넣으세요:', 'azure-ai-chatbot'); ?>
                         <?php
                         $site_url = get_site_url();
-                        $oauth_command = "bash <(curl -s https://raw.githubusercontent.com/asomi7007/azure-ai-chatbot-wordpress/main/scripts/setup-oauth-app.sh) " . esc_url($site_url);
+                        $bash_command = "bash <(curl -s https://raw.githubusercontent.com/asomi7007/azure-ai-chatbot-wordpress/main/scripts/setup-oauth-app.sh) " . esc_url($site_url);
+                        $pwsh_command = "curl -s https://raw.githubusercontent.com/asomi7007/azure-ai-chatbot-wordpress/main/scripts/setup-oauth-app.sh | bash -s " . esc_url($site_url);
                         ?>
-                        <div style="background: #2d2d2d; color: #f8f8f8; padding: 10px; margin: 10px 0; border-radius: 4px; font-family: monospace; position: relative;">
-                            <code id="oauth-setup-command"><?php echo esc_html($oauth_command); ?></code>
-                            <button type="button" class="button button-small" onclick="copyOAuthCommand()" style="position: absolute; right: 10px; top: 10px;">
+                        
+                        <p style="margin: 10px 0 5px 0;"><strong>Bash 모드 (권장):</strong></p>
+                        <div style="background: #2d2d2d; color: #f8f8f8; padding: 10px; margin: 5px 0; border-radius: 4px; font-family: monospace; position: relative;">
+                            <code id="oauth-setup-command-bash"><?php echo esc_html($bash_command); ?></code>
+                            <button type="button" class="button button-small" onclick="copyOAuthCommandBash()" style="position: absolute; right: 10px; top: 10px;">
                                 <?php esc_html_e('복사', 'azure-ai-chatbot'); ?>
                             </button>
                         </div>
+                        
+                        <p style="margin: 10px 0 5px 0;"><strong>PowerShell 모드:</strong></p>
+                        <div style="background: #2d2d2d; color: #f8f8f8; padding: 10px; margin: 5px 0; border-radius: 4px; font-family: monospace; position: relative;">
+                            <code id="oauth-setup-command-pwsh"><?php echo esc_html($pwsh_command); ?></code>
+                            <button type="button" class="button button-small" onclick="copyOAuthCommandPwsh()" style="position: absolute; right: 10px; top: 10px;">
+                                <?php esc_html_e('복사', 'azure-ai-chatbot'); ?>
+                            </button>
+                        </div>
+                        <p style="margin: 5px 0; font-size: 12px; color: #666;">
+                            💡 Cloud Shell이 PowerShell 모드로 시작되면 PowerShell 명령어를 사용하세요.
+                        </p>
                     </li>
                     <li><?php esc_html_e('생성된 Client ID, Client Secret, Tenant ID를 복사', 'azure-ai-chatbot'); ?></li>
                     <li><?php esc_html_e('Azure Portal에서 Admin Consent 부여', 'azure-ai-chatbot'); ?></li>
@@ -176,7 +211,9 @@ $has_token = isset($_SESSION['azure_access_token']) && !empty($_SESSION['azure_a
                     </p>
                     <p>
                         <a href="<?php echo esc_url($oauth->get_authorization_url()); ?>" 
-                           class="button button-primary button-hero">
+                           class="button button-primary button-hero"
+                           target="_blank"
+                           onclick="return openOAuthPopup(this.href);">
                             <span class="dashicons dashicons-lock" style="margin-top: 3px;"></span>
                             <?php esc_html_e('Azure 자동 설정 시작', 'azure-ai-chatbot'); ?>
                         </a>
@@ -302,11 +339,38 @@ $has_token = isset($_SESSION['azure_access_token']) && !empty($_SESSION['azure_a
 </style>
 
 <script>
-function copyOAuthCommand() {
-    var command = document.getElementById('oauth-setup-command').textContent;
+function openOAuthPopup(url) {
+    var width = 600;
+    var height = 700;
+    var left = (screen.width - width) / 2;
+    var top = (screen.height - height) / 2;
+    
+    window.open(
+        url,
+        'AzureOAuth',
+        'width=' + width + ',height=' + height + ',top=' + top + ',left=' + left + ',toolbar=no,menubar=no,scrollbars=yes,resizable=yes'
+    );
+    
+    return false; // 기본 링크 동작 방지
+}
+
+function copyOAuthCommandBash() {
+    var command = document.getElementById('oauth-setup-command-bash').textContent;
     navigator.clipboard.writeText(command).then(function() {
-        alert('<?php esc_html_e('명령어가 클립보드에 복사되었습니다!', 'azure-ai-chatbot'); ?>');
+        alert('<?php esc_html_e('Bash 명령어가 클립보드에 복사되었습니다!', 'azure-ai-chatbot'); ?>');
     });
+}
+
+function copyOAuthCommandPwsh() {
+    var command = document.getElementById('oauth-setup-command-pwsh').textContent;
+    navigator.clipboard.writeText(command).then(function() {
+        alert('<?php esc_html_e('PowerShell 명령어가 클립보드에 복사되었습니다!', 'azure-ai-chatbot'); ?>');
+    });
+}
+
+function copyOAuthCommand() {
+    // 하위 호환성을 위해 유지
+    copyOAuthCommandBash();
 }
 
 function copyRedirectUri() {

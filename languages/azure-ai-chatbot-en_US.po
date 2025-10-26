@@ -540,3 +540,9 @@ msgstr "Agent ID:"
 msgid "키 추출 실패:"
 msgstr "Failed to extract keys:"
 
+msgid "Bash 명령어가 클립보드에 복사되었습니다!"
+msgstr "Bash command copied to clipboard!"
+
+msgid "PowerShell 명령어가 클립보드에 복사되었습니다!"
+msgstr "PowerShell command copied to clipboard!"
+

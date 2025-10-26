@@ -175,8 +175,17 @@ else
     echo "🔍 사용 가능한 구독 목록:"
     echo ""
     
-    # 구독 목록을 번호와 함께 표시
-    az account list --query "[].{Name:name, SubscriptionId:id, State:state}" -o table | awk 'NR==1 {print "   No. " $0} NR>1 {printf "   %2d  %s\n", NR-1, $0}'
+    # 구독 목록을 번호와 함께 표시 (헤더 구분선 포함)
+    az account list --query "[].{Name:name, SubscriptionId:id, State:state}" -o table | awk '
+        NR==1 {
+            print "   No.  " $0
+            # 각 컬럼 길이에 맞춰 구분선 생성
+            print "   ---  ------------------------  ------------------------------------  -------"
+        }
+        NR>1 {
+            printf "   %3d  %s\n", NR-1, $0
+        }
+    '
     
     echo ""
     read -p "사용할 구독 번호를 입력하세요 (1-$SUBSCRIPTION_COUNT): " SUB_NUM
@@ -199,23 +208,86 @@ SUBSCRIPTION_NAME=$(az account show --query name -o tsv)
 echo "✅ 사용 중인 구독: $SUBSCRIPTION_NAME ($SUBSCRIPTION_ID)"
 echo ""
 
-# App Registration 생성
-APP_NAME="WordPress-Azure-AI-Chatbot-$(date +%Y%m%d%H%M%S)"
+# 기존 App Registration 확인
+echo "🔍 기존 App Registration 확인 중..."
+EXISTING_APPS=$(az ad app list --filter "web/redirectUris/any(uri:uri eq '$REDIRECT_URI')" --query "[].{AppId:appId, DisplayName:displayName}" -o json 2>/dev/null)
 
-echo "🔧 App Registration 생성 중: $APP_NAME"
-APP_ID=$(az ad app create \
-    --display-name "$APP_NAME" \
-    --sign-in-audience "AzureADMyOrg" \
-    --web-redirect-uris "$REDIRECT_URI" \
-    --query appId -o tsv)
-
-if [ -z "$APP_ID" ]; then
-    echo "❌ App Registration 생성 실패"
-    exit 1
+if [ "$EXISTING_APPS" != "[]" ] && [ -n "$EXISTING_APPS" ]; then
+    echo ""
+    echo "⚠️  동일한 Redirect URI를 사용하는 기존 앱이 발견되었습니다:"
+    echo ""
+    echo "$EXISTING_APPS" | jq -r '.[] | "   - \(.DisplayName) (\(.AppId))"'
+    echo ""
+    echo "다음 중 선택하세요:"
+    echo "1) 기존 앱 사용 (Client Secret만 새로 생성)"
+    echo "2) 기존 앱 삭제하고 새로 생성"
+    echo "3) 취소"
+    echo ""
+    read -p "선택 (1-3): " EXISTING_APP_CHOICE
+    
+    case "$EXISTING_APP_CHOICE" in
+        1)
+            # 기존 앱 사용
+            APP_ID=$(echo "$EXISTING_APPS" | jq -r '.[0].AppId')
+            APP_NAME=$(echo "$EXISTING_APPS" | jq -r '.[0].DisplayName')
+            echo ""
+            echo "✅ 기존 앱 사용: $APP_NAME ($APP_ID)"
+            echo ""
+            ;;
+        2)
+            # 기존 앱 삭제
+            echo ""
+            echo "🗑️  기존 앱 삭제 중..."
+            EXISTING_APP_ID=$(echo "$EXISTING_APPS" | jq -r '.[0].AppId')
+            az ad app delete --id "$EXISTING_APP_ID" 2>/dev/null
+            echo "✅ 삭제 완료"
+            echo ""
+            
+            # 새 앱 생성
+            APP_NAME="WordPress-Azure-AI-Chatbot-$(date +%Y%m%d%H%M%S)"
+            echo "🔧 App Registration 생성 중: $APP_NAME"
+            APP_ID=$(az ad app create \
+                --display-name "$APP_NAME" \
+                --sign-in-audience "AzureADMyOrg" \
+                --web-redirect-uris "$REDIRECT_URI" \
+                --query appId -o tsv)
+            
+            if [ -z "$APP_ID" ]; then
+                echo "❌ App Registration 생성 실패"
+                exit 1
+            fi
+            
+            echo "✅ Application (Client) ID: $APP_ID"
+            echo ""
+            ;;
+        3)
+            echo "❌ 작업이 취소되었습니다."
+            exit 1
+            ;;
+        *)
+            echo "❌ 잘못된 선택입니다."
+            exit 1
+            ;;
+    esac
+else
+    # 기존 앱 없음, 새로 생성
+    APP_NAME="WordPress-Azure-AI-Chatbot-$(date +%Y%m%d%H%M%S)"
+    
+    echo "🔧 App Registration 생성 중: $APP_NAME"
+    APP_ID=$(az ad app create \
+        --display-name "$APP_NAME" \
+        --sign-in-audience "AzureADMyOrg" \
+        --web-redirect-uris "$REDIRECT_URI" \
+        --query appId -o tsv)
+    
+    if [ -z "$APP_ID" ]; then
+        echo "❌ App Registration 생성 실패"
+        exit 1
+    fi
+    
+    echo "✅ Application (Client) ID: $APP_ID"
+    echo ""
 fi
-
-echo "✅ Application (Client) ID: $APP_ID"
-echo ""
 
 # Tenant ID 가져오기
 TENANT_ID=$(az account show --query tenantId -o tsv)
@@ -256,88 +328,17 @@ az ad app permission add --id "$APP_ID" \
 echo "✅ API 권한 추가 완료"
 echo ""
 
-# Admin Consent 자동 부여 (여러 방법 시도)
-echo "🔐 관리자 동의 처리 중..."
+# Admin Consent URL 안내
+echo "🔐 관리자 동의 필요"
 echo ""
-
-CONSENT_GRANTED=false
-
-# 방법 1: az ad app permission admin-consent (표준 방법)
-echo "📌 방법 1: Azure CLI 명령어로 시도 중..."
-CONSENT_RESULT=$(timeout 5s az ad app permission admin-consent --id "$APP_ID" 2>&1 || echo "FAILED")
-
-if ! echo "$CONSENT_RESULT" | grep -qi "FAILED\|error\|forbidden\|timeout"; then
-    echo "   ✅ 성공!"
-    CONSENT_GRANTED=true
-else
-    echo "   ⚠️  실패: $(echo "$CONSENT_RESULT" | head -n 1)"
-    echo ""
-    
-    # 방법 2: az ad app permission grant (대안 방법)
-    echo "📌 방법 2: Permission Grant API로 시도 중..."
-    
-    # Microsoft Graph permission grant
-    GRANT_RESULT_1=$(az ad app permission grant --id "$APP_ID" \
-        --api 00000003-0000-0000-c000-000000000000 \
-        --scope "User.Read" 2>&1 || echo "FAILED")
-    
-    # Azure Service Management permission grant
-    GRANT_RESULT_2=$(az ad app permission grant --id "$APP_ID" \
-        --api 797f4846-ba00-4fd7-ba43-dac1f8f63013 \
-        --scope "user_impersonation" 2>&1 || echo "FAILED")
-    
-    if ! echo "$GRANT_RESULT_1$GRANT_RESULT_2" | grep -qi "FAILED\|error"; then
-        echo "   ✅ Permission Grant 성공!"
-        CONSENT_GRANTED=true
-    else
-        echo "   ⚠️  실패"
-        echo ""
-    fi
-fi
-
-# 권한 상태 확인 (최대 20초 대기)
-if [ "$CONSENT_GRANTED" = true ]; then
-    echo ""
-    echo "⏳ 권한 적용 대기 중 (최대 20초)..."
-    
-    for i in {1..4}; do
-        sleep 5
-        
-        # 권한 상태 확인
-        PERMISSION_STATUS=$(az ad app permission list --id "$APP_ID" --query "[].{Resource:resourceAppId, Permission:resourceAccess[0].id, Consent:oauth2PermissionGrants}" -o json 2>/dev/null || echo "[]")
-        
-        if echo "$PERMISSION_STATUS" | grep -q "User.Read\|user_impersonation"; then
-            echo "   ✅ 권한 적용 확인됨! ($((i * 5))초 소요)"
-            break
-        else
-            echo "   ⏳ 대기 중... ($((i * 5))초)"
-        fi
-    done
-    echo ""
-fi
-
-# 최종 결과 출력
-if [ "$CONSENT_GRANTED" = true ]; then
-    echo "✅ 관리자 동의가 성공적으로 처리되었습니다!"
-    echo ""
-else
-    echo "⚠️  자동 동의 부여에 실패했습니다."
-    echo ""
-    echo "📌 다음 방법으로 수동 승인하세요:"
-    echo ""
-    echo "방법 A - Azure Portal 사용 (권장):"
-    echo "   1. 브라우저에서 다음 URL 열기:"
-    echo "      https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/CallAnAPI/appId/$APP_ID"
-    echo "   2. 'API permissions' 클릭"
-    echo "   3. 'Grant admin consent for [조직명]' 버튼 클릭"
-    echo ""
-    echo "방법 B - Azure CLI 명령어:"
-    echo "   az ad app permission admin-consent --id $APP_ID"
-    echo ""
-    echo "방법 C - 관리자 동의 URL (브라우저에서 열기):"
-    echo "   https://login.microsoftonline.com/$TENANT_ID/adminconsent?client_id=$APP_ID"
-    echo ""
-fi
+echo "📌 다음 URL을 브라우저에서 열어 관리자 동의를 승인하세요:"
+echo ""
+echo "   https://login.microsoftonline.com/$TENANT_ID/adminconsent?client_id=$APP_ID"
+echo ""
+echo "⏳ 승인을 완료한 후 Enter 키를 눌러 계속 진행하세요..."
+read -p "" CONSENT_DONE
+echo ""
+echo "✅ 관리자 동의 단계 완료"
 echo ""
 
 # 결과 출력
