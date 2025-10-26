@@ -78,8 +78,9 @@ if (Test-Path $BandizipPath) {
     
     # Create ZIP with Bandizip (compression level 9)
     # ZIP the plugin folder inside temp folder
+    $ZipFullPath = Join-Path $PSScriptRoot $ZipFileName
     Push-Location $TempFolder
-    & $BandizipPath c -l:9 -fmt:zip -r "..\$ZipFileName" $PluginFolderName
+    & $BandizipPath c -l:9 -fmt:zip -r $ZipFullPath $PluginFolderName
     Pop-Location
     
     # Clean up temp folder

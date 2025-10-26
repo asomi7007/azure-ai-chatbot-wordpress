@@ -175,17 +175,13 @@ else
     echo "🔍 사용 가능한 구독 목록:"
     echo ""
     
-    # 구독 목록을 번호와 함께 표시 (헤더 구분선 포함)
-    az account list --query "[].{Name:name, SubscriptionId:id, State:state}" -o table | awk '
-        NR==1 {
-            print "   No.  " $0
-            # 각 컬럼 길이에 맞춰 구분선 생성
-            print "   ---  ------------------------  ------------------------------------  -------"
-        }
-        NR>1 {
-            printf "   %3d  %s\n", NR-1, $0
-        }
-    '
+    # 구독 목록을 번호와 함께 표시
+    printf "   %-4s %-30s %-38s %-10s\n" "No." "Name" "SubscriptionId" "State"
+    printf "   %-4s %-30s %-38s %-10s\n" "----" "------------------------------" "--------------------------------------" "----------"
+    
+    az account list --query "[].{Name:name, SubscriptionId:id, State:state}" -o tsv | awk '{
+        printf "   %-4d %-30s %-38s %-10s\n", NR, $1, $2, $3
+    }'
     
     echo ""
     read -p "사용할 구독 번호를 입력하세요 (1-$SUBSCRIPTION_COUNT): " SUB_NUM
@@ -210,7 +206,18 @@ echo ""
 
 # 기존 App Registration 확인
 echo "🔍 기존 App Registration 확인 중..."
-EXISTING_APPS=$(az ad app list --filter "web/redirectUris/any(uri:uri eq '$REDIRECT_URI')" --query "[].{AppId:appId, DisplayName:displayName}" -o json 2>/dev/null)
+
+# Azure AD 권한 확인
+if ! az ad app list --query "[0]" -o json > /dev/null 2>&1; then
+    echo "⚠️  Azure AD 앱 목록 조회 권한이 없거나 오류가 발생했습니다."
+    echo "   계속 진행하여 새 앱을 생성합니다."
+    EXISTING_APPS="[]"
+else
+    EXISTING_APPS=$(az ad app list --filter "web/redirectUris/any(uri:uri eq '$REDIRECT_URI')" --query "[].{AppId:appId, DisplayName:displayName}" -o json 2>/dev/null)
+    if [ -z "$EXISTING_APPS" ]; then
+        EXISTING_APPS="[]"
+    fi
+fi
 
 if [ "$EXISTING_APPS" != "[]" ] && [ -n "$EXISTING_APPS" ]; then
     echo ""

@@ -1113,9 +1113,9 @@ function createAIResource() {
         return;
     }
     
-    var progressMsg = mode === 'chat' ? 
-        '<?php esc_html_e('AI Foundry Project 생성 및 모델 배포 중... (2-3분 소요)', 'azure-ai-chatbot'); ?>' :
-        '<?php esc_html_e('AI Foundry Project 생성 중... (1-2분 소요)', 'azure-ai-chatbot'); ?>';
+    var chatProgressMsg = <?php echo json_encode(__('AI Foundry Project 생성 및 모델 배포 중... (2-3분 소요)', 'azure-ai-chatbot')); ?>;
+    var agentProgressMsg = <?php echo json_encode(__('AI Foundry Project 생성 중... (1-2분 소요)', 'azure-ai-chatbot')); ?>;
+    var progressMsg = mode === 'chat' ? chatProgressMsg : agentProgressMsg;
     
     jQuery('#new-ai-resource-form button').prop('disabled', true);
     jQuery('#new-ai-resource-form').prepend('<p class="notice notice-info inline"><span class="dashicons dashicons-update spin"></span> ' + progressMsg + '</p>');
@@ -1137,9 +1137,9 @@ function createAIResource() {
         jQuery('#new-ai-resource-form button').prop('disabled', false);
         
         if (response.success) {
-            var successMsg = mode === 'chat' ?
-                '<?php esc_html_e('AI Foundry Project와 모델이 성공적으로 배포되었습니다!', 'azure-ai-chatbot'); ?>' :
-                '<?php esc_html_e('AI Foundry Project가 성공적으로 생성되었습니다!', 'azure-ai-chatbot'); ?>';
+            var chatSuccessMsg = <?php echo json_encode(__('AI Foundry Project와 모델이 성공적으로 배포되었습니다!', 'azure-ai-chatbot')); ?>;
+            var agentSuccessMsg = <?php echo json_encode(__('AI Foundry Project가 성공적으로 생성되었습니다!', 'azure-ai-chatbot')); ?>;
+            var successMsg = mode === 'chat' ? chatSuccessMsg : agentSuccessMsg;
             
             alert(successMsg);
             
