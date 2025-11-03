@@ -3,7 +3,7 @@
  * Plugin Name: Azure AI Chatbot
  * Plugin URI: https://github.com/asomi7007/azure-ai-chatbot-wordpress
  * Description: Integrate Azure AI Foundry agents and OpenAI-compatible chat models into WordPress with a modern chat widget
- * Version: 3.0.0
+ * Version: 3.0.1
  * Author: Elden Solution
  * Author URI: https://www.eldensolution.kr
  * License: GPL-2.0+
@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
 }
 
 // 플러그인 상수 정의
-define('AZURE_CHATBOT_VERSION', '3.0.0');
+define('AZURE_CHATBOT_VERSION', '3.0.1');
 define('AZURE_CHATBOT_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('AZURE_CHATBOT_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('AZURE_CHATBOT_PLUGIN_BASENAME', plugin_basename(__FILE__));
