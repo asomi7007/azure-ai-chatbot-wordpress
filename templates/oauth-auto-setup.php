@@ -205,9 +205,39 @@ if (isset($_GET['oauth_error'])) {
             <?php if (!$has_token): ?>
                 <!-- Step 1: Azure 인증 -->
                 <div class="oauth-step oauth-step-1">
-                    <h3><?php esc_html_e('1단계: Azure 인증', 'azure-ai-chatbot'); ?></h3>
+                    <h3><?php esc_html_e('1단계: Admin Consent 승인 (필수)', 'azure-ai-chatbot'); ?></h3>
+                    <div class="notice notice-warning inline" style="margin: 10px 0; padding: 12px;">
+                        <p style="margin: 0 0 10px 0;">
+                            <strong><?php esc_html_e('⚠️ 중요: Azure 자동 설정을 시작하기 전에 Admin Consent를 먼저 승인해야 합니다!', 'azure-ai-chatbot'); ?></strong>
+                        </p>
+                        <p style="margin: 0 0 10px 0;">
+                            <?php esc_html_e('다음 링크를 클릭하여 브라우저에서 관리자 동의를 승인하세요:', 'azure-ai-chatbot'); ?>
+                        </p>
+                        <?php 
+                        $client_id = get_option('azure_ai_chatbot_client_id');
+                        $tenant_id = get_option('azure_ai_chatbot_tenant_id');
+                        if ($client_id && $tenant_id):
+                            $consent_url = "https://login.microsoftonline.com/{$tenant_id}/adminconsent?client_id={$client_id}";
+                        ?>
+                        <p style="margin: 0;">
+                            <a href="<?php echo esc_url($consent_url); ?>" 
+                               class="button button-secondary"
+                               target="_blank"
+                               style="background: #2271b1; color: white; border-color: #2271b1;">
+                                <span class="dashicons dashicons-yes" style="margin-top: 3px;"></span>
+                                <?php esc_html_e('Admin Consent 승인하기', 'azure-ai-chatbot'); ?>
+                            </a>
+                        </p>
+                        <?php else: ?>
+                        <p style="margin: 0; color: #d63638;">
+                            <?php esc_html_e('❌ Client ID와 Tenant ID를 먼저 입력하고 저장하세요.', 'azure-ai-chatbot'); ?>
+                        </p>
+                        <?php endif; ?>
+                    </div>
+                    
+                    <h3><?php esc_html_e('2단계: Azure 인증', 'azure-ai-chatbot'); ?></h3>
                     <p>
-                        <?php esc_html_e('Azure에 로그인하여 리소스 접근 권한을 부여하세요.', 'azure-ai-chatbot'); ?>
+                        <?php esc_html_e('Admin Consent 승인 후, Azure에 로그인하여 리소스 접근 권한을 부여하세요.', 'azure-ai-chatbot'); ?>
                     </p>
                     <p>
                         <a href="<?php echo esc_url($oauth->get_authorization_url()); ?>" 
