@@ -211,8 +211,13 @@ echo ""
 echo "🔍 기존 App Registration 확인 중..."
 
 # Azure AD 권한 확인 (타임아웃 30초)
-if ! timeout 30s az ad app list --query "[0]" -o json > /dev/null 2>&1; then
-    if [ $? -eq 124 ]; then
+echo "[디버그] Azure AD 앱 목록 권한 체크 시작..."
+timeout 30s az ad app list --query "[0]" -o json > /dev/null 2>&1
+EXIT_CODE=$?
+echo "[디버그] 권한 체크 종료 코드: $EXIT_CODE"
+
+if [ $EXIT_CODE -ne 0 ]; then
+    if [ $EXIT_CODE -eq 124 ]; then
         echo "⚠️  Azure AD 앱 목록 조회 시간 초과 (30초)."
     else
         echo "⚠️  Azure AD 앱 목록 조회 권한이 없거나 오류가 발생했습니다."
@@ -220,14 +225,22 @@ if ! timeout 30s az ad app list --query "[0]" -o json > /dev/null 2>&1; then
     echo "   계속 진행하여 새 앱을 생성합니다."
     EXISTING_APPS="[]"
 else
+    echo "[디버그] 기존 앱 검색 시작..."
     EXISTING_APPS=$(timeout 30s az ad app list --filter "web/redirectUris/any(uri:uri eq '$REDIRECT_URI')" --query "[].{AppId:appId, DisplayName:displayName}" -o json 2>/dev/null)
-    if [ $? -eq 124 ]; then
+    EXIT_CODE=$?
+    echo "[디버그] 앱 검색 종료 코드: $EXIT_CODE"
+    echo "[디버그] 검색 결과: $EXISTING_APPS"
+    
+    if [ $EXIT_CODE -eq 124 ]; then
         echo "⚠️  기존 앱 검색 시간 초과. 새 앱을 생성합니다."
         EXISTING_APPS="[]"
     elif [ -z "$EXISTING_APPS" ]; then
+        echo "[디버그] 검색 결과가 비어있음"
         EXISTING_APPS="[]"
     fi
 fi
+
+echo "[디버그] 최종 EXISTING_APPS: $EXISTING_APPS"
 
 if [ "$EXISTING_APPS" != "[]" ] && [ -n "$EXISTING_APPS" ]; then
     echo ""
