@@ -397,17 +397,60 @@ az ad app permission add --id "$APP_ID" \
 echo "✅ API 권한 추가 완료"
 echo ""
 
+# Admin Consent URL 생성
+CONSENT_URL="https://login.microsoftonline.com/$TENANT_ID/adminconsent?client_id=$APP_ID"
+
 # Admin Consent URL 안내
-echo "🔐 관리자 동의 필요"
+echo "========================================="
+if [ "$LANG" = "ko" ]; then
+    echo "🔐 관리자 동의 필요 (필수 단계!)"
+else
+    echo "🔐 Admin Consent Required (Mandatory!)"
+fi
+echo "========================================="
 echo ""
-echo "📌 다음 URL을 브라우저에서 열어 관리자 동의를 승인하세요:"
+
+if [ "$LANG" = "ko" ]; then
+    echo "⚠️  중요: Azure 자동 설정을 완료하려면 관리자 동의가 필요합니다!"
+    echo ""
+    echo "📌 아래 링크를 Ctrl+클릭하여 브라우저에서 열어주세요:"
+else
+    echo "⚠️  Important: Admin consent is required to complete Azure setup!"
+    echo ""
+    echo "📌 Ctrl+Click the link below to open in your browser:"
+fi
 echo ""
-echo "   https://login.microsoftonline.com/$TENANT_ID/adminconsent?client_id=$APP_ID"
+echo -e "\033]8;;${CONSENT_URL}\033\\${CONSENT_URL}\033]8;;\033\\"
 echo ""
-echo "⏳ 승인을 완료한 후 Enter 키를 눌러 계속 진행하세요..."
-read -p "" CONSENT_DONE
+
+if [ "$LANG" = "ko" ]; then
+    echo "   (링크를 클릭할 수 없다면 위 URL을 복사하여 브라우저에 붙여넣으세요)"
+    echo ""
+    echo "승인 절차:"
+    echo "  1. 위 링크를 클릭하여 브라우저에서 엽니다"
+    echo "  2. Azure 계정으로 로그인합니다"
+    echo "  3. 권한 요청 화면에서 '승인(Accept)' 버튼을 클릭합니다"
+    echo "  4. 승인이 완료되면 이 터미널로 돌아옵니다"
+    echo ""
+    read -p "✅ 승인을 완료했으면 Enter 키를 눌러 계속 진행하세요... " CONSENT_DONE
+else
+    echo "   (If the link doesn't work, copy and paste the URL into your browser)"
+    echo ""
+    echo "Approval steps:"
+    echo "  1. Click the link above to open in browser"
+    echo "  2. Sign in with your Azure account"
+    echo "  3. Click 'Accept' button on the permissions page"
+    echo "  4. Return to this terminal after approval"
+    echo ""
+    read -p "✅ Press Enter after completing the approval... " CONSENT_DONE
+fi
 echo ""
-echo "✅ 관리자 동의 단계 완료"
+
+if [ "$LANG" = "ko" ]; then
+    echo "✅ 관리자 동의 단계 완료"
+else
+    echo "✅ Admin consent step completed"
+fi
 echo ""
 
 # 결과 출력
