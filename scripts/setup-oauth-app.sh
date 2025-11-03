@@ -226,13 +226,20 @@ if [ $EXIT_CODE -ne 0 ]; then
     EXISTING_APPS="[]"
 else
     echo "[디버그] 기존 앱 검색 시작..."
-    EXISTING_APPS=$(timeout 30s az ad app list --filter "web/redirectUris/any(uri:uri eq '$REDIRECT_URI')" --query "[].{AppId:appId, DisplayName:displayName}" -o json 2>/dev/null)
+    set +e  # 일시적으로 에러 시 종료 비활성화
+    EXISTING_APPS=$(timeout 30s az ad app list --filter "web/redirectUris/any(uri:uri eq '$REDIRECT_URI')" --query "[].{AppId:appId, DisplayName:displayName}" -o json 2>&1)
     EXIT_CODE=$?
+    set -e  # 다시 활성화
     echo "[디버그] 앱 검색 종료 코드: $EXIT_CODE"
-    echo "[디버그] 검색 결과: $EXISTING_APPS"
+    echo "[디버그] 검색 결과 길이: ${#EXISTING_APPS}"
+    echo "[디버그] 검색 결과 첫 100자: ${EXISTING_APPS:0:100}"
     
     if [ $EXIT_CODE -eq 124 ]; then
         echo "⚠️  기존 앱 검색 시간 초과. 새 앱을 생성합니다."
+        EXISTING_APPS="[]"
+    elif [ $EXIT_CODE -ne 0 ]; then
+        echo "⚠️  기존 앱 검색 실패 (종료 코드: $EXIT_CODE). 새 앱을 생성합니다."
+        echo "[디버그] 에러 메시지: $EXISTING_APPS"
         EXISTING_APPS="[]"
     elif [ -z "$EXISTING_APPS" ]; then
         echo "[디버그] 검색 결과가 비어있음"
