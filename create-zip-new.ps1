@@ -148,7 +148,7 @@ $CriticalFiles = @(
     @{
         ZipPath = "azure-ai-chatbot-wordpress/templates/settings-page.php"
         LocalPath = "templates\settings-page.php"
-        CheckPattern = "Azure AI Chatbot 설정"
+        CheckPattern = "esc_html_e\('Azure AI Chatbot 설정', 'azure-ai-chatbot'\)"
     }
 )
 
