@@ -46,7 +46,7 @@ msg() {
                 "no_login") echo "❌ Azure에 로그인이 필요합니다." ;;
                 "login_cmd") echo "   다음 명령어를 실행하세요: az login" ;;
                 "available_subscription") echo "✅ 사용 가능한 구독:" ;;
-                "use_subscription") echo "이 구독을 사용하시겠습니까? (y/n): " ;;
+                "use_subscription") echo "이 구독을 사용하시겠습니까? (Y/n): " ;;
                 "cancelled") echo "❌ 작업이 취소되었습니다." ;;
                 "subscription_list") echo "🔍 사용 가능한 구독 목록:" ;;
                 "select_subscription") echo "사용할 구독 번호를 입력하세요 (1-$2): " ;;
@@ -82,7 +82,7 @@ msg() {
                 "no_login") echo "❌ Azure login required." ;;
                 "login_cmd") echo "   Please run: az login" ;;
                 "available_subscription") echo "✅ Available subscription:" ;;
-                "use_subscription") echo "Use this subscription? (y/n): " ;;
+                "use_subscription") echo "Use this subscription? (Y/n): " ;;
                 "cancelled") echo "❌ Operation cancelled." ;;
                 "subscription_list") echo "🔍 Available subscriptions:" ;;
                 "select_subscription") echo "Enter subscription number (1-$2): " ;;
@@ -164,9 +164,10 @@ if [ "$SUBSCRIPTION_COUNT" -eq "1" ]; then
     echo ""
     echo "✅ 사용 가능한 구독: $CURRENT_SUBSCRIPTION_NAME ($CURRENT_SUBSCRIPTION_ID)"
     echo ""
-    read -p "이 구독을 사용하시겠습니까? (y/n): " USE_CURRENT
+    read -p "이 구독을 사용하시겠습니까? (Y/n): " USE_CURRENT
+    USE_CURRENT=${USE_CURRENT:-Y}  # 기본값: Y (엔터키 시 Y)
     
-    if [ "$USE_CURRENT" != "y" ] && [ "$USE_CURRENT" != "Y" ]; then
+    if [[ ! "$USE_CURRENT" =~ ^[Yy]$ ]]; then
         echo "❌ 작업이 취소되었습니다."
         exit 1
     fi
