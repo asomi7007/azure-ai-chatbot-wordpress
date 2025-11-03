@@ -514,8 +514,8 @@ class Azure_AI_Chatbot {
      */
     public function add_admin_menu() {
         add_menu_page(
-            'Azure AI Chatbot',
-            'AI Chatbot',
+            'Azure AI Chatbot V2',
+            'AI Chatbot V2',
             'manage_options',
             'azure-ai-chatbot',
             [$this, 'render_settings_page'],

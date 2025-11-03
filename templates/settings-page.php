@@ -41,7 +41,7 @@ if (!empty($options['agent_endpoint'])) {
 <div class="wrap azure-chatbot-settings">
     <h1>
         <span class="dashicons dashicons-admin-generic"></span>
-        <?php esc_html_e('Azure AI Chatbot 설정', 'azure-ai-chatbot'); ?>
+        <?php esc_html_e('Azure AI Chatbot 설정 V2', 'azure-ai-chatbot'); ?>
     </h1>
     
     <form method="post" action="options.php" id="azure-chatbot-settings-form">
