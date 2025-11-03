@@ -576,30 +576,61 @@ function openOAuthPopup(url) {
     return false; // 기본 링크 동작 방지
 }
 
+function copyToClipboard(elementId, successMessage) {
+    var textToCopy = document.getElementById(elementId).textContent;
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(textToCopy).then(function() {
+            alert(successMessage);
+        }).catch(function(err) {
+            console.error('Clipboard write failed: ', err);
+            // Fallback for older browsers
+            var textArea = document.createElement("textarea");
+            textArea.value = textToCopy;
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                alert(successMessage);
+            } catch (e) {
+                console.error('Fallback copy failed: ', e);
+                alert('<?php esc_html_e('복사에 실패했습니다.', 'azure-ai-chatbot'); ?>');
+            }
+            document.body.removeChild(textArea);
+        });
+    } else {
+        // Fallback for non-secure contexts or old browsers
+        var textArea = document.createElement("textarea");
+        textArea.value = textToCopy;
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            alert(successMessage);
+        } catch (e) {
+            console.error('Fallback copy failed: ', e);
+            alert('<?php esc_html_e('복사에 실패했습니다.', 'azure-ai-chatbot'); ?>');
+        }
+        document.body.removeChild(textArea);
+    }
+}
+
 function copyOAuthCommandBash() {
-    var command = document.getElementById('oauth-setup-command-bash').textContent;
-    navigator.clipboard.writeText(command).then(function() {
-        alert('<?php esc_html_e('Bash 명령어가 클립보드에 복사되었습니다!', 'azure-ai-chatbot'); ?>');
-    });
+    copyToClipboard('oauth-setup-command-bash', '<?php esc_html_e('Bash 명령어가 클립보드에 복사되었습니다!', 'azure-ai-chatbot'); ?>');
 }
 
 function copyOAuthCommandPwsh() {
-    var command = document.getElementById('oauth-setup-command-pwsh').textContent;
-    navigator.clipboard.writeText(command).then(function() {
-        alert('<?php esc_html_e('PowerShell 명령어가 클립보드에 복사되었습니다!', 'azure-ai-chatbot'); ?>');
-    });
-}
-
-function copyOAuthCommand() {
-    // 하위 호환성을 위해 유지
-    copyOAuthCommandBash();
+    copyToClipboard('oauth-setup-command-pwsh', '<?php esc_html_e('PowerShell 명령어가 클립보드에 복사되었습니다!', 'azure-ai-chatbot'); ?>');
 }
 
 function copyRedirectUri() {
-    var uri = document.getElementById('redirect-uri').textContent;
-    navigator.clipboard.writeText(uri).then(function() {
-        alert('<?php esc_html_e('Redirect URI가 클립보드에 복사되었습니다!', 'azure-ai-chatbot'); ?>');
-    });
+    copyToClipboard('redirect-uri', '<?php esc_html_e('Redirect URI가 클립보드에 복사되었습니다!', 'azure-ai-chatbot'); ?>');
+}
+
+// 하위 호환성을 위해 유지
+function copyOAuthCommand() {
+    copyOAuthCommandBash();
 }
 
 jQuery(document).ready(function($) {
@@ -613,16 +644,60 @@ jQuery(document).ready(function($) {
         loadResourceGroups();
     });
     
-    // Resource Group 변경 시 리소스 로드
+    // Resource Group 변경 시 리소스 로드 및 새 리소스 그룹 폼 처리
     $('#oauth_resource_group').on('change', function() {
-        loadResources();
+        var value = $(this).val();
+        if (value === '__CREATE_NEW__') {
+            $('#new-rg-form').slideDown(300);
+            // 위치 정보가 로드되지 않았으면 로드
+            if ($('#new_rg_location option').length <= 1) {
+                loadAvailableLocations();
+            } else {
+                generateResourceGroupName();
+            }
+        } else {
+            $('#new-rg-form').slideUp(300);
+            if (value) {
+                var selectedOption = $(this).find('option:selected');
+                var location = selectedOption.text().match(/\(([^)]+)\)/);
+                if (location && location[1]) {
+                    $('#new_ai_location').val(location[1]);
+                }
+            }
+            loadResources();
+        }
+    });
+
+    // AI 리소스 선택 시 새 리소스 폼 처리
+    $('#oauth_resource').on('change', function() {
+        var value = $(this).val();
+        if (value === '__CREATE_NEW__') {
+            $('#new-ai-resource-form').slideDown(300);
+            generateAIResourceName();
+            
+            var rgLocation = $('#new_ai_location').val();
+            if (!rgLocation) {
+                var selectedRg = $('#oauth_resource_group option:selected');
+                var location = selectedRg.text().match(/\(([^)]+)\)/);
+                 if (location && location[1]) {
+                    $('#new_ai_location').val(location[1]);
+                }
+            }
+        } else {
+            $('#new-ai-resource-form').slideUp(300);
+        }
+        
+        var mode = $('input[name="oauth_mode"]:checked').val();
+        if (mode === 'agent' && value && value !== '__CREATE_NEW__') {
+            loadAgents(value);
+        }
+        updateFetchButton();
     });
     
-    // 모드 변경 시 리소스 다시 로드
+    // 모드 변경 시 리소스 다시 로드 및 UI 업데이트
     $('input[name="oauth_mode"]').on('change', function() {
         var mode = $(this).val();
         
-        // Agent 선택 행 표시/숨김
         if (mode === 'agent') {
             $('#agent_selection_row').show();
         } else {
@@ -630,26 +705,34 @@ jQuery(document).ready(function($) {
             $('#oauth_agent').val('').prop('disabled', true);
         }
         
-        if ($('#oauth_resource_group').val()) {
+        if ($('#oauth_resource_group').val() && $('#oauth_resource_group').val() !== '__CREATE_NEW__') {
             loadResources();
         }
-    });
-    
-    // 리소스 선택 시 Agent 모드면 Agent 목록 로드
-    $('#oauth_resource').on('change', function() {
-        var mode = $('input[name="oauth_mode"]:checked').val();
-        var resourceId = $(this).val();
         
-        if (mode === 'agent' && resourceId) {
-            loadAgents(resourceId);
+        if ($('#new-ai-resource-form').is(':visible')) {
+            generateAIResourceName();
         }
-        
-        updateFetchButton();
     });
     
     // Agent 선택 시 버튼 활성화
     $('#oauth_agent').on('change', function() {
         updateFetchButton();
+    });
+
+    // Location 변경 시 Resource Group 이름 재생성
+    $('#new_rg_location').on('change', function() {
+        if ($('input[name="rg_name_mode"]:checked').val() === 'auto') {
+            generateResourceGroupName();
+        }
+    });
+
+    // 모델 선택 시 배포 이름 자동 생성
+    $('#new_ai_model').on('change', function() {
+        var modelName = $(this).val();
+        if (modelName) {
+            var deploymentName = modelName.replace(/[^a-zA-Z0-9]/g, '-') + '-deployment';
+            $('#new_ai_deployment_name').val(deploymentName);
+        }
     });
 });
 
@@ -1152,30 +1235,6 @@ function createAIResource() {
             var successMsg = mode === 'chat' ? chatSuccessMsg : agentSuccessMsg;
             
             alert(successMsg);
-            
-            // 폼 숨기기
-            jQuery('#new-ai-resource-form').hide();
-            jQuery('#oauth_resource').val('');
-            
-            // 리소스 목록 새로고침
-            loadResources();
-        } else {
-            alert('<?php esc_html_e('생성 실패:', 'azure-ai-chatbot'); ?> ' + response.data.message);
-        }
-    });
-}
-        name: name,
-        sku: sku,
-        location: location,
-        resource_group: resourceGroup,
-        subscription: subscription,
-        mode: mode
-    }, function(response) {
-        jQuery('#new-ai-resource-form .notice').remove();
-        jQuery('#new-ai-resource-form button').prop('disabled', false);
-        
-        if (response.success) {
-            alert('<?php esc_html_e('AI 리소스가 성공적으로 생성되었습니다!', 'azure-ai-chatbot'); ?>');
             
             // 폼 숨기기
             jQuery('#new-ai-resource-form').hide();
