@@ -520,10 +520,13 @@ if (isset($_GET['oauth_error'])) {
                     .done(function(response) {
                         console.log('Response:', response);
                         if (response.success) {
-                            alert('<?php esc_html_e('OAuth 설정이 초기화되었습니다. 페이지를 새로고침합니다.', 'azure-ai-chatbot'); ?>');
+                            var resetSuccessMsg = <?php echo json_encode(__('OAuth 설정이 초기화되었습니다. 페이지를 새로고침합니다.', 'azure-ai-chatbot')); ?>;
+                            alert(resetSuccessMsg);
                             location.reload();
                         } else {
-                            alert('<?php esc_html_e('초기화 실패:', 'azure-ai-chatbot'); ?> ' + (response.data && response.data.message ? response.data.message : '알 수 없는 오류'));
+                            var resetFailMsg = <?php echo json_encode(__('초기화 실패:', 'azure-ai-chatbot')); ?>;
+                            var unknownErrorMsg = <?php echo json_encode(__('알 수 없는 오류', 'azure-ai-chatbot')); ?>;
+                            alert(resetFailMsg + ' ' + (response.data && response.data.message ? response.data.message : unknownErrorMsg));
                             btn.prop('disabled', false).html(originalHtml);
                         }
                     })
@@ -829,7 +832,10 @@ function fetchKeys() {
                 // Chat 모드 라디오 버튼 선택
                 jQuery('input[name="azure_chatbot_settings[mode]"][value="chat"]').prop('checked', true).trigger('change');
                 
-                alert('<?php esc_html_e('Chat 모드 값이 자동으로 입력되었습니다.', 'azure-ai-chatbot'); ?>\n\n<?php esc_html_e('Endpoint:', 'azure-ai-chatbot'); ?> ' + response.data.endpoint + '\n\n<?php esc_html_e('설정을 저장하세요.', 'azure-ai-chatbot'); ?>');
+                var chatModeMsg = <?php echo json_encode(__('Chat 모드 값이 자동으로 입력되었습니다.', 'azure-ai-chatbot')); ?>;
+                var endpointLabel = <?php echo json_encode(__('Endpoint:', 'azure-ai-chatbot')); ?>;
+                var saveSettingsMsg = <?php echo json_encode(__('설정을 저장하세요.', 'azure-ai-chatbot')); ?>;
+                alert(chatModeMsg + '\n\n' + endpointLabel + ' ' + response.data.endpoint + '\n\n' + saveSettingsMsg);
             } else {
                 jQuery('#agent_endpoint').val(response.data.endpoint);
                 jQuery('#subscription_key').val(response.data.api_key);
@@ -837,7 +843,11 @@ function fetchKeys() {
                 // Agent 모드 라디오 버튼 선택
                 jQuery('input[name="azure_chatbot_settings[mode]"][value="agent"]').prop('checked', true).trigger('change');
                 
-                alert('<?php esc_html_e('Agent 모드 값이 자동으로 입력되었습니다.', 'azure-ai-chatbot'); ?>\n\n<?php esc_html_e('Project Endpoint:', 'azure-ai-chatbot'); ?> ' + response.data.endpoint + '\n<?php esc_html_e('Agent ID:', 'azure-ai-chatbot'); ?> ' + agentId + '\n\n<?php esc_html_e('설정을 저장하세요.', 'azure-ai-chatbot'); ?>');
+                var agentModeMsg = <?php echo json_encode(__('Agent 모드 값이 자동으로 입력되었습니다.', 'azure-ai-chatbot')); ?>;
+                var projectEndpointLabel = <?php echo json_encode(__('Project Endpoint:', 'azure-ai-chatbot')); ?>;
+                var agentIdLabel = <?php echo json_encode(__('Agent ID:', 'azure-ai-chatbot')); ?>;
+                var saveSettingsMsg2 = <?php echo json_encode(__('설정을 저장하세요.', 'azure-ai-chatbot')); ?>;
+                alert(agentModeMsg + '\n\n' + projectEndpointLabel + ' ' + response.data.endpoint + '\n' + agentIdLabel + ' ' + agentId + '\n\n' + saveSettingsMsg2);
             }
             
             // Auto Setting 섹션 닫기
