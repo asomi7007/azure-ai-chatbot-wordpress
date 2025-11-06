@@ -467,6 +467,24 @@ if (!empty($options['agent_endpoint'])) {
 jQuery(document).ready(function($) {
     console.log('Settings page loaded');
     
+    // URL 파라미터에서 tab 확인
+    const urlParams = new URLSearchParams(window.location.search);
+    const activeTab = urlParams.get('tab');
+    
+    // OAuth 자동 설정 탭이 요청된 경우 자동으로 표시
+    if (activeTab === 'oauth-auto-setup') {
+        console.log('[Settings Page] oauth-auto-setup tab requested, showing section');
+        $('#oauth-auto-setup-section').show();
+        $('#toggle-auto-setup').find('.dashicons').attr('class', 'dashicons dashicons-arrow-up-alt2');
+        
+        // OAuth 자동 설정 섹션으로 스크롤
+        setTimeout(function() {
+            $('html, body').animate({
+                scrollTop: $('#oauth-auto-setup-section').offset().top - 100
+            }, 500);
+        }, 300);
+    }
+    
     // Auto Setting 버튼 토글
     $('#toggle-auto-setup').on('click', function() {
         const section = $('#oauth-auto-setup-section');
