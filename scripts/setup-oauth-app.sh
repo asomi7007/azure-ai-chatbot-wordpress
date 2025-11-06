@@ -53,9 +53,9 @@ msg() {
                 "invalid_number") echo "❌ 잘못된 번호입니다." ;;
                 "subscription_set") echo "✅ 선택한 구독으로 설정 완료" ;;
                 "current_subscription") echo "✅ 사용 중인 구독:" ;;
-                "creating_app") echo "🔧 App Registration 생성 중:" ;;
-                "client_id") echo "✅ Application (Client) ID:" ;;
-                "tenant_id") echo "✅ Directory (Tenant) ID:" ;;
+                "creating_app") echo "🔧 App Registration 생성 중: $2" ;;
+                "client_id") echo "✅ Application (Client) ID: $2" ;;
+                "tenant_id") echo "✅ Directory (Tenant) ID: $2" ;;
                 "creating_secret") echo "🔑 Client Secret 생성 중..." ;;
                 "secret_value") echo "✅ Client Secret:" ;;
                 "save_secret") echo "⚠️  이 Secret 값을 안전하게 저장하세요. 다시 볼 수 없습니다!" ;;
@@ -69,6 +69,23 @@ msg() {
                 "wordpress_values") echo "📝 WordPress 플러그인에 입력할 값:" ;;
                 "next_steps") echo "🚀 다음 단계:" ;;
                 "guide") echo "📖 상세 가이드:" ;;
+                "login_required") echo "❌ Azure에 로그인이 필요합니다."; echo "   다음 명령어를 실행하세요: az login" ;;
+                "single_subscription") echo "✅ 사용 가능한 구독: $2 ($3)" ;;
+                "operation_cancelled") echo "❌ 작업이 취소되었습니다." ;;
+                "subscription_set_complete") echo "✅ 선택한 구독으로 설정 완료" ;;
+                "using_subscription") echo "✅ 사용 중인 구독: $2 ($3)" ;;
+                "checking_existing_app") echo "🔍 기존 App Registration 확인 중..." ;;
+                "ad_list_timeout") echo "⚠️  Azure AD 앱 목록 조회 시간 초과." ;;
+                "ad_list_no_permission") echo "⚠️  Azure AD 앱 목록 조회 권한이 없거나 오류가 발생했습니다." ;;
+                "continue_create_new") echo "   계속 진행하여 새 앱을 생성합니다." ;;
+                "app_search_failed") echo "⚠️  기존 앱 검색 실패. 새 앱을 생성합니다." ;;
+                "existing_app_found") echo "⚠️  동일한 Redirect URI를 사용하는 기존 앱이 발견되었습니다:" ;;
+                "choose_action") echo "다음 중 선택하세요:"; echo "1) 기존 앱 사용 (Client Secret만 새로 생성)"; echo "2) 기존 앱 삭제하고 새로 생성"; echo "3) 취소" ;;
+                "using_existing_app") echo "✅ 기존 앱 사용: $2 ($3)" ;;
+                "deleting_existing_app") echo "🗑️  기존 앱 삭제 중..." ;;
+                "deletion_complete") echo "✅ 삭제 완료" ;;
+                "app_creation_failed") echo "❌ App Registration 생성 실패" ;;
+                "invalid_choice") echo "❌ 잘못된 선택입니다." ;;
                 *) echo "$key" ;;
             esac
             ;;
@@ -89,9 +106,9 @@ msg() {
                 "invalid_number") echo "❌ Invalid number." ;;
                 "subscription_set") echo "✅ Subscription configured successfully" ;;
                 "current_subscription") echo "✅ Using subscription:" ;;
-                "creating_app") echo "🔧 Creating App Registration:" ;;
-                "client_id") echo "✅ Application (Client) ID:" ;;
-                "tenant_id") echo "✅ Directory (Tenant) ID:" ;;
+                "creating_app") echo "🔧 Creating App Registration: $2" ;;
+                "client_id") echo "✅ Application (Client) ID: $2" ;;
+                "tenant_id") echo "✅ Directory (Tenant) ID: $2" ;;
                 "creating_secret") echo "🔑 Creating Client Secret..." ;;
                 "secret_value") echo "✅ Client Secret:" ;;
                 "save_secret") echo "⚠️  Save this secret value securely. You won't be able to see it again!" ;;
@@ -105,6 +122,23 @@ msg() {
                 "wordpress_values") echo "📝 Values to enter in WordPress plugin:" ;;
                 "next_steps") echo "🚀 Next Steps:" ;;
                 "guide") echo "📖 Detailed Guide:" ;;
+                "login_required") echo "❌ Azure login required."; echo "   Please run: az login" ;;
+                "single_subscription") echo "✅ Available subscription: $2 ($3)" ;;
+                "operation_cancelled") echo "❌ Operation cancelled." ;;
+                "subscription_set_complete") echo "✅ Subscription configured successfully" ;;
+                "using_subscription") echo "✅ Using subscription: $2 ($3)" ;;
+                "checking_existing_app") echo "🔍 Checking for existing App Registration..." ;;
+                "ad_list_timeout") echo "⚠️  Azure AD app list query timed out." ;;
+                "ad_list_no_permission") echo "⚠️  No permission to list Azure AD apps or an error occurred." ;;
+                "continue_create_new") echo "   Continuing to create a new app." ;;
+                "app_search_failed") echo "⚠️  Failed to search existing apps. Creating a new app." ;;
+                "existing_app_found") echo "⚠️  Found existing app(s) with the same Redirect URI:" ;;
+                "choose_action") echo "Choose an action:"; echo "1) Use existing app (Create new Client Secret only)"; echo "2) Delete existing app and create new"; echo "3) Cancel" ;;
+                "using_existing_app") echo "✅ Using existing app: $2 ($3)" ;;
+                "deleting_existing_app") echo "🗑️  Deleting existing app..." ;;
+                "deletion_complete") echo "✅ Deletion complete" ;;
+                "app_creation_failed") echo "❌ Failed to create App Registration" ;;
+                "invalid_choice") echo "❌ Invalid choice." ;;
                 *) echo "$key" ;;
             esac
             ;;
@@ -150,8 +184,7 @@ echo "📋 Azure 구독 확인 중..."
 SUBSCRIPTION_COUNT=$(az account list --query "length(@)" -o tsv 2>/dev/null || echo "0")
 
 if [ "$SUBSCRIPTION_COUNT" = "0" ]; then
-    echo "❌ Azure에 로그인이 필요합니다."
-    echo "   다음 명령어를 실행하세요: az login"
+    msg "login_required"
     exit 1
 fi
 
@@ -162,18 +195,23 @@ CURRENT_SUBSCRIPTION_NAME=$(az account show --query name -o tsv)
 # 항상 구독 목록 표시
 if [ "$SUBSCRIPTION_COUNT" -eq "1" ]; then
     echo ""
-    echo "✅ 사용 가능한 구독: $CURRENT_SUBSCRIPTION_NAME ($CURRENT_SUBSCRIPTION_ID)"
+    msg "single_subscription" "$CURRENT_SUBSCRIPTION_NAME" "$CURRENT_SUBSCRIPTION_ID"
     echo ""
-    read -p "이 구독을 사용하시겠습니까? (Y/n): " USE_CURRENT
-    USE_CURRENT=${USE_CURRENT:-Y}  # 기본값: Y (엔터키 시 Y)
+    
+    if [ "$LANG" = "en" ]; then
+        read -p "Do you want to use this subscription? (Y/n): " USE_CURRENT
+    else
+        read -p "이 구독을 사용하시겠습니까? (Y/n): " USE_CURRENT
+    fi
+    USE_CURRENT=${USE_CURRENT:-Y}
     
     if [[ ! "$USE_CURRENT" =~ ^[Yy]$ ]]; then
-        echo "❌ 작업이 취소되었습니다."
+        msg "operation_cancelled"
         exit 1
     fi
 else
     echo ""
-    echo "🔍 사용 가능한 구독 목록:"
+    msg "subscription_list"
     echo ""
     
     # 구독 목록을 번호와 함께 표시
@@ -187,10 +225,14 @@ else
     }'
     
     echo ""
-    read -p "사용할 구독 번호를 입력하세요 (1-$SUBSCRIPTION_COUNT): " SUB_NUM
+    if [ "$LANG" = "en" ]; then
+        read -p "Enter subscription number to use (1-$SUBSCRIPTION_COUNT): " SUB_NUM
+    else
+        read -p "사용할 구독 번호를 입력하세요 (1-$SUBSCRIPTION_COUNT): " SUB_NUM
+    fi
     
     if [ -z "$SUB_NUM" ] || [ "$SUB_NUM" -lt 1 ] || [ "$SUB_NUM" -gt "$SUBSCRIPTION_COUNT" ]; then
-        echo "❌ 잘못된 번호입니다."
+        msg "invalid_number"
         exit 1
     fi
     
@@ -198,69 +240,62 @@ else
     SUBSCRIPTION_ID=$(az account list --query "[$(($SUB_NUM - 1))].id" -o tsv)
     az account set --subscription "$SUBSCRIPTION_ID"
     echo ""
-    echo "✅ 선택한 구독으로 설정 완료"
+    msg "subscription_set_complete"
 fi
 
 # 최종 구독 정보 표시
 SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 SUBSCRIPTION_NAME=$(az account show --query name -o tsv)
-echo "✅ 사용 중인 구독: $SUBSCRIPTION_NAME ($SUBSCRIPTION_ID)"
+msg "using_subscription" "$SUBSCRIPTION_NAME" "$SUBSCRIPTION_ID"
 echo ""
 
-# 기존 App Registration 확인
-echo "🔍 기존 App Registration 확인 중..."
+# 기존 App Registration 확인 (타임아웃 방지: 5초로 단축)
+msg "checking_existing_app"
 
-# Azure AD 권한 확인 (타임아웃 30초)
-echo "[디버그] Azure AD 앱 목록 권한 체크 시작..."
-timeout 30s az ad app list --query "[0]" -o json > /dev/null 2>&1
+# Azure AD 권한 확인 (타임아웃 5초, 빠른 체크)
+set +e
+timeout 5s az ad app list --query "[0].appId" -o tsv > /dev/null 2>&1
 EXIT_CODE=$?
-echo "[디버그] 권한 체크 종료 코드: $EXIT_CODE"
+set -e
 
 if [ $EXIT_CODE -ne 0 ]; then
     if [ $EXIT_CODE -eq 124 ]; then
-        echo "⚠️  Azure AD 앱 목록 조회 시간 초과 (30초)."
+        msg "ad_list_timeout"
     else
-        echo "⚠️  Azure AD 앱 목록 조회 권한이 없거나 오류가 발생했습니다."
+        msg "ad_list_no_permission"
     fi
-    echo "   계속 진행하여 새 앱을 생성합니다."
+    msg "continue_create_new"
     EXISTING_APPS="[]"
 else
-    echo "[디버그] 기존 앱 검색 시작..."
-    set +e  # 일시적으로 에러 시 종료 비활성화
-    EXISTING_APPS=$(timeout 30s az ad app list --filter "web/redirectUris/any(uri:uri eq '$REDIRECT_URI')" --query "[].{AppId:appId, DisplayName:displayName}" -o json 2>&1)
+    # 권한이 있으면 기존 앱 검색 (필터 없이 전체 목록에서 jq로 필터링)
+    set +e
+    ALL_APPS=$(timeout 10s az ad app list --query "[].{appId:appId, displayName:displayName, web:web}" -o json 2>&1)
     EXIT_CODE=$?
-    set -e  # 다시 활성화
-    echo "[디버그] 앱 검색 종료 코드: $EXIT_CODE"
-    echo "[디버그] 검색 결과 길이: ${#EXISTING_APPS}"
-    echo "[디버그] 검색 결과 첫 100자: ${EXISTING_APPS:0:100}"
+    set -e
     
-    if [ $EXIT_CODE -eq 124 ]; then
-        echo "⚠️  기존 앱 검색 시간 초과. 새 앱을 생성합니다."
+    if [ $EXIT_CODE -eq 124 ] || [ $EXIT_CODE -ne 0 ]; then
+        msg "app_search_failed"
         EXISTING_APPS="[]"
-    elif [ $EXIT_CODE -ne 0 ]; then
-        echo "⚠️  기존 앱 검색 실패 (종료 코드: $EXIT_CODE). 새 앱을 생성합니다."
-        echo "[디버그] 에러 메시지: $EXISTING_APPS"
-        EXISTING_APPS="[]"
-    elif [ -z "$EXISTING_APPS" ]; then
-        echo "[디버그] 검색 결과가 비어있음"
-        EXISTING_APPS="[]"
+    else
+        # jq로 리다이렉트 URI 필터링 (Cloud Shell에는 jq가 기본 설치됨)
+        EXISTING_APPS=$(echo "$ALL_APPS" | jq "[.[] | select(.web.redirectUris[]? == \"$REDIRECT_URI\") | {AppId: .appId, DisplayName: .displayName}]" 2>/dev/null || echo "[]")
     fi
 fi
 
-echo "[디버그] 최종 EXISTING_APPS: $EXISTING_APPS"
-
 if [ "$EXISTING_APPS" != "[]" ] && [ -n "$EXISTING_APPS" ]; then
     echo ""
-    echo "⚠️  동일한 Redirect URI를 사용하는 기존 앱이 발견되었습니다:"
+    msg "existing_app_found"
     echo ""
     echo "$EXISTING_APPS" | jq -r '.[] | "   - \(.DisplayName) (\(.AppId))"'
     echo ""
-    echo "다음 중 선택하세요:"
-    echo "1) 기존 앱 사용 (Client Secret만 새로 생성)"
-    echo "2) 기존 앱 삭제하고 새로 생성"
-    echo "3) 취소"
+    msg "choose_action"
     echo ""
-    read -p "선택 (1-3): " EXISTING_APP_CHOICE
+    
+    if [ "$LANG" = "en" ]; then
+        read -p "Choose (1-3): " EXISTING_APP_CHOICE
+    else
+        read -p "선택 (1-3): " EXISTING_APP_CHOICE
+    fi
     
     case "$EXISTING_APP_CHOICE" in
         1)
@@ -268,21 +303,21 @@ if [ "$EXISTING_APPS" != "[]" ] && [ -n "$EXISTING_APPS" ]; then
             APP_ID=$(echo "$EXISTING_APPS" | jq -r '.[0].AppId')
             APP_NAME=$(echo "$EXISTING_APPS" | jq -r '.[0].DisplayName')
             echo ""
-            echo "✅ 기존 앱 사용: $APP_NAME ($APP_ID)"
+            msg "using_existing_app" "$APP_NAME" "$APP_ID"
             echo ""
             ;;
         2)
             # 기존 앱 삭제
             echo ""
-            echo "🗑️  기존 앱 삭제 중..."
+            msg "deleting_existing_app"
             EXISTING_APP_ID=$(echo "$EXISTING_APPS" | jq -r '.[0].AppId')
             az ad app delete --id "$EXISTING_APP_ID" 2>/dev/null
-            echo "✅ 삭제 완료"
+            msg "deletion_complete"
             echo ""
             
             # 새 앱 생성
             APP_NAME="WordPress-Azure-AI-Chatbot-$(date +%Y%m%d%H%M%S)"
-            echo "🔧 App Registration 생성 중: $APP_NAME"
+            msg "creating_app" "$APP_NAME"
             APP_ID=$(az ad app create \
                 --display-name "$APP_NAME" \
                 --sign-in-audience "AzureADMyOrg" \
@@ -290,19 +325,19 @@ if [ "$EXISTING_APPS" != "[]" ] && [ -n "$EXISTING_APPS" ]; then
                 --query appId -o tsv)
             
             if [ -z "$APP_ID" ]; then
-                echo "❌ App Registration 생성 실패"
+                msg "app_creation_failed"
                 exit 1
             fi
             
-            echo "✅ Application (Client) ID: $APP_ID"
+            msg "client_id" "$APP_ID"
             echo ""
             ;;
         3)
-            echo "❌ 작업이 취소되었습니다."
+            msg "operation_cancelled"
             exit 1
             ;;
         *)
-            echo "❌ 잘못된 선택입니다."
+            msg "invalid_choice"
             exit 1
             ;;
     esac
@@ -310,11 +345,9 @@ else
     # 기존 앱 없음, 새로 생성
     APP_NAME="WordPress-Azure-AI-Chatbot-$(date +%Y%m%d%H%M%S)"
     
-    echo "🔧 App Registration 생성 중: $APP_NAME"
+    msg "creating_app" "$APP_NAME"
     echo ""
     
-    # 토큰 만료 체크를 위해 stderr 캡처
-    echo "[디버그] az ad app create 실행 중..."
     APP_CREATE_OUTPUT=$(az ad app create \
         --display-name "$APP_NAME" \
         --sign-in-audience "AzureADMyOrg" \
