@@ -536,9 +536,9 @@ if [ "$LANG" = "ko" ]; then
     echo "  1. 위 링크를 클릭하여 브라우저에서 엽니다"
     echo "  2. Azure 계정으로 로그인합니다"
     echo "  3. 권한 요청 화면에서 '승인(Accept)' 버튼을 클릭합니다"
-    echo "  4. 승인이 완료되면 이 터미널로 돌아옵니다"
+    echo "  4. ⚠️  승인 후 표시되는 페이지는 무시하고 브라우저 창을 닫아주세요"
     echo ""
-    read -p "✅ 승인을 완료했으면 Enter 키를 눌러 계속 진행하세요... " CONSENT_DONE
+    read -p "✅ 승인을 완료하고 창을 닫았으면 Enter 키를 눌러 계속 진행하세요... " CONSENT_DONE
 else
     echo "   (If the link doesn't work, copy and paste the URL into your browser)"
     echo ""
@@ -546,9 +546,9 @@ else
     echo "  1. Click the link above to open in browser"
     echo "  2. Sign in with your Azure account"
     echo "  3. Click 'Accept' button on the permissions page"
-    echo "  4. Return to this terminal after approval"
+    echo "  4. ⚠️  After approval, ignore the displayed page and close the browser window"
     echo ""
-    read -p "✅ Press Enter after completing the approval... " CONSENT_DONE
+    read -p "✅ Press Enter after completing approval and closing the window... " CONSENT_DONE
 fi
 echo ""
 
