@@ -1,5 +1,35 @@
 # 변경 이력
 
+## [3.0.5] - 2025-11-06
+
+### 추가됨 (Added)
+- 🎨 **모달 기반 선택 UI**: prompt() 대신 WordPress 관리자 스타일 모달로 리소스 선택
+- ⌨️ **키보드 접근성**: ESC로 닫기, Enter로 확인, 자동 포커스 이동
+- 🎯 **다중 리소스 선택**: 여러 Resource Group/AI 리소스 있을 때 선택 UI 제공
+- 📝 **모델/지역 입력**: 신규 생성 시 모델, 지역, 배포이름 입력 모달
+- 🔘 **라디오 버튼 선택**: 기본 선택(첫 항목) 및 '새로 생성' 옵션
+- ♿ **ARIA 속성**: role="dialog", aria-modal, aria-labelledby 추가
+
+### 개선됨 (Improved)
+- 🎨 **WordPress UI 통합**: WP 관리자 버튼 스타일(button-primary, button-secondary) 적용
+- 🔄 **비동기 Promise 기반**: 모달 선택/입력이 async/await 패턴으로 동작
+- 📱 **반응형 모달**: max-width 95%, 모바일 친화적 레이아웃
+- 🎯 **기본값 제공**: 모달에서 기본 선택/입력값 자동 설정
+
+### 변경됨 (Changed)
+- 🔄 **UX 개선**: 브라우저 기본 prompt() → 커스텀 모달로 전면 교체
+- 📋 **선택 방식**: 번호 입력 → 라디오 버튼 선택으로 변경
+
+### 수정됨 (Fixed)
+- ✅ **AJAX 엔드포인트 검증**: 모든 서버측 핸들러 응답 스키마 확인 완료
+- 🔐 **Nonce 보안**: 클라이언트-서버 간 nonce 파라미터 일치 확인
+
+### 기술 세부사항
+- **모달 구현**: ensureAdminModal(), showSelectionModal(), showInputModal()
+- **이벤트 처리**: jQuery 기반 동적 이벤트 바인딩
+- **포커스 관리**: azureModal.open 커스텀 이벤트로 초기 포커스 제어
+- **응답 형식**: { success: true, data: {...} } 표준 WordPress AJAX 응답
+
 ## [2.4.0] - 2025-10-26
 
 ### 추가됨 (Added)
