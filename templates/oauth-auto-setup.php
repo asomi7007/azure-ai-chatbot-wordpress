@@ -18,17 +18,31 @@ $has_token = isset($_SESSION['azure_access_token']) && !empty($_SESSION['azure_a
 if (isset($_GET['oauth_success'])) {
     if ($has_token) {
         echo '<div class="notice notice-success is-dismissible"><p>';
-        esc_html_e('Azure 인증에 성공했습니다! 아래에서 리소스를 선택하세요.', 'azure-ai-chatbot');
+        esc_html_e('Azure 인증에 성공했습니다! 자동으로 리소스를 생성합니다...', 'azure-ai-chatbot');
         echo '</p></div>';
         
-        // 리소스 선택 섹션으로 자동 스크롤
+        // Operation Mode 확인
+        $operation_mode = get_option('azure_ai_chatbot_operation_mode', 'chat');
+        
+        // 자동으로 리소스 생성 프로세스 시작
         echo '<script>
         jQuery(document).ready(function($) {
+            // 성공 메시지 표시 후 자동으로 리소스 생성 시작
             setTimeout(function() {
+                console.log("[Auto Setup] OAuth 인증 완료, 자동 설정 시작");
+                console.log("[Auto Setup] Operation Mode: ' . esc_js($operation_mode) . '");
+                
+                // 리소스 선택 섹션으로 스크롤
                 $("html, body").animate({
                     scrollTop: $(".oauth-step-2").offset().top - 100
                 }, 500);
-            }, 100);
+                
+                // 1초 후 자동으로 Subscription 로드
+                setTimeout(function() {
+                    console.log("[Auto Setup] Subscription 로드 시작");
+                    loadSubscriptions();
+                }, 1000);
+            }, 500);
         });
         </script>';
     } else {
@@ -591,6 +605,13 @@ if (isset($_GET['oauth_error'])) {
 </style>
 
 <script>
+// 자동 설정 모드 플래그
+var autoSetupMode = <?php echo isset($_GET['oauth_success']) && $has_token ? 'true' : 'false'; ?>;
+var operationMode = '<?php echo esc_js(get_option('azure_ai_chatbot_operation_mode', 'chat')); ?>';
+
+console.log('[Auto Setup] Auto mode:', autoSetupMode);
+console.log('[Auto Setup] Operation mode:', operationMode);
+
 function openOAuthPopup(url) {
     var width = 600;
     var height = 700;
@@ -816,8 +837,25 @@ function loadSubscriptions() {
             response.data.subscriptions.forEach(function(sub) {
                 $select.append('<option value="' + sub.id + '">' + sub.name + '</option>');
             });
+            
+            // 자동 설정 모드: 첫 번째 Subscription 자동 선택
+            if (autoSetupMode && response.data.subscriptions.length > 0) {
+                var firstSubscription = response.data.subscriptions[0];
+                console.log('[Auto Setup] 첫 번째 Subscription 자동 선택:', firstSubscription.name);
+                $select.val(firstSubscription.id);
+                
+                // Subscription 선택 이벤트 트리거
+                $select.trigger('change');
+                
+                // 1초 후 자동으로 리소스 생성 시작
+                setTimeout(function() {
+                    console.log('[Auto Setup] 리소스 자동 생성 시작');
+                    startAutoResourceCreation(firstSubscription.id);
+                }, 1000);
+            }
         } else {
             $select.html('<option value="">오류: ' + response.data.message + '</option>');
+            console.error('[Auto Setup] Subscription 로드 실패:', response.data.message);
         }
     });
 }
@@ -1202,6 +1240,84 @@ jQuery(document).ready(function($) {
         }
     });
 });
+
+// 자동 리소스 생성 함수
+function startAutoResourceCreation(subscriptionId) {
+    console.log('[Auto Setup] 자동 리소스 생성 시작');
+    console.log('[Auto Setup] Subscription ID:', subscriptionId);
+    console.log('[Auto Setup] Operation Mode:', operationMode);
+    
+    // Resource Group 이름 자동 생성
+    var timestamp = new Date().getTime();
+    var rgName = 'rg-ai-chatbot-' + timestamp;
+    var aiResourceName = 'ai-chatbot-' + timestamp;
+    var location = 'koreacentral';
+    
+    // 1단계: Resource Group 생성
+    console.log('[Auto Setup] Resource Group 생성:', rgName);
+    createResourceGroup(subscriptionId, rgName, location, function(success) {
+        if (!success) {
+            console.error('[Auto Setup] Resource Group 생성 실패');
+            alert('<?php esc_html_e('Resource Group 생성에 실패했습니다.', 'azure-ai-chatbot'); ?>');
+            return;
+        }
+        
+        console.log('[Auto Setup] Resource Group 생성 완료');
+        
+        // 2단계: AI Resource 생성
+        console.log('[Auto Setup] AI Resource 생성:', aiResourceName);
+        
+        // 기본값 설정
+        var sku = 'S0';
+        var model = operationMode === 'chat' ? 'gpt-4o' : '';
+        var deploymentName = operationMode === 'chat' ? 'gpt-4o' : '';
+        var capacity = operationMode === 'chat' ? '10' : '';
+        
+        jQuery.post(ajaxurl, {
+            action: 'azure_oauth_create_ai_resource',
+            nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
+            name: aiResourceName,
+            sku: sku,
+            location: location,
+            resource_group: rgName,
+            subscription: subscriptionId,
+            mode: operationMode,
+            model: model,
+            deployment_name: deploymentName,
+            capacity: capacity
+        }, function(response) {
+            if (response.success) {
+                console.log('[Auto Setup] AI Resource 생성 완료');
+                
+                // 성공 메시지
+                var chatSuccessMsg = <?php echo json_encode(__('Chat 모드 설정이 완료되었습니다!', 'azure-ai-chatbot')); ?>;
+                var agentSuccessMsg = <?php echo json_encode(__('Agent 모드 설정이 완료되었습니다!', 'azure-ai-chatbot')); ?>;
+                var successMsg = operationMode === 'chat' ? chatSuccessMsg : agentSuccessMsg;
+                
+                alert(successMsg + '\n\n' + <?php echo json_encode(__('설정 페이지로 이동하여 자동으로 입력된 값을 확인하세요.', 'azure-ai-chatbot')); ?>);
+                
+                // 설정 페이지로 리다이렉트
+                window.location.href = '<?php echo admin_url("admin.php?page=azure-ai-chatbot"); ?>';
+            } else {
+                console.error('[Auto Setup] AI Resource 생성 실패:', response.data.message);
+                alert('<?php esc_html_e('AI Resource 생성 실패:', 'azure-ai-chatbot'); ?> ' + response.data.message);
+            }
+        });
+    });
+}
+
+// Resource Group 생성 함수
+function createResourceGroup(subscriptionId, name, location, callback) {
+    jQuery.post(ajaxurl, {
+        action: 'azure_oauth_create_resource_group',
+        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
+        subscription_id: subscriptionId,
+        name: name,
+        location: location
+    }, function(response) {
+        callback(response.success);
+    });
+}
 
 function createAIResource() {
     var nameMode = jQuery('input[name="ai_name_mode"]:checked').val();
