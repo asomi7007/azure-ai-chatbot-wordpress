@@ -211,11 +211,26 @@ class Azure_Chatbot_OAuth {
                 <p><?php esc_html_e('창이 자동으로 닫힙니다...', 'azure-ai-chatbot'); ?></p>
             </div>
             <script>
+                // localStorage에 토큰 저장 완료 플래그 설정 (팝업에서 부모 창으로 전달)
+                try {
+                    localStorage.setItem('azure_oauth_token_saved', '1');
+                    localStorage.setItem('azure_oauth_token_saved_time', Date.now().toString());
+                    console.log('[OAuth] Token saved flag set in localStorage');
+                } catch(e) {
+                    console.warn('[OAuth] Cannot access localStorage:', e);
+                }
+                
                 // 팝업 창이면 부모 창 새로고침 후 닫기
                 if (window.opener) {
                     try {
-                        // esc_url은 &를 &#038;로 변환하므로, esc_js와 함께 사용하거나 직접 URL 생성
-                        var successUrl = <?php echo json_encode(add_query_arg('oauth_success', '1', admin_url('admin.php?page=azure-ai-chatbot'))); ?>;
+                        // has_token=1 파라미터 추가하여 localStorage 기반 토큰 확인
+                        var successUrl = <?php 
+                            $url = add_query_arg(array(
+                                'oauth_success' => '1',
+                                'has_token' => '1'
+                            ), admin_url('admin.php?page=azure-ai-chatbot'));
+                            echo json_encode($url); 
+                        ?>;
                         console.log('[OAuth] Redirecting to:', successUrl);
                         window.opener.location.href = successUrl;
                         setTimeout(function() {
@@ -231,7 +246,13 @@ class Azure_Chatbot_OAuth {
                     }
                 } else {
                     // 팝업이 아니면 일반 리다이렉트
-                    var successUrl = <?php echo json_encode(add_query_arg('oauth_success', '1', admin_url('admin.php?page=azure-ai-chatbot'))); ?>;
+                    var successUrl = <?php 
+                        $url = add_query_arg(array(
+                            'oauth_success' => '1',
+                            'has_token' => '1'
+                        ), admin_url('admin.php?page=azure-ai-chatbot'));
+                        echo json_encode($url); 
+                    ?>;
                     console.log('[OAuth] Redirecting to:', successUrl);
                     window.location.href = successUrl;
                 }
@@ -721,22 +742,33 @@ class Azure_Chatbot_OAuth {
         check_ajax_referer('azure_oauth_save', 'nonce');
         
         if (!current_user_can('manage_options')) {
-            wp_send_json_error(array('message' => '권한???�습?�다.'));
+            wp_send_json_error(array('message' => '권한이 없습니다.'));
         }
         
         $client_id = isset($_POST['client_id']) ? sanitize_text_field($_POST['client_id']) : '';
         $client_secret = isset($_POST['client_secret']) ? sanitize_text_field($_POST['client_secret']) : '';
         $tenant_id = isset($_POST['tenant_id']) ? sanitize_text_field($_POST['tenant_id']) : '';
+        $save_to_agent_mode = isset($_POST['save_to_agent_mode']) && $_POST['save_to_agent_mode'];
         
         if (empty($client_id) || empty($client_secret) || empty($tenant_id)) {
-            wp_send_json_error(array('message' => '모든 ?�드�??�력?�세??'));
+            wp_send_json_error(array('message' => '모든 필드를 입력하세요.'));
         }
         
+        // OAuth 설정 저장
         update_option('azure_chatbot_oauth_client_id', $client_id);
         update_option('azure_chatbot_oauth_client_secret', $client_secret);
         update_option('azure_chatbot_oauth_tenant_id', $tenant_id);
         
-        wp_send_json_success(array('message' => 'OAuth ?�정???�?�되?�습?�다.'));
+        // Agent Mode 설정에도 자동으로 저장
+        if ($save_to_agent_mode) {
+            update_option('azure_client_id', $client_id);
+            update_option('azure_client_secret', $client_secret);
+            update_option('azure_tenant_id', $tenant_id);
+        }
+        
+        wp_send_json_success(array(
+            'message' => 'OAuth 설정이 저장되었습니다.' . ($save_to_agent_mode ? ' (Agent Mode 설정도 업데이트됨)' : '')
+        ));
     }
     
     /**

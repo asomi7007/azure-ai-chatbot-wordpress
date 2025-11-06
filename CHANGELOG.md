@@ -1,5 +1,34 @@
 # 변경 이력
 
+## [3.0.11] - 2025-11-07
+
+### 🚀 주요 기능 추가 및 버그 수정
+- **✨ OAuth → Agent Mode 자동 연동**: OAuth 설정 저장 시 Agent Mode 필드(Client ID, Secret, Tenant ID)에도 자동으로 값 채워짐
+- **🔧 세션 관리 개선**: localStorage 기반 토큰 플래그로 팝업 창과 부모 창 간 세션 유지 문제 해결
+- **🗑️ 불필요한 경고 제거**: `oauth_success=1` 파라미터 존재 시 세션 경고 메시지 표시하지 않음
+
+### 기술 세부사항
+**1. OAuth 설정 → Agent Mode 자동 저장**
+- `save_oauth_settings` AJAX 핸들러에 `save_to_agent_mode` 파라미터 추가
+- OAuth 설정 저장 시 `azure_client_id`, `azure_client_secret`, `azure_tenant_id` 옵션도 동시 저장
+- 사용자가 수동으로 두 곳에 동일한 값을 입력하지 않아도 됨
+
+**2. 세션 유지 개선**
+- OAuth 팝업에서 토큰 저장 시 `localStorage`에도 플래그 저장
+- 부모 창 리다이렉트 시 `has_token=1` 파라미터 추가
+- `autoSetupMode` 결정 시 세션 토큰과 localStorage 토큰 모두 확인
+- 자동 설정 완료 후 localStorage 플래그 자동 제거
+
+**3. 경고 메시지 조건 개선**
+- `oauth_success=1`일 때는 세션 없어도 경고 표시 안 함 (OAuth 리다이렉트 직후이므로)
+- localStorage 토큰 만료 시간 5분으로 설정하여 오래된 플래그 자동 제거
+
+### 영향
+- ❌ 이전: OAuth 설정 저장 후 Agent Mode 설정 탭에서 동일한 값 다시 입력 필요
+- ✅ 수정: OAuth 설정 저장 시 Agent Mode 필드에도 자동으로 채워짐
+- ❌ 이전: `autoSetupMode = false` (세션 유지 실패)
+- ✅ 수정: `autoSetupMode = true` (localStorage 기반 토큰 확인)
+
 ## [3.0.10] - 2025-11-07
 
 ### 🐛 핵심 버그 수정

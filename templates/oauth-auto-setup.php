@@ -16,7 +16,10 @@ $has_token = isset($_SESSION['azure_access_token']) && !empty($_SESSION['azure_a
 
 // OAuth 성공/실패 메시지 표시
 if (isset($_GET['oauth_success'])) {
-    if ($has_token) {
+    // 세션에서 토큰 확인 또는 localStorage에서 확인
+    $token_exists = $has_token || (isset($_GET['has_token']) && $_GET['has_token'] === '1');
+    
+    if ($token_exists) {
         echo '<div class="notice notice-success is-dismissible"><p>';
         esc_html_e('Azure 인증에 성공했습니다! 자동으로 리소스를 생성합니다...', 'azure-ai-chatbot');
         echo '</p></div>';
@@ -45,13 +48,8 @@ if (isset($_GET['oauth_success'])) {
             }, 500);
         });
         </script>';
-    } else {
-        echo '<div class="notice notice-warning is-dismissible"><p>';
-        echo esc_html__('인증은 완료되었지만 세션 정보가 없습니다. 페이지를 새로고침 하거나 다시 인증하세요.', 'azure-ai-chatbot');
-        echo ' <a href="' . esc_url(admin_url('admin.php?page=azure-ai-chatbot')) . '" class="button button-small">';
-        echo esc_html__('새로고침', 'azure-ai-chatbot');
-        echo '</a></p></div>';
     }
+    // oauth_success=1일 때는 세션 경고를 표시하지 않음 (팝업에서 리다이렉트된 경우이므로)
 }
 
 if (isset($_GET['oauth_error'])) {
@@ -605,12 +603,45 @@ if (isset($_GET['oauth_error'])) {
 </style>
 
 <script>
+// localStorage에서 토큰 저장 플래그 확인
+var hasTokenFromStorage = false;
+try {
+    var tokenSaved = localStorage.getItem('azure_oauth_token_saved');
+    var tokenSavedTime = localStorage.getItem('azure_oauth_token_saved_time');
+    if (tokenSaved === '1' && tokenSavedTime) {
+        // 5분 이내에 저장된 토큰만 유효
+        var timeDiff = Date.now() - parseInt(tokenSavedTime);
+        if (timeDiff < 5 * 60 * 1000) {
+            hasTokenFromStorage = true;
+            console.log('[Auto Setup] Token found in localStorage (age: ' + Math.floor(timeDiff / 1000) + 's)');
+        } else {
+            console.log('[Auto Setup] Token in localStorage expired, clearing');
+            localStorage.removeItem('azure_oauth_token_saved');
+            localStorage.removeItem('azure_oauth_token_saved_time');
+        }
+    }
+} catch(e) {
+    console.warn('[Auto Setup] Cannot access localStorage:', e);
+}
+
 // 자동 설정 모드 플래그
-var autoSetupMode = <?php echo isset($_GET['oauth_success']) && $has_token ? 'true' : 'false'; ?>;
+var autoSetupMode = <?php 
+    // 세션 토큰 또는 localStorage 토큰 존재 확인
+    $token_exists = $has_token || (isset($_GET['has_token']) && $_GET['has_token'] === '1');
+    echo isset($_GET['oauth_success']) && $token_exists ? 'true' : 'false'; 
+?>;
+
+// localStorage에서 토큰 발견 시 자동 설정 모드 활성화
+if (!autoSetupMode && hasTokenFromStorage && window.location.search.indexOf('oauth_success=1') !== -1) {
+    console.log('[Auto Setup] Activating auto mode from localStorage token');
+    autoSetupMode = true;
+}
+
 var operationMode = '<?php echo esc_js(get_option('azure_ai_chatbot_operation_mode', 'chat')); ?>';
 
 console.log('[Auto Setup] Auto mode:', autoSetupMode);
 console.log('[Auto Setup] Operation mode:', operationMode);
+console.log('[Auto Setup] Has token from storage:', hasTokenFromStorage);
 
 function openOAuthPopup(url) {
     var width = 600;
@@ -805,16 +836,23 @@ function updateFetchButton() {
 }
 
 function saveOAuthSettings() {
+    var clientId = jQuery('#oauth_client_id').val();
+    var clientSecret = jQuery('#oauth_client_secret').val();
+    var tenantId = jQuery('#oauth_tenant_id').val();
+    
     var data = {
         action: 'save_oauth_settings',
         nonce: '<?php echo wp_create_nonce("azure_oauth_save"); ?>',
-        client_id: jQuery('#oauth_client_id').val(),
-        client_secret: jQuery('#oauth_client_secret').val(),
-        tenant_id: jQuery('#oauth_tenant_id').val()
+        client_id: clientId,
+        client_secret: clientSecret,
+        tenant_id: tenantId,
+        // Agent Mode 필드에도 자동으로 저장
+        save_to_agent_mode: true
     };
     
     jQuery.post(ajaxurl, data, function(response) {
         if (response.success) {
+            console.log('[OAuth] 설정 저장 완료 (Agent Mode 포함)');
             location.reload();
         } else {
             alert('저장 실패: ' + response.data.message);
@@ -1617,6 +1655,15 @@ function completeSetup(mode) {
     var chatSuccessMsg = <?php echo json_encode(__('Chat 모드 설정이 완료되었습니다!', 'azure-ai-chatbot')); ?>;
     var agentSuccessMsg = <?php echo json_encode(__('Agent 모드 설정이 완료되었습니다!', 'azure-ai-chatbot')); ?>;
     var successMsg = mode === 'chat' ? chatSuccessMsg : agentSuccessMsg;
+    
+    // localStorage 토큰 플래그 제거
+    try {
+        localStorage.removeItem('azure_oauth_token_saved');
+        localStorage.removeItem('azure_oauth_token_saved_time');
+        console.log('[Auto Setup] localStorage token flags cleared');
+    } catch(e) {
+        console.warn('[Auto Setup] Cannot clear localStorage:', e);
+    }
     
     alert(successMsg + '\n\n' + <?php echo json_encode(__('설정 페이지로 이동하여 자동으로 입력된 값을 확인하세요.', 'azure-ai-chatbot')); ?>);
     
