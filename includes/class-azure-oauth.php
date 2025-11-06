@@ -168,8 +168,71 @@ class Azure_Chatbot_OAuth {
         // Access Token???�션???�??(보안??DB???�?�하지 ?�음)
         $this->save_token_to_session($token_data);
         
-        // ?�공 리다?�렉??
-        wp_redirect(admin_url('admin.php?page=azure-ai-chatbot&oauth_success=1'));
+        // 팝업 창인지 확인하고 처리
+        ?>
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title><?php esc_html_e('인증 완료', 'azure-ai-chatbot'); ?></title>
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    height: 100vh;
+                    margin: 0;
+                    background: #f0f0f1;
+                }
+                .success-message {
+                    text-align: center;
+                    padding: 40px;
+                    background: white;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                }
+                .success-message h1 {
+                    color: #2271b1;
+                    margin-bottom: 10px;
+                }
+                .dashicons {
+                    font-size: 48px;
+                    color: #46b450;
+                    margin-bottom: 20px;
+                }
+            </style>
+            <link rel="stylesheet" href="<?php echo esc_url(admin_url('css/dashicons.min.css')); ?>">
+        </head>
+        <body>
+            <div class="success-message">
+                <div class="dashicons dashicons-yes-alt"></div>
+                <h1><?php esc_html_e('Azure 인증 성공!', 'azure-ai-chatbot'); ?></h1>
+                <p><?php esc_html_e('창이 자동으로 닫힙니다...', 'azure-ai-chatbot'); ?></p>
+            </div>
+            <script>
+                // 팝업 창이면 부모 창 새로고침 후 닫기
+                if (window.opener) {
+                    try {
+                        window.opener.location.href = '<?php echo esc_url(admin_url('admin.php?page=azure-ai-chatbot&oauth_success=1')); ?>';
+                        setTimeout(function() {
+                            window.close();
+                        }, 1000);
+                    } catch(e) {
+                        // 크로스 오리진 문제 시 부모 창 새로고침만
+                        window.opener.location.reload();
+                        setTimeout(function() {
+                            window.close();
+                        }, 1000);
+                    }
+                } else {
+                    // 팝업이 아니면 일반 리다이렉트
+                    window.location.href = '<?php echo esc_url(admin_url('admin.php?page=azure-ai-chatbot&oauth_success=1')); ?>';
+                }
+            </script>
+        </body>
+        </html>
+        <?php
         exit;
     }
     
