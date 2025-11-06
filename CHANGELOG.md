@@ -1,5 +1,23 @@
 # 변경 이력
 
+## [3.0.9] - 2025-11-07
+
+### 🔧 버그 수정
+- **🌐 WARNING 메시지 한글화**: Azure CLI의 영어 경고 메시지를 한글로 변환하여 표시
+- **🗑️ 기존 앱 전체 삭제**: 동일 Redirect URI를 가진 모든 App Registration을 삭제하도록 수정
+- **📊 자동 설정 디버깅**: OAuth 성공 후 자동 설정이 작동하지 않는 문제 디버깅을 위한 상세 로그 추가
+
+### 개선됨 (Improved)
+- **🔍 Cloud Shell 스크립트**: Client Secret 생성 시 WARNING 메시지를 감지하여 한글로 표시
+- **🗑️ 삭제 기능 강화**: "기존 앱 삭제하고 새로 생성" 선택 시 하나가 아닌 모든 기존 앱 삭제
+- **🐛 디버깅 로그**: Subscription 로드, autoSetupMode 확인, 함수 실행 여부 등 상세 로그 추가
+
+### 기술 세부사항
+- WARNING 메시지 필터링: `grep -qi "WARNING:.*credentials"` 패턴 매칭
+- 전체 앱 삭제: `jq -r '.[].AppId' | while read` 루프로 모든 앱 ID 처리
+- AJAX fail 핸들러 추가로 네트워크 오류 캐치
+- startAutoResourceCreation 함수 존재 여부 확인 로직 추가
+
 ## [3.0.8] - 2025-11-07
 
 ### 개선됨 (Improved)

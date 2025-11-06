@@ -323,11 +323,22 @@ if [ "$EXISTING_APPS" != "[]" ] && [ -n "$EXISTING_APPS" ]; then
             echo ""
             ;;
         2)
-            # 기존 앱 삭제
+            # 모든 기존 앱 삭제
             echo ""
             msg "deleting_existing_app"
-            EXISTING_APP_ID=$(echo "$EXISTING_APPS" | jq -r '.[0].AppId')
-            az ad app delete --id "$EXISTING_APP_ID" 2>/dev/null
+            
+            # 모든 앱 ID 추출하여 삭제
+            echo "$EXISTING_APPS" | jq -r '.[].AppId' | while read -r APP_ID_TO_DELETE; do
+                if [ -n "$APP_ID_TO_DELETE" ]; then
+                    if [ "$LANG" = "en" ]; then
+                        echo "  - Deleting app: $APP_ID_TO_DELETE"
+                    else
+                        echo "  - 앱 삭제 중: $APP_ID_TO_DELETE"
+                    fi
+                    az ad app delete --id "$APP_ID_TO_DELETE" 2>/dev/null || true
+                fi
+            done
+            
             msg "deletion_complete"
             echo ""
             
@@ -436,6 +447,17 @@ set -e
 if [ $EXIT_CODE -eq 124 ]; then
     msg "secret_creation_timeout"
     exit 1
+fi
+
+# WARNING 메시지 필터링 (영어 경고를 한글로 변환)
+if echo "$SECRET_RESPONSE" | grep -qi "WARNING:.*credentials"; then
+    if [ "$LANG" = "ko" ]; then
+        echo "⚠️  경고: 생성된 자격 증명은 반드시 안전하게 보호해야 합니다."
+        echo "   코드에 포함하거나 소스 컨트롤에 체크인하지 마세요."
+        echo ""
+    fi
+    # WARNING 제거하고 실제 Secret만 추출
+    SECRET_RESPONSE=$(echo "$SECRET_RESPONSE" | grep -v "WARNING" | grep -v "https://" | tr -d '\n' | xargs)
 fi
 
 if [ -z "$SECRET_RESPONSE" ] || ! echo "$SECRET_RESPONSE" | grep -qE '^[A-Za-z0-9~_\.\-]{30,}$'; then

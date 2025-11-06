@@ -833,12 +833,16 @@ function loadSubscriptions() {
         $select.prop('disabled', false);
         
         if (response.success) {
+            console.log('[Auto Setup] Subscription 로드 성공:', response.data.subscriptions.length + '개');
             $select.html('<option value="">선택하세요</option>');
             response.data.subscriptions.forEach(function(sub) {
                 $select.append('<option value="' + sub.id + '">' + sub.name + '</option>');
             });
             
             // 자동 설정 모드: 첫 번째 Subscription 자동 선택
+            console.log('[Auto Setup] autoSetupMode =', autoSetupMode);
+            console.log('[Auto Setup] subscriptions length =', response.data.subscriptions.length);
+            
             if (autoSetupMode && response.data.subscriptions.length > 0) {
                 var firstSubscription = response.data.subscriptions[0];
                 console.log('[Auto Setup] 첫 번째 Subscription 자동 선택:', firstSubscription.name);
@@ -849,14 +853,29 @@ function loadSubscriptions() {
                 
                 // 1초 후 자동으로 리소스 생성 시작
                 setTimeout(function() {
-                    console.log('[Auto Setup] 리소스 자동 생성 시작');
-                    startAutoResourceCreation(firstSubscription.id);
+                    console.log('[Auto Setup] 리소스 자동 생성 시작 호출...');
+                    
+                    // startAutoResourceCreation 함수가 정의되어 있는지 확인
+                    if (typeof startAutoResourceCreation === 'function') {
+                        console.log('[Auto Setup] startAutoResourceCreation 함수 실행');
+                        startAutoResourceCreation(firstSubscription.id);
+                    } else {
+                        console.error('[Auto Setup] startAutoResourceCreation 함수를 찾을 수 없습니다!');
+                        alert('오류: 자동 설정 함수를 찾을 수 없습니다. 페이지를 새로고침 하거나 수동으로 설정하세요.');
+                    }
                 }, 1000);
+            } else {
+                console.log('[Auto Setup] 자동 설정 모드가 아니거나 Subscription이 없습니다');
             }
         } else {
             $select.html('<option value="">오류: ' + response.data.message + '</option>');
             console.error('[Auto Setup] Subscription 로드 실패:', response.data.message);
         }
+    }).fail(function(xhr, status, error) {
+        console.error('[Auto Setup] AJAX 요청 실패:', status, error);
+        console.error('[Auto Setup] Response:', xhr.responseText);
+        $select.html('<option value="">네트워크 오류</option>').prop('disabled', false);
+        alert('오류: Subscription 로드에 실패했습니다. 콘솔을 확인하세요.');
     });
 }
 
