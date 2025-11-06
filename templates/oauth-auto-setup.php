@@ -1247,13 +1247,59 @@ function startAutoResourceCreation(subscriptionId) {
     console.log('[Auto Setup] Subscription ID:', subscriptionId);
     console.log('[Auto Setup] Operation Mode:', operationMode);
     
-    // Resource Group 이름 자동 생성
+    // 1단계: 기존 Resource Group 확인
+    console.log('[Auto Setup] 기존 Resource Group 확인 중...');
+    jQuery.post(ajaxurl, {
+        action: 'azure_oauth_get_resource_groups',
+        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
+        subscription_id: subscriptionId
+    }, function(rgResponse) {
+        if (!rgResponse.success || rgResponse.data.resource_groups.length === 0) {
+            // Resource Group 없음 - 새로 생성
+            console.log('[Auto Setup] 기존 Resource Group 없음, 새로 생성');
+            createNewResourceGroupAndAI(subscriptionId);
+        } else {
+            // 기존 Resource Group 있음 - 첫 번째 사용
+            var firstRG = rgResponse.data.resource_groups[0];
+            console.log('[Auto Setup] 기존 Resource Group 사용:', firstRG.name);
+            
+            // 2단계: 기존 AI Foundry Project 확인
+            console.log('[Auto Setup] 기존 AI Foundry Project 확인 중...');
+            jQuery.post(ajaxurl, {
+                action: 'azure_oauth_get_resources',
+                nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
+                subscription_id: subscriptionId,
+                resource_group: firstRG.name,
+                mode: operationMode
+            }, function(aiResponse) {
+                if (!aiResponse.success || aiResponse.data.resources.length === 0) {
+                    // AI Resource 없음 - 새로 생성
+                    console.log('[Auto Setup] 기존 AI Resource 없음, 새로 생성');
+                    createAIResourceInRG(subscriptionId, firstRG.name, firstRG.location);
+                } else {
+                    // 기존 AI Resource 있음 - 사용
+                    var firstAI = aiResponse.data.resources[0];
+                    console.log('[Auto Setup] 기존 AI Resource 사용:', firstAI.name);
+                    
+                    // Chat 모드: 바로 설정 완료
+                    // Agent 모드: Agent 확인 및 생성
+                    if (operationMode === 'agent') {
+                        checkAndCreateAgent(firstAI.id, subscriptionId, firstRG.name);
+                    } else {
+                        completeSetup(operationMode);
+                    }
+                }
+            });
+        }
+    });
+}
+
+// 새 Resource Group과 AI Resource 생성
+function createNewResourceGroupAndAI(subscriptionId) {
     var timestamp = new Date().getTime();
     var rgName = 'rg-ai-chatbot-' + timestamp;
-    var aiResourceName = 'ai-chatbot-' + timestamp;
     var location = 'koreacentral';
     
-    // 1단계: Resource Group 생성
     console.log('[Auto Setup] Resource Group 생성:', rgName);
     createResourceGroup(subscriptionId, rgName, location, function(success) {
         if (!success) {
@@ -1263,47 +1309,99 @@ function startAutoResourceCreation(subscriptionId) {
         }
         
         console.log('[Auto Setup] Resource Group 생성 완료');
-        
-        // 2단계: AI Resource 생성
-        console.log('[Auto Setup] AI Resource 생성:', aiResourceName);
-        
-        // 기본값 설정
-        var sku = 'S0';
-        var model = operationMode === 'chat' ? 'gpt-4o' : '';
-        var deploymentName = operationMode === 'chat' ? 'gpt-4o' : '';
-        var capacity = operationMode === 'chat' ? '10' : '';
-        
-        jQuery.post(ajaxurl, {
-            action: 'azure_oauth_create_ai_resource',
-            nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-            name: aiResourceName,
-            sku: sku,
-            location: location,
-            resource_group: rgName,
-            subscription: subscriptionId,
-            mode: operationMode,
-            model: model,
-            deployment_name: deploymentName,
-            capacity: capacity
-        }, function(response) {
-            if (response.success) {
-                console.log('[Auto Setup] AI Resource 생성 완료');
-                
-                // 성공 메시지
-                var chatSuccessMsg = <?php echo json_encode(__('Chat 모드 설정이 완료되었습니다!', 'azure-ai-chatbot')); ?>;
-                var agentSuccessMsg = <?php echo json_encode(__('Agent 모드 설정이 완료되었습니다!', 'azure-ai-chatbot')); ?>;
-                var successMsg = operationMode === 'chat' ? chatSuccessMsg : agentSuccessMsg;
-                
-                alert(successMsg + '\n\n' + <?php echo json_encode(__('설정 페이지로 이동하여 자동으로 입력된 값을 확인하세요.', 'azure-ai-chatbot')); ?>);
-                
-                // 설정 페이지로 리다이렉트
-                window.location.href = '<?php echo admin_url("admin.php?page=azure-ai-chatbot"); ?>';
-            } else {
-                console.error('[Auto Setup] AI Resource 생성 실패:', response.data.message);
-                alert('<?php esc_html_e('AI Resource 생성 실패:', 'azure-ai-chatbot'); ?> ' + response.data.message);
-            }
-        });
+        createAIResourceInRG(subscriptionId, rgName, location);
     });
+}
+
+// Resource Group에 AI Resource 생성
+function createAIResourceInRG(subscriptionId, rgName, location) {
+    var timestamp = new Date().getTime();
+    var aiResourceName = 'ai-chatbot-' + timestamp;
+    
+    console.log('[Auto Setup] AI Resource 생성:', aiResourceName);
+    
+    // 기본값 설정
+    var sku = 'S0';
+    var model = operationMode === 'chat' ? 'gpt-4o' : '';
+    var deploymentName = operationMode === 'chat' ? 'gpt-4o' : '';
+    var capacity = operationMode === 'chat' ? '10' : '';
+    
+    jQuery.post(ajaxurl, {
+        action: 'azure_oauth_create_ai_resource',
+        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
+        name: aiResourceName,
+        sku: sku,
+        location: location,
+        resource_group: rgName,
+        subscription: subscriptionId,
+        mode: operationMode,
+        model: model,
+        deployment_name: deploymentName,
+        capacity: capacity
+    }, function(response) {
+        if (response.success) {
+            console.log('[Auto Setup] AI Resource 생성 완료');
+            
+            // Agent 모드면 Agent 생성
+            if (operationMode === 'agent') {
+                checkAndCreateAgent(response.data.resource_id, subscriptionId, rgName);
+            } else {
+                completeSetup(operationMode);
+            }
+        } else {
+            console.error('[Auto Setup] AI Resource 생성 실패:', response.data.message);
+            alert('<?php esc_html_e('AI Resource 생성 실패:', 'azure-ai-chatbot'); ?> ' + response.data.message);
+        }
+    });
+}
+
+// Agent 확인 및 생성
+function checkAndCreateAgent(resourceId, subscriptionId, rgName) {
+    console.log('[Auto Setup] Agent 확인 중...');
+    
+    jQuery.post(ajaxurl, {
+        action: 'azure_oauth_get_agents',
+        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
+        resource_id: resourceId
+    }, function(response) {
+        if (response.success && response.data.agents.length > 0) {
+            // 기존 Agent 있음
+            console.log('[Auto Setup] 기존 Agent 사용:', response.data.agents[0].name);
+            completeSetup(operationMode);
+        } else {
+            // Agent 없음 - 새로 생성
+            console.log('[Auto Setup] Agent 생성 중...');
+            var agentName = 'agent-' + new Date().getTime();
+            
+            jQuery.post(ajaxurl, {
+                action: 'azure_oauth_create_agent',
+                nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
+                resource_id: resourceId,
+                agent_name: agentName,
+                description: 'Auto-created agent for WordPress chatbot'
+            }, function(agentResponse) {
+                if (agentResponse.success) {
+                    console.log('[Auto Setup] Agent 생성 완료');
+                    completeSetup(operationMode);
+                } else {
+                    console.error('[Auto Setup] Agent 생성 실패:', agentResponse.data.message);
+                    alert('<?php esc_html_e('Agent 생성 실패:', 'azure-ai-chatbot'); ?> ' + agentResponse.data.message);
+                }
+            });
+        }
+    });
+}
+
+// 설정 완료
+function completeSetup(mode) {
+    var chatSuccessMsg = <?php echo json_encode(__('Chat 모드 설정이 완료되었습니다!', 'azure-ai-chatbot')); ?>;
+    var agentSuccessMsg = <?php echo json_encode(__('Agent 모드 설정이 완료되었습니다!', 'azure-ai-chatbot')); ?>;
+    var successMsg = mode === 'chat' ? chatSuccessMsg : agentSuccessMsg;
+    
+    alert(successMsg + '\n\n' + <?php echo json_encode(__('설정 페이지로 이동하여 자동으로 입력된 값을 확인하세요.', 'azure-ai-chatbot')); ?>);
+    
+    // 설정 페이지로 리다이렉트
+    window.location.href = '<?php echo admin_url("admin.php?page=azure-ai-chatbot"); ?>';
 }
 
 // Resource Group 생성 함수
