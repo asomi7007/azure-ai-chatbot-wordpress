@@ -224,11 +224,14 @@ class Azure_Chatbot_OAuth {
                 if (window.opener) {
                     try {
                         // has_token=1 파라미터 추가하여 localStorage 기반 토큰 확인
+                        // tab=oauth-auto-setup 추가하여 OAuth 자동 설정 탭으로 이동
                         var successUrl = <?php 
                             $url = add_query_arg(array(
+                                'page' => 'azure-ai-chatbot',
+                                'tab' => 'oauth-auto-setup',
                                 'oauth_success' => '1',
                                 'has_token' => '1'
-                            ), admin_url('admin.php?page=azure-ai-chatbot'));
+                            ), admin_url('admin.php'));
                             echo json_encode($url); 
                         ?>;
                         console.log('[OAuth] Redirecting to:', successUrl);
@@ -248,9 +251,11 @@ class Azure_Chatbot_OAuth {
                     // 팝업이 아니면 일반 리다이렉트
                     var successUrl = <?php 
                         $url = add_query_arg(array(
+                            'page' => 'azure-ai-chatbot',
+                            'tab' => 'oauth-auto-setup',
                             'oauth_success' => '1',
                             'has_token' => '1'
-                        ), admin_url('admin.php?page=azure-ai-chatbot'));
+                        ), admin_url('admin.php'));
                         echo json_encode($url); 
                     ?>;
                     console.log('[OAuth] Redirecting to:', successUrl);

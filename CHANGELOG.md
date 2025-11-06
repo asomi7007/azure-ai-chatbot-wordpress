@@ -1,5 +1,26 @@
 # 변경 이력
 
+## [3.0.12] - 2025-11-07
+
+### 🐛 긴급 버그 수정
+- **⚡ OAuth 리다이렉트 페이지 수정**: OAuth 인증 후 OAuth 자동 설정 탭(`tab=oauth-auto-setup`)으로 이동하도록 수정
+- **🔧 JavaScript 에러 방지**: `.oauth-step-2` 요소 존재 여부 확인 후 스크롤, `loadSubscriptions` 함수 존재 확인
+
+### 기술 세부사항
+**문제:**
+- OAuth 인증 후 일반 설정 페이지로 리다이렉트되어 `.oauth-step-2` 요소가 없음
+- `$(".oauth-step-2").offset().top` 실행 시 `Cannot read properties of undefined (reading 'top')` 에러 발생
+- 자동 설정이 시작되지 않음
+
+**해결:**
+- 리다이렉트 URL에 `tab=oauth-auto-setup` 파라미터 추가
+- 요소 존재 확인: `if ($oauthStep2.length > 0)` 체크 후 스크롤
+- 함수 존재 확인: `if (typeof loadSubscriptions === "function")` 체크 후 실행
+
+### 영향
+- ❌ 이전: OAuth 인증 후 일반 설정 페이지로 이동 → JavaScript 에러 발생
+- ✅ 수정: OAuth 인증 후 OAuth 자동 설정 탭으로 이동 → 자동 설정 정상 작동
+
 ## [3.0.11] - 2025-11-07
 
 ### 🚀 주요 기능 추가 및 버그 수정

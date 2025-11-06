@@ -35,15 +35,25 @@ if (isset($_GET['oauth_success'])) {
                 console.log("[Auto Setup] OAuth 인증 완료, 자동 설정 시작");
                 console.log("[Auto Setup] Operation Mode: ' . esc_js($operation_mode) . '");
                 
-                // 리소스 선택 섹션으로 스크롤
-                $("html, body").animate({
-                    scrollTop: $(".oauth-step-2").offset().top - 100
-                }, 500);
+                // 리소스 선택 섹션으로 스크롤 (요소가 있는 경우에만)
+                var $oauthStep2 = $(".oauth-step-2");
+                if ($oauthStep2.length > 0) {
+                    console.log("[Auto Setup] Scrolling to oauth-step-2");
+                    $("html, body").animate({
+                        scrollTop: $oauthStep2.offset().top - 100
+                    }, 500);
+                } else {
+                    console.warn("[Auto Setup] .oauth-step-2 element not found, skipping scroll");
+                }
                 
                 // 1초 후 자동으로 Subscription 로드
                 setTimeout(function() {
                     console.log("[Auto Setup] Subscription 로드 시작");
-                    loadSubscriptions();
+                    if (typeof loadSubscriptions === "function") {
+                        loadSubscriptions();
+                    } else {
+                        console.error("[Auto Setup] loadSubscriptions function not found!");
+                    }
                 }, 1000);
             }, 500);
         });
