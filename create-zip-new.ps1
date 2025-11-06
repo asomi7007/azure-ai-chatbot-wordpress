@@ -2,12 +2,30 @@
 # Version: 2.0
 
 param(
-    [string]$Version = "3.0.0"
+    [string]$Version = ""
 )
 
 $ErrorActionPreference = "Stop"
 $ScriptDir = $PSScriptRoot
 $PluginDir = $ScriptDir
+
+# 버전이 지정되지 않은 경우 플러그인 파일에서 자동 추출
+if ([string]::IsNullOrEmpty($Version)) {
+    $PluginFile = Join-Path $PluginDir "azure-ai-chatbot.php"
+    if (Test-Path $PluginFile) {
+        $Content = Get-Content $PluginFile -Raw -Encoding UTF8
+        if ($Content -match 'Version:\s*([0-9.]+)') {
+            $Version = $Matches[1]
+            Write-Host "Auto-detected version from plugin file: $Version" -ForegroundColor Green
+        } else {
+            Write-Host "ERROR: Could not extract version from plugin file" -ForegroundColor Red
+            exit 1
+        }
+    } else {
+        Write-Host "ERROR: Plugin file not found: $PluginFile" -ForegroundColor Red
+        exit 1
+    }
+}
 $TempDir = Join-Path $env:TEMP "azure-ai-chatbot-temp-$(Get-Date -Format 'yyyyMMddHHmmss')"
 $ZipFileName = "azure-ai-chatbot-wordpress-$Version.zip"
 $ZipFullPath = Join-Path $ScriptDir $ZipFileName
