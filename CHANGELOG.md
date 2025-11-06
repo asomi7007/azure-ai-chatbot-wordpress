@@ -1,5 +1,29 @@
 # 변경 이력
 
+## [3.0.7] - 2025-11-07
+
+### 🔧 핵심 수정사항
+- **🚨 무한 대기 문제 해결**: `az ad app create` 명령에 30초 타임아웃 추가
+- **⏱️ Client Secret 생성 타임아웃**: 30초 제한으로 무한 대기 방지
+- **⏱️ API 권한 추가 타임아웃**: 각 권한당 20초 제한 설정
+
+### 개선됨 (Improved)
+- **🛡️ 강력한 에러 처리**: 모든 Azure CLI 명령에 타임아웃 및 EXIT_CODE 체크
+- **📝 상세한 에러 메시지**: 타임아웃, 권한 부족, 토큰 만료 등 각 상황별 명확한 안내
+- **✅ GUID 검증**: App ID가 올바른 GUID 형식인지 검증
+- **✅ Secret 검증**: Client Secret이 올바른 형식인지 검증 (30자 이상, 특수문자 포함)
+
+### 기술 세부사항
+- **타임아웃 설정**: App 생성 30s, Secret 생성 30s, 권한 추가 각 20s
+- **set +e/set -e**: 타임아웃 발생 시에도 스크립트가 에러 메시지 표시 후 종료
+- **정규식 검증**: GUID 및 Secret 값의 형식 검증으로 잘못된 응답 감지
+- **새 msg() 키**: app_creation_timeout, secret_creation_timeout, permission_timeout, token_expired, insufficient_privileges, error_details
+
+### 🎯 해결된 문제
+- Cloud Shell에서 `az ad app create` 실행 후 무한 대기하던 문제
+- 권한 부족 시 명확한 에러 메시지 없이 멈추던 문제
+- Azure AD API 응답 지연 시 스크립트가 영원히 기다리던 문제
+
 ## [3.0.6] - 2025-11-07
 
 ### 수정됨 (Fixed)

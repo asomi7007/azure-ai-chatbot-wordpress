@@ -85,6 +85,14 @@ msg() {
                 "deleting_existing_app") echo "🗑️  기존 앱 삭제 중..." ;;
                 "deletion_complete") echo "✅ 삭제 완료" ;;
                 "app_creation_failed") echo "❌ App Registration 생성 실패" ;;
+                "app_creation_timeout") echo "⚠️  App Registration 생성 시간 초과 (30초)."; echo "   Azure AD API 응답이 지연되고 있습니다. 다시 시도하거나 Azure Portal에서 수동으로 생성하세요." ;;
+                "token_expired") echo "⚠️  Azure 토큰이 만료되었습니다."; echo "   다음 명령어를 실행한 후 다시 시도하세요:"; echo ""; echo "   az login"; echo "" ;;
+                "insufficient_privileges") echo "⚠️  Azure AD 앱 생성 권한이 없습니다."; echo "   Azure Portal에서 관리자에게 다음 권한을 요청하세요:"; echo "   - Application Developer 역할 또는"; echo "   - Application Administrator 역할"; echo "" ;;
+                "error_details") echo "   오류 내용:" ;;
+                "secret_creation_timeout") echo "⚠️  Client Secret 생성 시간 초과 (30초)."; echo "   다시 시도하거나 Azure Portal에서 수동으로 생성하세요." ;;
+                "secret_creation_failed") echo "❌ Client Secret 생성 실패" ;;
+                "permission_timeout") echo "⚠️  API 권한 추가 시간 초과 (20초)."; echo "   Azure Portal에서 수동으로 권한을 추가하세요." ;;
+                "permission_failed") echo "⚠️  API 권한 추가 실패. 계속 진행합니다." ;;
                 "invalid_choice") echo "❌ 잘못된 선택입니다." ;;
                 *) echo "$key" ;;
             esac
@@ -138,6 +146,14 @@ msg() {
                 "deleting_existing_app") echo "🗑️  Deleting existing app..." ;;
                 "deletion_complete") echo "✅ Deletion complete" ;;
                 "app_creation_failed") echo "❌ Failed to create App Registration" ;;
+                "app_creation_timeout") echo "⚠️  App Registration creation timed out (30 seconds)."; echo "   Azure AD API response is delayed. Please retry or create manually in Azure Portal." ;;
+                "token_expired") echo "⚠️  Azure token has expired."; echo "   Please run the following command and try again:"; echo ""; echo "   az login"; echo "" ;;
+                "insufficient_privileges") echo "⚠️  Insufficient privileges to create Azure AD apps."; echo "   Please request the following role from your Azure administrator:"; echo "   - Application Developer role or"; echo "   - Application Administrator role"; echo "" ;;
+                "error_details") echo "   Error details:" ;;
+                "secret_creation_timeout") echo "⚠️  Client Secret creation timed out (30 seconds)."; echo "   Please retry or create manually in Azure Portal." ;;
+                "secret_creation_failed") echo "❌ Failed to create Client Secret" ;;
+                "permission_timeout") echo "⚠️  API permission addition timed out (20 seconds)."; echo "   Please add permissions manually in Azure Portal." ;;
+                "permission_failed") echo "⚠️  Failed to add API permissions. Continuing..." ;;
                 "invalid_choice") echo "❌ Invalid choice." ;;
                 *) echo "$key" ;;
             esac
@@ -315,17 +331,33 @@ if [ "$EXISTING_APPS" != "[]" ] && [ -n "$EXISTING_APPS" ]; then
             msg "deletion_complete"
             echo ""
             
-            # 새 앱 생성
+            # 새 앱 생성 (타임아웃 30초)
             APP_NAME="WordPress-Azure-AI-Chatbot-$(date +%Y%m%d%H%M%S)"
             msg "creating_app" "$APP_NAME"
-            APP_ID=$(az ad app create \
+            
+            set +e
+            APP_CREATE_OUTPUT=$(timeout 30s az ad app create \
                 --display-name "$APP_NAME" \
                 --sign-in-audience "AzureADMyOrg" \
                 --web-redirect-uris "$REDIRECT_URI" \
-                --query appId -o tsv)
+                --query appId -o tsv 2>&1)
+            EXIT_CODE=$?
+            set -e
             
-            if [ -z "$APP_ID" ]; then
+            if [ $EXIT_CODE -eq 124 ]; then
+                msg "app_creation_timeout"
+                exit 1
+            fi
+            
+            # GUID 형식 검증
+            if echo "$APP_CREATE_OUTPUT" | grep -qE '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'; then
+                APP_ID="$APP_CREATE_OUTPUT"
+            else
                 msg "app_creation_failed"
+                echo ""
+                msg "error_details"
+                echo "   $APP_CREATE_OUTPUT"
+                echo ""
                 exit 1
             fi
             
@@ -348,86 +380,127 @@ else
     msg "creating_app" "$APP_NAME"
     echo ""
     
-    APP_CREATE_OUTPUT=$(az ad app create \
+    # 타임아웃 30초로 앱 생성 (복잡한 작업이므로 충분한 시간 부여)
+    set +e
+    APP_CREATE_OUTPUT=$(timeout 30s az ad app create \
         --display-name "$APP_NAME" \
         --sign-in-audience "AzureADMyOrg" \
         --web-redirect-uris "$REDIRECT_URI" \
         --query appId -o tsv 2>&1)
+    EXIT_CODE=$?
+    set -e
     
-    echo "[디버그] 출력 결과: $APP_CREATE_OUTPUT"
-    echo ""
+    # 타임아웃 체크
+    if [ $EXIT_CODE -eq 124 ]; then
+        msg "app_creation_timeout"
+        exit 1
+    fi
     
     # GUID 형식 검증 (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
     if echo "$APP_CREATE_OUTPUT" | grep -qE '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'; then
         APP_ID="$APP_CREATE_OUTPUT"
-        echo "[디버그] GUID 검증 성공"
     else
-        echo "[디버그] GUID 검증 실패 - 에러 처리 시작"
         # 에러 발생
-        echo "❌ App Registration 생성 실패"
+        msg "app_creation_failed"
         echo ""
         
         if echo "$APP_CREATE_OUTPUT" | grep -qi "token is expired\|token has expired\|lifetime validation failed"; then
-            echo "⚠️  Azure 토큰이 만료되었습니다."
-            echo "   다음 명령어를 실행한 후 다시 시도하세요:"
-            echo ""
-            echo "   az login"
-            echo ""
+            msg "token_expired"
         elif echo "$APP_CREATE_OUTPUT" | grep -qi "insufficient privileges\|authorization\|permission"; then
-            echo "⚠️  Azure AD 앱 생성 권한이 없습니다."
-            echo "   Azure Portal에서 관리자에게 다음 권한을 요청하세요:"
-            echo "   - Application Developer 역할 또는"
-            echo "   - Application Administrator 역할"
-            echo ""
+            msg "insufficient_privileges"
         else
-            echo "   오류 내용:"
+            msg "error_details"
             echo "   $APP_CREATE_OUTPUT"
             echo ""
         fi
         exit 1
     fi
     
-    echo "✅ Application (Client) ID: $APP_ID"
+    msg "client_id" "$APP_ID"
     echo ""
 fi
 
 # Tenant ID 가져오기
 TENANT_ID=$(az account show --query tenantId -o tsv)
-echo "✅ Directory (Tenant) ID: $TENANT_ID"
+msg "tenant_id" "$TENANT_ID"
 echo ""
 
-# Client Secret 생성
-echo "🔑 Client Secret 생성 중..."
-SECRET_RESPONSE=$(az ad app credential reset --id "$APP_ID" --append --query password -o tsv)
+# Client Secret 생성 (타임아웃 30초)
+msg "creating_secret"
 
-if [ -z "$SECRET_RESPONSE" ]; then
-    echo "❌ Client Secret 생성 실패"
+set +e
+SECRET_RESPONSE=$(timeout 30s az ad app credential reset --id "$APP_ID" --append --query password -o tsv 2>&1)
+EXIT_CODE=$?
+set -e
+
+if [ $EXIT_CODE -eq 124 ]; then
+    msg "secret_creation_timeout"
+    exit 1
+fi
+
+if [ -z "$SECRET_RESPONSE" ] || ! echo "$SECRET_RESPONSE" | grep -qE '^[A-Za-z0-9~_\.\-]{30,}$'; then
+    msg "secret_creation_failed"
+    echo ""
+    msg "error_details"
+    echo "   $SECRET_RESPONSE"
+    echo ""
     exit 1
 fi
 
 CLIENT_SECRET="$SECRET_RESPONSE"
-echo "✅ Client Secret: $CLIENT_SECRET"
-echo "⚠️  이 Secret 값을 안전하게 저장하세요. 다시 볼 수 없습니다!"
+msg "secret_value"
+echo "$CLIENT_SECRET"
+msg "save_secret"
 echo ""
 
-# API 권한 추가
-echo "🔐 API 권한 추가 중..."
+# API 권한 추가 (타임아웃 20초)
+msg "adding_permissions"
 
 # Microsoft Graph - User.Read
-echo "  - Microsoft Graph: User.Read"
-az ad app permission add --id "$APP_ID" \
+if [ "$LANG" = "en" ]; then
+    echo "  - Microsoft Graph: User.Read"
+else
+    echo "  - Microsoft Graph: User.Read"
+fi
+
+set +e
+timeout 20s az ad app permission add --id "$APP_ID" \
     --api 00000003-0000-0000-c000-000000000000 \
     --api-permissions e1fe6dd8-ba31-4d61-89e7-88639da4683d=Scope \
     > /dev/null 2>&1
+EXIT_CODE=$?
+set -e
+
+if [ $EXIT_CODE -eq 124 ]; then
+    msg "permission_timeout"
+    exit 1
+elif [ $EXIT_CODE -ne 0 ]; then
+    msg "permission_failed"
+fi
 
 # Azure Service Management - user_impersonation  
-echo "  - Azure Service Management: user_impersonation"
-az ad app permission add --id "$APP_ID" \
+if [ "$LANG" = "en" ]; then
+    echo "  - Azure Service Management: user_impersonation"
+else
+    echo "  - Azure Service Management: user_impersonation"
+fi
+
+set +e
+timeout 20s az ad app permission add --id "$APP_ID" \
     --api 797f4846-ba00-4fd7-ba43-dac1f8f63013 \
     --api-permissions 41094075-9dad-400e-a0bd-54e686782033=Scope \
     > /dev/null 2>&1
+EXIT_CODE=$?
+set -e
 
-echo "✅ API 권한 추가 완료"
+if [ $EXIT_CODE -eq 124 ]; then
+    msg "permission_timeout"
+    exit 1
+elif [ $EXIT_CODE -ne 0 ]; then
+    msg "permission_failed"
+fi
+
+msg "permissions_done"
 echo ""
 
 # Admin Consent URL 생성
