@@ -80,6 +80,7 @@ class Azure_Chatbot_OAuth {
         add_action('wp_ajax_azure_oauth_get_available_models', array($this, 'ajax_get_available_models'));
         add_action('wp_ajax_azure_oauth_create_resource_group', array($this, 'ajax_create_resource_group'));
         add_action('wp_ajax_azure_oauth_create_ai_resource', array($this, 'ajax_create_ai_resource'));
+        add_action('wp_ajax_azure_oauth_save_final_config', array($this, 'ajax_save_final_config'));
     }
     
     /**
@@ -1016,15 +1017,38 @@ class Azure_Chatbot_OAuth {
                 ));
             }
             
+            // Chat 모드 설정 정보 구성
+            $chat_endpoint = "https://{$name}.{$location}.inference.ml.azure.com";
+            
             wp_send_json_success(array(
                 'message' => 'AI Foundry Project와 모델이 성공적으로 생성되었습니다.',
-                'resource_id' => $result['id']
+                'resource_id' => $result['id'],
+                'mode' => 'chat',
+                'config' => array(
+                    'endpoint' => $chat_endpoint,
+                    'deployment_name' => $deployment_name,
+                    'model' => $model,
+                    'location' => $location,
+                    'resource_name' => $name
+                )
             ));
         } else {
-            // Agent 모드는 모델 배포 없이 완료
+            // Agent 모드 설정 정보 구성
+            $agent_endpoint = "https://{$name}.{$location}.services.ai.azure.com/api/projects/{$name}";
+            $client_id = get_option('azure_chatbot_oauth_client_id', '');
+            $tenant_id = get_option('azure_chatbot_oauth_tenant_id', '');
+            
             wp_send_json_success(array(
                 'message' => 'AI Foundry Project가 성공적으로 생성되었습니다.',
-                'resource_id' => $result['id']
+                'resource_id' => $result['id'],
+                'mode' => 'agent',
+                'config' => array(
+                    'endpoint' => $agent_endpoint,
+                    'project_name' => $name,
+                    'location' => $location,
+                    'client_id' => $client_id,
+                    'tenant_id' => $tenant_id
+                )
             ));
         }
     }
@@ -1121,6 +1145,72 @@ class Azure_Chatbot_OAuth {
         );
         
         return $this->call_azure_api($project_endpoint, null, 'PUT', $project_body, false);
+    }
+    
+    /**
+     * AJAX: 최종 설정 저장 (자동 설정 완료 후)
+     */
+    public function ajax_save_final_config() {
+        check_ajax_referer('azure_oauth_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => '권한이 없습니다.'));
+        }
+        
+        $mode = isset($_POST['mode']) ? sanitize_text_field($_POST['mode']) : '';
+        $config = isset($_POST['config']) ? $_POST['config'] : array();
+        
+        if (empty($mode) || empty($config)) {
+            wp_send_json_error(array('message' => '필수 파라미터가 누락되었습니다.'));
+        }
+        
+        // 현재 설정 가져오기
+        $settings = get_option('azure_chatbot_settings', array());
+        
+        // 모드 설정
+        $settings['mode'] = $mode;
+        
+        // Chat 모드 설정 저장
+        if ($mode === 'chat' && isset($config['endpoint'])) {
+            $settings['provider'] = 'azure-openai';
+            $settings['chat_endpoint'] = sanitize_text_field($config['endpoint']);
+            $settings['deployment_name'] = isset($config['deployment_name']) ? sanitize_text_field($config['deployment_name']) : '';
+            
+            // API Key는 나중에 수동으로 입력하도록 메시지 표시
+            // (보안상 Azure API에서 자동으로 가져올 수 없음)
+        }
+        
+        // Agent 모드 설정 저장
+        if ($mode === 'agent' && isset($config['endpoint'])) {
+            $settings['agent_endpoint'] = sanitize_text_field($config['endpoint']);
+            $settings['agent_id'] = isset($config['agent_id']) ? sanitize_text_field($config['agent_id']) : '';
+            
+            // Client ID, Secret, Tenant ID는 OAuth 설정에서 가져오기
+            $client_id = isset($config['client_id']) ? sanitize_text_field($config['client_id']) : get_option('azure_chatbot_oauth_client_id', '');
+            $tenant_id = isset($config['tenant_id']) ? sanitize_text_field($config['tenant_id']) : get_option('azure_chatbot_oauth_tenant_id', '');
+            
+            $settings['client_id'] = $client_id;
+            $settings['tenant_id'] = $tenant_id;
+            
+            // Client Secret은 암호화하여 저장
+            $client_secret = get_option('azure_chatbot_oauth_client_secret', '');
+            if (!empty($client_secret)) {
+                $plugin = Azure_AI_Chatbot::get_instance();
+                $settings['client_secret_encrypted'] = $plugin->encrypt($client_secret);
+            }
+        }
+        
+        // 설정 저장
+        update_option('azure_chatbot_settings', $settings);
+        
+        $message = $mode === 'chat' 
+            ? '설정이 저장되었습니다! API Key는 수동으로 입력해주세요.' 
+            : '설정이 저장되었습니다!';
+        
+        wp_send_json_success(array(
+            'message' => $message,
+            'settings' => $settings
+        ));
     }
 }
 

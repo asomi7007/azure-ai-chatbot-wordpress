@@ -1592,10 +1592,13 @@ function createAIResourceInRG(subscriptionId, rgName, location) {
         }, function(response) {
             if (response.success) {
                 console.log('[Auto Setup] AI Resource 생성 완료:', response.data.resource_id || aiName);
+                console.log('[Auto Setup] Configuration received:', response.data.config);
+                
                 if (mode === 'agent') {
-                    checkAndCreateAgent(response.data.resource_id || aiName, subscriptionId, rgName);
+                    checkAndCreateAgent(response.data.resource_id || aiName, subscriptionId, rgName, response.data.config);
                 } else {
-                    completeSetup(mode);
+                    // Chat 모드는 즉시 설정 저장
+                    completeSetup(mode, response.data.config);
                 }
             } else {
                 console.error('[Auto Setup] AI Resource 생성 실패:', response.data && response.data.message);
@@ -1627,7 +1630,7 @@ function createAIResourceInRG(subscriptionId, rgName, location) {
 }
 
 // Agent 확인 및 생성
-function checkAndCreateAgent(resourceId, subscriptionId, rgName) {
+function checkAndCreateAgent(resourceId, subscriptionId, rgName, config) {
     console.log('[Auto Setup] Agent 확인 중...');
     
     jQuery.post(ajaxurl, {
@@ -1637,8 +1640,16 @@ function checkAndCreateAgent(resourceId, subscriptionId, rgName) {
     }, function(response) {
         if (response.success && response.data.agents.length > 0) {
             // 기존 Agent 있음
-            console.log('[Auto Setup] 기존 Agent 사용:', response.data.agents[0].name);
-            completeSetup(operationMode);
+            var agent = response.data.agents[0];
+            console.log('[Auto Setup] 기존 Agent 사용:', agent.name);
+            
+            // Agent ID를 config에 추가
+            if (config) {
+                config.agent_id = agent.id;
+                config.agent_name = agent.name;
+            }
+            
+            completeSetup(operationMode, config);
         } else {
             // Agent 없음 - 새로 생성
             console.log('[Auto Setup] Agent 생성 중...');
@@ -1653,7 +1664,14 @@ function checkAndCreateAgent(resourceId, subscriptionId, rgName) {
             }, function(agentResponse) {
                 if (agentResponse.success) {
                     console.log('[Auto Setup] Agent 생성 완료');
-                    completeSetup(operationMode);
+                    
+                    // Agent ID를 config에 추가
+                    if (config) {
+                        config.agent_id = agentResponse.data.agent_id;
+                        config.agent_name = agentName;
+                    }
+                    
+                    completeSetup(operationMode, config);
                 } else {
                     console.error('[Auto Setup] Agent 생성 실패:', agentResponse.data.message);
                     alert('<?php esc_html_e('Agent 생성 실패:', 'azure-ai-chatbot'); ?> ' + agentResponse.data.message);
@@ -1664,10 +1682,12 @@ function checkAndCreateAgent(resourceId, subscriptionId, rgName) {
 }
 
 // 설정 완료
-function completeSetup(mode) {
+function completeSetup(mode, config) {
     var chatSuccessMsg = <?php echo json_encode(__('Chat 모드 설정이 완료되었습니다!', 'azure-ai-chatbot')); ?>;
     var agentSuccessMsg = <?php echo json_encode(__('Agent 모드 설정이 완료되었습니다!', 'azure-ai-chatbot')); ?>;
     var successMsg = mode === 'chat' ? chatSuccessMsg : agentSuccessMsg;
+    
+    console.log('[Auto Setup] Saving configuration:', config);
     
     // localStorage 토큰 플래그 제거
     try {
@@ -1678,10 +1698,33 @@ function completeSetup(mode) {
         console.warn('[Auto Setup] Cannot clear localStorage:', e);
     }
     
-    alert(successMsg + '\n\n' + <?php echo json_encode(__('설정 페이지로 이동하여 자동으로 입력된 값을 확인하세요.', 'azure-ai-chatbot')); ?>);
-    
-    // 설정 페이지로 리다이렉트
-    window.location.href = '<?php echo admin_url("admin.php?page=azure-ai-chatbot"); ?>';
+    // 설정 저장
+    if (config) {
+        jQuery.post(ajaxurl, {
+            action: 'azure_oauth_save_final_config',
+            nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
+            mode: mode,
+            config: config
+        }, function(response) {
+            if (response.success) {
+                console.log('[Auto Setup] Configuration saved successfully');
+                alert(successMsg + '\n\n' + <?php echo json_encode(__('설정이 자동으로 저장되었습니다! 설정 페이지에서 확인하세요.', 'azure-ai-chatbot')); ?>);
+            } else {
+                console.error('[Auto Setup] Failed to save configuration:', response.data);
+                alert(successMsg + '\n\n' + <?php echo json_encode(__('리소스는 생성되었지만 설정 저장에 실패했습니다. 수동으로 입력해주세요.', 'azure-ai-chatbot')); ?>);
+            }
+            
+            // 설정 페이지로 리다이렉트
+            window.location.href = '<?php echo admin_url("admin.php?page=azure-ai-chatbot"); ?>';
+        }).fail(function() {
+            console.error('[Auto Setup] AJAX request failed');
+            alert(successMsg + '\n\n' + <?php echo json_encode(__('리소스는 생성되었지만 설정 저장에 실패했습니다. 수동으로 입력해주세요.', 'azure-ai-chatbot')); ?>);
+            window.location.href = '<?php echo admin_url("admin.php?page=azure-ai-chatbot"); ?>';
+        });
+    } else {
+        alert(successMsg + '\n\n' + <?php echo json_encode(__('설정 페이지로 이동하여 자동으로 입력된 값을 확인하세요.', 'azure-ai-chatbot')); ?>);
+        window.location.href = '<?php echo admin_url("admin.php?page=azure-ai-chatbot"); ?>';
+    }
 }
 
 // Resource Group 생성 함수
