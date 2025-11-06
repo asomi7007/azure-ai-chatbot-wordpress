@@ -214,11 +214,15 @@ class Azure_Chatbot_OAuth {
                 // 팝업 창이면 부모 창 새로고침 후 닫기
                 if (window.opener) {
                     try {
-                        window.opener.location.href = '<?php echo esc_url(admin_url('admin.php?page=azure-ai-chatbot&oauth_success=1')); ?>';
+                        // esc_url은 &를 &#038;로 변환하므로, esc_js와 함께 사용하거나 직접 URL 생성
+                        var successUrl = <?php echo json_encode(add_query_arg('oauth_success', '1', admin_url('admin.php?page=azure-ai-chatbot'))); ?>;
+                        console.log('[OAuth] Redirecting to:', successUrl);
+                        window.opener.location.href = successUrl;
                         setTimeout(function() {
                             window.close();
                         }, 1000);
                     } catch(e) {
+                        console.error('[OAuth] Error redirecting:', e);
                         // 크로스 오리진 문제 시 부모 창 새로고침만
                         window.opener.location.reload();
                         setTimeout(function() {
@@ -227,7 +231,9 @@ class Azure_Chatbot_OAuth {
                     }
                 } else {
                     // 팝업이 아니면 일반 리다이렉트
-                    window.location.href = '<?php echo esc_url(admin_url('admin.php?page=azure-ai-chatbot&oauth_success=1')); ?>';
+                    var successUrl = <?php echo json_encode(add_query_arg('oauth_success', '1', admin_url('admin.php?page=azure-ai-chatbot'))); ?>;
+                    console.log('[OAuth] Redirecting to:', successUrl);
+                    window.location.href = successUrl;
                 }
             </script>
         </body>
