@@ -1439,11 +1439,78 @@ function startAutoResourceCreation(subscriptionId) {
         var rgs = rgResponse.data.resource_groups;
         var chosenRG = null;
 
+        // AI 리소스 확인 및 처리하는 함수
+        function checkAIResources(rg) {
+            console.log('[Auto Setup] 선택된 Resource Group으로 AI Resource 확인 중...', rg.name);
+            jQuery.post(ajaxurl, {
+                action: 'azure_oauth_get_resources',
+                nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
+                subscription_id: subscriptionId,
+                resource_group: rg.name,
+                mode: operationMode
+            }, function(aiResponse) {
+                if (!aiResponse.success || !aiResponse.data || aiResponse.data.resources.length === 0) {
+                    console.log('[Auto Setup] 기존 AI Resource 없음, 새로 생성');
+                    createAIResourceInRG(subscriptionId, rg.name, rg.location);
+                    return;
+                }
+
+                var resources = aiResponse.data.resources;
+                var chosenAI = null;
+                if (resources.length === 1) {
+                    chosenAI = resources[0];
+                    console.log('[Auto Setup] 선택된 AI Resource 사용:', chosenAI.name);
+                    if (operationMode === 'agent') {
+                        checkAndCreateAgent(chosenAI.id, subscriptionId, rg.name);
+                    } else {
+                        completeSetup(operationMode);
+                    }
+                } else {
+                    // 여러 리소스가 있으면 선택을 요청 (모달)
+                    var items = [];
+                    for (var i = 0; i < resources.length; i++) {
+                        items.push({ label: resources[i].name + ' (' + (resources[i].location || '') + ')', idx: i });
+                    }
+
+                    showSelectionModal('<?php echo esc_js(__('AI 리소스 선택', 'azure-ai-chatbot')); ?>', items, true)
+                    .then(function(res) {
+                        if (!res) {
+                            createAIResourceInRG(subscriptionId, rg.name, rg.location);
+                            return;
+                        }
+                        if (res.action === 'new') {
+                            createAIResourceInRG(subscriptionId, rg.name, rg.location);
+                            return;
+                        }
+                        if (res.action === 'ok' && res.data && typeof res.data.azure_choice !== 'undefined') {
+                            var sel = parseInt(res.data.azure_choice, 10);
+                            if (!isNaN(sel) && sel >= 0 && sel < resources.length) {
+                                chosenAI = resources[sel];
+                                console.log('[Auto Setup] 사용자 선택 AI Resource:', chosenAI.name);
+                                if (operationMode === 'agent') {
+                                    checkAndCreateAgent(chosenAI.id, subscriptionId, rg.name);
+                                } else {
+                                    completeSetup(operationMode);
+                                }
+                            } else {
+                                createAIResourceInRG(subscriptionId, rg.name, rg.location);
+                            }
+                        } else {
+                            createAIResourceInRG(subscriptionId, rg.name, rg.location);
+                        }
+                    }).catch(function() {
+                        createAIResourceInRG(subscriptionId, rg.name, rg.location);
+                    });
+                }
+            });
+        }
+
         if (rgs.length === 1) {
             chosenRG = rgs[0];
             console.log('[Auto Setup] 하나의 Resource Group 발견, 사용:', chosenRG.name);
+            checkAIResources(chosenRG);
         } else {
-            // 여러 RG가 있을 경우 사용자에게 선택 요청 (간단한 prompt 기반)
+            // 여러 RG가 있을 경우 사용자에게 선택 요청
             var items = [];
             for (var i = 0; i < rgs.length; i++) {
                 items.push({ label: rgs[i].name + ' (' + (rgs[i].location || '') + ')', idx: i });
@@ -1464,81 +1531,17 @@ function startAutoResourceCreation(subscriptionId) {
                     if (!isNaN(selIdx) && selIdx >= 0 && selIdx < rgs.length) {
                         chosenRG = rgs[selIdx];
                         console.log('[Auto Setup] 사용자 선택 Resource Group:', chosenRG.name);
+                        checkAIResources(chosenRG);
                     } else {
                         createNewResourceGroupAndAI(subscriptionId);
-                        return;
                     }
                 } else {
                     createNewResourceGroupAndAI(subscriptionId);
-                    return;
                 }
             }).catch(function() {
                 createNewResourceGroupAndAI(subscriptionId);
-                return;
             });
         }
-
-        // 선택된 RG에 대해 AI 리소스 확인
-        console.log('[Auto Setup] 선택된 Resource Group으로 AI Resource 확인 중...');
-        jQuery.post(ajaxurl, {
-            action: 'azure_oauth_get_resources',
-            nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-            subscription_id: subscriptionId,
-            resource_group: chosenRG.name,
-            mode: operationMode
-        }, function(aiResponse) {
-            if (!aiResponse.success || !aiResponse.data || aiResponse.data.resources.length === 0) {
-                console.log('[Auto Setup] 기존 AI Resource 없음, 새로 생성');
-                createAIResourceInRG(subscriptionId, chosenRG.name, chosenRG.location);
-                return;
-            }
-
-            var resources = aiResponse.data.resources;
-            var chosenAI = null;
-            if (resources.length === 1) {
-                chosenAI = resources[0];
-            } else {
-                // 여러 리소스가 있으면 선택을 요청 (모달)
-                var items = [];
-                for (var i = 0; i < resources.length; i++) {
-                    items.push({ label: resources[i].name + ' (' + (resources[i].location || '') + ')', idx: i });
-                }
-
-                showSelectionModal('<?php echo esc_js(__('AI 리소스 선택', 'azure-ai-chatbot')); ?>', items, true)
-                .then(function(res) {
-                    if (!res) {
-                        createAIResourceInRG(subscriptionId, chosenRG.name, chosenRG.location);
-                        return;
-                    }
-                    if (res.action === 'new') {
-                        createAIResourceInRG(subscriptionId, chosenRG.name, chosenRG.location);
-                        return;
-                    }
-                    if (res.action === 'ok' && res.data && typeof res.data.azure_choice !== 'undefined') {
-                        var sel = parseInt(res.data.azure_choice, 10);
-                        if (!isNaN(sel) && sel >= 0 && sel < resources.length) {
-                            chosenAI = resources[sel];
-                        } else {
-                            createAIResourceInRG(subscriptionId, chosenRG.name, chosenRG.location);
-                            return;
-                        }
-                    } else {
-                        createAIResourceInRG(subscriptionId, chosenRG.name, chosenRG.location);
-                        return;
-                    }
-                }).catch(function() {
-                    createAIResourceInRG(subscriptionId, chosenRG.name, chosenRG.location);
-                    return;
-                });
-            }
-
-            console.log('[Auto Setup] 선택된 AI Resource 사용:', chosenAI.name);
-            if (operationMode === 'agent') {
-                checkAndCreateAgent(chosenAI.id, subscriptionId, chosenRG.name);
-            } else {
-                completeSetup(operationMode);
-            }
-        });
     });
 }
 

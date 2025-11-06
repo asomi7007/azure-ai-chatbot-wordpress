@@ -1,5 +1,27 @@
 # 변경 이력
 
+## [3.0.13] - 2025-11-07
+
+### 🐛 긴급 버그 수정
+- **⚡ 비동기 Promise 처리 수정**: Resource Group 선택 모달이 비동기이므로 AI 리소스 확인 로직을 Promise 내부로 이동
+- **🔧 Null 참조 에러 방지**: `chosenRG`가 `null`인 상태에서 `.name` 접근 시도하던 문제 해결
+
+### 기술 세부사항
+**문제:**
+- `showSelectionModal`이 Promise를 반환하는 비동기 함수
+- 모달 선택을 기다리지 않고 바로 `chosenRG.name`에 접근하여 `Cannot read properties of null (reading 'name')` 에러 발생
+- Resource Group이 여러 개일 때만 발생 (1개일 때는 동기적으로 처리되어 정상 작동)
+
+**해결:**
+- `checkAIResources(rg)` 함수 생성하여 AI 리소스 확인 로직 분리
+- Resource Group 1개: 즉시 `checkAIResources` 호출
+- Resource Group 여러 개: 모달 선택 후 `.then()` 내에서 `checkAIResources` 호출
+- 중복 코드 제거
+
+### 영향
+- ❌ 이전: Resource Group 여러 개 → 모달 선택 무시 → `chosenRG = null` → JavaScript 에러
+- ✅ 수정: Resource Group 여러 개 → 모달 선택 → 선택된 RG로 AI 리소스 확인 → 정상 진행
+
 ## [3.0.12] - 2025-11-07
 
 ### 🐛 긴급 버그 수정
