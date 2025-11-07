@@ -1818,7 +1818,7 @@ function completeSetup(mode, config) {
     var agentSuccessMsg = <?php echo json_encode(__('Agent 모드 설정이 완료되었습니다!', 'azure-ai-chatbot')); ?>;
     var successMsg = mode === 'chat' ? chatSuccessMsg : agentSuccessMsg;
     
-    console.log('[Auto Setup] Saving configuration:', config);
+    console.log('[Auto Setup] Setup complete. Config:', config);
     
     // localStorage 토큰 플래그 제거
     try {
@@ -1829,33 +1829,11 @@ function completeSetup(mode, config) {
         console.warn('[Auto Setup] Cannot clear localStorage:', e);
     }
     
-    // 설정 저장
-    if (config) {
-        jQuery.post(ajaxurl, {
-            action: 'azure_oauth_save_final_config',
-            nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-            mode: mode,
-            config: config
-        }, function(response) {
-            if (response.success) {
-                console.log('[Auto Setup] Configuration saved successfully');
-                alert(successMsg + '\n\n' + <?php echo json_encode(__('설정이 자동으로 저장되었습니다! 설정 페이지에서 확인하세요.', 'azure-ai-chatbot')); ?>);
-            } else {
-                console.error('[Auto Setup] Failed to save configuration:', response.data);
-                alert(successMsg + '\n\n' + <?php echo json_encode(__('리소스는 생성되었지만 설정 저장에 실패했습니다. 수동으로 입력해주세요.', 'azure-ai-chatbot')); ?>);
-            }
-            
-            // 설정 페이지로 리다이렉트
-            window.location.href = '<?php echo admin_url("admin.php?page=azure-ai-chatbot"); ?>';
-        }).fail(function() {
-            console.error('[Auto Setup] AJAX request failed');
-            alert(successMsg + '\n\n' + <?php echo json_encode(__('리소스는 생성되었지만 설정 저장에 실패했습니다. 수동으로 입력해주세요.', 'azure-ai-chatbot')); ?>);
-            window.location.href = '<?php echo admin_url("admin.php?page=azure-ai-chatbot"); ?>';
-        });
-    } else {
-        alert(successMsg + '\n\n' + <?php echo json_encode(__('설정 페이지로 이동하여 자동으로 입력된 값을 확인하세요.', 'azure-ai-chatbot')); ?>);
-        window.location.href = '<?php echo admin_url("admin.php?page=azure-ai-chatbot"); ?>';
-    }
+    // 설정은 이미 ajax_save_existing_config에서 저장되었으므로
+    // 별도 저장 없이 바로 리다이렉트
+    console.log('[Auto Setup] Settings already saved, redirecting...');
+    alert(successMsg + '\n\n' + <?php echo json_encode(__('설정이 자동으로 저장되었습니다! 설정 페이지에서 확인하세요.', 'azure-ai-chatbot')); ?>);
+    window.location.href = '<?php echo admin_url("admin.php?page=azure-ai-chatbot"); ?>';
 }
 
 // 기존 리소스에서 설정 정보 가져오기 (Chat 모드)
