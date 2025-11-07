@@ -1675,10 +1675,9 @@ function checkAndCreateAgent(resourceId, subscriptionId, rgName, config, existin
         nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
         resource_id: resourceId
     }, function(response) {
-        if (response.success && response.data.agents.length > 0) {
-            // 기존 Agent 있음
-            var agent = response.data.agents[0];
-            console.log('[Auto Setup] 기존 Agent 사용:', agent.name, 'ID:', agent.id);
+        if (response.success && response.data.agents && response.data.agents.length > 0) {
+            var agents = response.data.agents;
+            console.log('[Auto Setup] Agent 목록 조회 성공:', agents.length + '개');
             
             // OAuth Client ID와 Tenant ID 가져오기
             var client_id = '<?php echo esc_js(get_option('azure_chatbot_oauth_client_id', '')); ?>';
@@ -1689,90 +1688,129 @@ function checkAndCreateAgent(resourceId, subscriptionId, rgName, config, existin
             console.log('[Auto Setup] OAuth Tenant ID:', tenant_id);
             console.log('[Auto Setup] OAuth Client Secret:', client_secret ? '***' : '(empty)');
             
-            // 기존 리소스인 경우 설정 정보 구성
-            if (existingResource) {
-                console.log('[Auto Setup] 기존 리소스 설정 구성 중...');
-                config = {
-                    agent_endpoint: 'https://' + existingResource.name + '.' + existingResource.location + '.services.ai.azure.com/agents/v1.0/projects/' + existingResource.name,
-                    project_name: existingResource.name,
-                    location: existingResource.location,
-                    client_id: client_id,
-                    tenant_id: tenant_id,
-                    client_secret: client_secret,
-                    agent_id: agent.id || agent.name,
-                    agent_name: agent.name
-                };
+            // Agent 선택 처리 함수
+            function processSelectedAgent(agent) {
+                console.log('[Auto Setup] 선택된 Agent:', agent.name, 'ID:', agent.id);
                 
-                console.log('[Auto Setup] Agent 모드 설정 구성:', config);
-                
-                // Agent 모드 설정 저장
-                var settings = {
-                    mode: 'agent',
-                    agent_endpoint: config.agent_endpoint,
-                    agent_id: config.agent_id,
-                    client_id: config.client_id,
-                    tenant_id: config.tenant_id,
-                    client_secret: config.client_secret
-                };
-                
-                console.log('[Auto Setup] Agent 모드 설정 저장 요청:', settings);
-                
-                jQuery.post(ajaxurl, {
-                    action: 'azure_oauth_save_existing_config',
-                    nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-                    settings: settings
-                }, function(saveResponse) {
-                    console.log('[Auto Setup] Agent 모드 설정 저장 응답:', saveResponse);
-                    if (saveResponse.success) {
-                        console.log('[Auto Setup] Agent 모드 설정 완료');
+                // 기존 리소스인 경우 설정 정보 구성
+                if (existingResource) {
+                    console.log('[Auto Setup] 기존 리소스 설정 구성 중...');
+                    config = {
+                        agent_endpoint: 'https://' + existingResource.name + '.' + existingResource.location + '.services.ai.azure.com/agents/v1.0/projects/' + existingResource.name,
+                        project_name: existingResource.name,
+                        location: existingResource.location,
+                        client_id: client_id,
+                        tenant_id: tenant_id,
+                        client_secret: client_secret,
+                        agent_id: agent.id || agent.name,
+                        agent_name: agent.name
+                    };
+                    
+                    console.log('[Auto Setup] Agent 모드 설정 구성:', config);
+                    
+                    // Agent 모드 설정 저장
+                    var settings = {
+                        mode: 'agent',
+                        agent_endpoint: config.agent_endpoint,
+                        agent_id: config.agent_id,
+                        client_id: config.client_id,
+                        tenant_id: config.tenant_id,
+                        client_secret: config.client_secret
+                    };
+                    
+                    console.log('[Auto Setup] Agent 모드 설정 저장 요청:', settings);
+                    
+                    jQuery.post(ajaxurl, {
+                        action: 'azure_oauth_save_existing_config',
+                        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
+                        settings: settings
+                    }, function(saveResponse) {
+                        console.log('[Auto Setup] Agent 모드 설정 저장 응답:', saveResponse);
+                        if (saveResponse.success) {
+                            console.log('[Auto Setup] Agent 모드 설정 완료');
+                            completeSetup('agent', config);
+                        } else {
+                            console.warn('[Auto Setup] Agent 모드 설정 저장 실패, 기본 저장으로 대체');
+                            completeSetup('agent', config);
+                        }
+                    }).fail(function(xhr, status, error) {
+                        console.error('[Auto Setup] Agent 모드 설정 저장 AJAX 실패:', { status, error });
+                        console.error('[Auto Setup] XHR Response:', xhr.responseText);
                         completeSetup('agent', config);
+                    });
+                } else if (config) {
+                    // 새로 생성된 리소스인 경우 Agent 정보 추가
+                    console.log('[Auto Setup] 새 리소스에 Agent 정보 추가');
+                    config.agent_id = agent.id || agent.name;
+                    config.agent_name = agent.name;
+                    config.client_id = client_id;
+                    config.tenant_id = tenant_id;
+                    config.client_secret = client_secret;
+                    
+                    // Agent 모드 설정 저장
+                    var settings = {
+                        mode: 'agent',
+                        agent_endpoint: config.agent_endpoint || config.endpoint,
+                        agent_id: config.agent_id,
+                        client_id: config.client_id,
+                        tenant_id: config.tenant_id,
+                        client_secret: config.client_secret
+                    };
+                    
+                    jQuery.post(ajaxurl, {
+                        action: 'azure_oauth_save_existing_config',
+                        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
+                        settings: settings
+                    }, function(saveResponse) {
+                        if (saveResponse.success) {
+                            console.log('[Auto Setup] Agent 모드 설정 완료 (새 리소스)');
+                            completeSetup('agent', config);
+                        } else {
+                            console.warn('[Auto Setup] Agent 모드 설정 저장 실패, 기본 저장으로 대체');
+                            completeSetup('agent', config);
+                        }
+                    }).fail(function() {
+                        console.warn('[Auto Setup] Agent 모드 설정 저장 AJAX 실패, 기본 저장으로 대체');
+                        completeSetup('agent', config);
+                    });
+                }
+            }
+            
+            // Agent 선택 로직
+            if (agents.length === 1) {
+                // Agent 하나만 있으면 자동 선택
+                console.log('[Auto Setup] Agent 자동 선택:', agents[0].name);
+                processSelectedAgent(agents[0]);
+            } else {
+                // 여러 Agent가 있으면 선택 모달 표시
+                var items = [];
+                for (var i = 0; i < agents.length; i++) {
+                    items.push({ 
+                        label: agents[i].name + ' (ID: ' + (agents[i].id || agents[i].name) + ')', 
+                        idx: i 
+                    });
+                }
+                
+                showSelectionModal('<?php echo esc_js(__('Agent 선택', 'azure-ai-chatbot')); ?>', items, false)
+                .then(function(res) {
+                    if (res && res.action === 'ok' && res.data && typeof res.data.azure_choice !== 'undefined') {
+                        var sel = parseInt(res.data.azure_choice, 10);
+                        if (!isNaN(sel) && sel >= 0 && sel < agents.length) {
+                            console.log('[Auto Setup] 사용자 선택 Agent:', agents[sel].name);
+                            processSelectedAgent(agents[sel]);
+                        } else {
+                            alert('<?php echo esc_js(__('유효하지 않은 선택입니다.', 'azure-ai-chatbot')); ?>');
+                        }
                     } else {
-                        console.warn('[Auto Setup] Agent 모드 설정 저장 실패, 기본 저장으로 대체');
-                        completeSetup('agent', config);
+                        alert('<?php echo esc_js(__('Agent를 선택해주세요.', 'azure-ai-chatbot')); ?>');
                     }
-                }).fail(function(xhr, status, error) {
-                    console.error('[Auto Setup] Agent 모드 설정 저장 AJAX 실패:', { status, error });
-                    console.error('[Auto Setup] XHR Response:', xhr.responseText);
-                    completeSetup('agent', config);
-                });
-            } else if (config) {
-                // 새로 생성된 리소스인 경우 Agent 정보 추가
-                console.log('[Auto Setup] 새 리소스에 Agent 정보 추가');
-                config.agent_id = agent.id || agent.name;
-                config.agent_name = agent.name;
-                config.client_id = client_id;
-                config.tenant_id = tenant_id;
-                config.client_secret = client_secret;
-                
-                // Agent 모드 설정 저장
-                var settings = {
-                    mode: 'agent',
-                    agent_endpoint: config.agent_endpoint || config.endpoint,
-                    agent_id: config.agent_id,
-                    client_id: config.client_id,
-                    tenant_id: config.tenant_id,
-                    client_secret: config.client_secret
-                };
-                
-                jQuery.post(ajaxurl, {
-                    action: 'azure_oauth_save_existing_config',
-                    nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-                    settings: settings
-                }, function(saveResponse) {
-                    if (saveResponse.success) {
-                        console.log('[Auto Setup] Agent 모드 설정 완료 (새 리소스)');
-                        completeSetup('agent', config);
-                    } else {
-                        console.warn('[Auto Setup] Agent 모드 설정 저장 실패, 기본 저장으로 대체');
-                        completeSetup('agent', config);
-                    }
-                }).fail(function() {
-                    console.warn('[Auto Setup] Agent 모드 설정 저장 AJAX 실패, 기본 저장으로 대체');
-                    completeSetup('agent', config);
+                }).catch(function() {
+                    alert('<?php echo esc_js(__('Agent를 선택해주세요.', 'azure-ai-chatbot')); ?>');
                 });
             }
         } else {
             // Agent 없음 - 선택 옵션 제공
+            console.log('[Auto Setup] Agent 없음');
             if (existingResource) {
                 // 기존 리소스에 Agent가 없으면 새로 생성할지 묻기
                 if (confirm('<?php echo esc_js(__('선택한 AI Foundry Project에 Agent가 없습니다. 새로 생성하시겠습니까?', 'azure-ai-chatbot')); ?>')) {
