@@ -710,11 +710,24 @@ class Azure_Chatbot_OAuth {
         error_log('[Azure OAuth] API Key 조회 시작 - Resource ID: ' . $resource_id);
         error_log('[Azure OAuth] Mode: ' . $mode);
         
-        // Keys 조회
-        $endpoint = "{$resource_id}/listKeys";
-        error_log('[Azure OAuth] listKeys endpoint: ' . $endpoint);
+        // 리소스 타입 판별
+        $is_cognitive_services = strpos($resource_id, '/Microsoft.CognitiveServices/accounts/') !== false;
+        $is_ai_foundry = strpos($resource_id, '/Microsoft.MachineLearningServices/workspaces/') !== false;
         
-        $result = $this->call_azure_api($endpoint, '2023-05-01');
+        // Keys 조회 (리소스 타입에 따라 다른 방식 사용)
+        if ($is_cognitive_services) {
+            // Cognitive Services: POST /listKeys
+            $endpoint = "{$resource_id}/listKeys";
+            error_log('[Azure OAuth] Cognitive Services listKeys endpoint (POST): ' . $endpoint);
+            
+            $result = $this->call_azure_api($endpoint, '2023-05-01', 'POST');
+        } else {
+            // AI Foundry / Other: GET /listKeys
+            $endpoint = "{$resource_id}/listKeys";
+            error_log('[Azure OAuth] AI Foundry listKeys endpoint (GET): ' . $endpoint);
+            
+            $result = $this->call_azure_api($endpoint, '2023-05-01', 'GET');
+        }
         
         if (is_wp_error($result)) {
             error_log('[Azure OAuth] listKeys 실패: ' . $result->get_error_message());
@@ -740,7 +753,7 @@ class Azure_Chatbot_OAuth {
                 ? $resource_info['properties']['discoveryUrl'] 
                 : '';
         } else {
-            // Azure OpenAI Endpoint
+            // Azure OpenAI / Cognitive Services Endpoint
             $endpoint_url = isset($resource_info['properties']['endpoint']) 
                 ? $resource_info['properties']['endpoint'] 
                 : '';
