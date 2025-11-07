@@ -1,5 +1,37 @@
 # 변경 이력
 
+## [3.0.16] - 2025-11-07
+
+### ✨ 기존 리소스 선택 시 설정 자동 채우기 구현
+- **🎯 기존 AI 리소스 선택 완전 지원**: 새로 생성할 때뿐만 아니라 기존 AI Foundry Project 선택 시에도 설정 자동 저장
+- **📋 배포 목록 자동 조회**: 기존 리소스 선택 시 배포된 모델 목록 자동 표시 및 선택
+- **🔑 API Key 자동 조회 및 저장**: Azure Management API를 통해 API Key 자동 조회하여 설정에 포함
+- **🤖 Agent 모드 기존 리소스 지원**: 기존 AI Foundry Project에서 Agent 선택 또는 새로 생성
+
+### 기술 세부사항
+**새로 추가된 기능:**
+- `getExistingResourceConfig()`: 기존 리소스에서 배포 목록 조회 및 설정 구성
+- `getResourceApiKey()`: Azure API를 통한 API Key 자동 조회 및 암호화 저장
+- `createNewAgentForExistingResource()`: 기존 Project에 새 Agent 생성
+- `azure_oauth_get_deployments`: AI Foundry Project 배포 목록 조회 AJAX 핸들러
+- `azure_oauth_save_existing_config`: API Key 포함 설정 저장 AJAX 핸들러
+
+**자동화 플로우:**
+1. **기존 Resource Group 선택** → 기존 AI Project 목록 표시
+2. **기존 Project 선택** → Chat/Agent 모드에 따라 분기
+3. **Chat 모드**: 배포 목록 조회 → 배포 선택 → API Key 조회 → 설정 자동 저장
+4. **Agent 모드**: Agent 목록 표시 → 선택 또는 신규 생성 → 설정 자동 저장
+
+**보안 강화:**
+- API Key 암호화 저장 (`api_key_encrypted`)
+- Azure Management API 권한 활용한 자동 Key 조회
+- OAuth 토큰 기반 인증된 API 호출
+
+### 영향
+- ❌ 이전: 기존 리소스 선택 시 설정이 비어있어 수동 입력 필요
+- ✅ 수정: 기존/신규 리소스 모두 완전 자동 설정 지원
+- 🚀 완전 자동화: OAuth 승인 → 리소스 선택 → 설정 완료 (수동 입력 최소화)
+
 ## [3.0.15] - 2025-11-07
 
 ### ✨ 자동 설정 완료 후 WordPress 설정 자동 저장
@@ -292,6 +324,32 @@
 - 🔄 **자동 토큰 갱신**: Access Token 자동 갱신 기능
 - 🛡️ **보안 강화**: CSRF 보호, 세션 기반 토큰 저장
 - 📱 **복사 버튼**: Cloud Shell 명령어, Redirect URI 원클릭 복사
+
+## [3.0.0] - 2025-11-07
+
+### 🎉 OAuth 2.0 자동 설정 시스템 도입
+- **🚀 Azure 승인 기반 자동 설정**: Microsoft 계정으로 로그인하여 Azure 리소스에 대한 권한 획득
+- **🏗️ Resource Group 관리**: 기존 선택 또는 새로 생성 옵션 제공
+- **🤖 AI Foundry Project 자동 생성**: Chat/Agent 모드에 맞는 AI 프로젝트 자동 설정
+- **🔄 기존 호환성 유지**: 수동 설정 방식과 자동 설정 방식 병행 지원
+
+### 기술 세부사항
+**OAuth 2.0 인증 플로우:**
+- Azure AD App Registration 자동 생성
+- Client Credentials Flow 구현
+- Azure Management API 권한 획득
+- 팝업 기반 인증 UI
+
+**자동 설정 기능:**
+- Subscription 목록 자동 조회
+- Resource Group 생성/선택 UI
+- AI Foundry Project 생성 자동화
+- 모드별 리소스 설정 자동 적용
+
+### 영향
+- ❌ 이전: 모든 Azure 설정을 수동으로 입력 필요
+- ✅ 도입: Azure 승인 → 리소스 선택 → 자동 설정 완료
+- 🔧 호환성: 기존 수동 설정 방식도 계속 지원
 
 ## [2.2.7] - 2025-10-21
 

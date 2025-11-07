@@ -81,6 +81,8 @@ class Azure_Chatbot_OAuth {
         add_action('wp_ajax_azure_oauth_create_resource_group', array($this, 'ajax_create_resource_group'));
         add_action('wp_ajax_azure_oauth_create_ai_resource', array($this, 'ajax_create_ai_resource'));
         add_action('wp_ajax_azure_oauth_save_final_config', array($this, 'ajax_save_final_config'));
+        add_action('wp_ajax_azure_oauth_get_deployments', array($this, 'ajax_get_deployments'));
+        add_action('wp_ajax_azure_oauth_save_existing_config', array($this, 'ajax_save_existing_config'));
     }
     
     /**
@@ -1209,6 +1211,119 @@ class Azure_Chatbot_OAuth {
         
         wp_send_json_success(array(
             'message' => $message,
+            'settings' => $settings
+        ));
+    }
+    
+    /**
+     * AJAX: AI Foundry Project의 배포 목록 조회
+     */
+    public function ajax_get_deployments() {
+        check_ajax_referer('azure_oauth_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => '권한이 없습니다.'));
+        }
+        
+        $resource_id = isset($_POST['resource_id']) ? sanitize_text_field($_POST['resource_id']) : '';
+        $subscription_id = isset($_POST['subscription_id']) ? sanitize_text_field($_POST['subscription_id']) : '';
+        $resource_group = isset($_POST['resource_group']) ? sanitize_text_field($_POST['resource_group']) : '';
+        
+        if (empty($resource_id) || empty($subscription_id) || empty($resource_group)) {
+            wp_send_json_error(array('message' => '필수 파라미터가 누락되었습니다.'));
+        }
+        
+        $access_token = $this->get_access_token();
+        if (!$access_token) {
+            wp_send_json_error(array('message' => 'Azure 토큰을 가져올 수 없습니다.'));
+        }
+        
+        // AI Foundry Project에서 배포 목록 조회
+        $api_url = "https://management.azure.com" . $resource_id . "/deployments?api-version=2024-05-01-preview";
+        
+        $response = wp_remote_get($api_url, array(
+            'headers' => array(
+                'Authorization' => 'Bearer ' . $access_token,
+                'Content-Type' => 'application/json'
+            ),
+            'timeout' => 30
+        ));
+        
+        if (is_wp_error($response)) {
+            wp_send_json_error(array('message' => '배포 목록 조회 실패: ' . $response->get_error_message()));
+        }
+        
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
+        $status_code = wp_remote_retrieve_response_code($response);
+        
+        if ($status_code !== 200) {
+            wp_send_json_error(array('message' => '배포 목록 조회 실패: HTTP ' . $status_code));
+        }
+        
+        $deployments = array();
+        if (isset($data['value']) && is_array($data['value'])) {
+            foreach ($data['value'] as $deployment) {
+                if (isset($deployment['name']) && isset($deployment['properties'])) {
+                    $deployments[] = array(
+                        'name' => $deployment['name'],
+                        'model' => isset($deployment['properties']['model']['name']) ? $deployment['properties']['model']['name'] : '',
+                        'version' => isset($deployment['properties']['model']['version']) ? $deployment['properties']['model']['version'] : '',
+                        'status' => isset($deployment['properties']['provisioningState']) ? $deployment['properties']['provisioningState'] : ''
+                    );
+                }
+            }
+        }
+        
+        wp_send_json_success(array(
+            'deployments' => $deployments,
+            'count' => count($deployments)
+        ));
+    }
+    
+    /**
+     * AJAX: 기존 리소스 설정 저장 (API Key 포함)
+     */
+    public function ajax_save_existing_config() {
+        check_ajax_referer('azure_oauth_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => '권한이 없습니다.'));
+        }
+        
+        $settings_data = isset($_POST['settings']) ? $_POST['settings'] : array();
+        
+        if (empty($settings_data)) {
+            wp_send_json_error(array('message' => '설정 데이터가 누락되었습니다.'));
+        }
+        
+        // 현재 설정 가져오기
+        $settings = get_option('azure_chatbot_settings', array());
+        
+        // 전달받은 설정 병합
+        if (isset($settings_data['mode'])) {
+            $settings['mode'] = sanitize_text_field($settings_data['mode']);
+        }
+        if (isset($settings_data['provider'])) {
+            $settings['provider'] = sanitize_text_field($settings_data['provider']);
+        }
+        if (isset($settings_data['chat_endpoint'])) {
+            $settings['chat_endpoint'] = sanitize_text_field($settings_data['chat_endpoint']);
+        }
+        if (isset($settings_data['deployment_name'])) {
+            $settings['deployment_name'] = sanitize_text_field($settings_data['deployment_name']);
+        }
+        if (isset($settings_data['api_key'])) {
+            // API Key는 암호화하여 저장
+            $plugin = Azure_AI_Chatbot::get_instance();
+            $settings['api_key_encrypted'] = $plugin->encrypt($settings_data['api_key']);
+        }
+        
+        // 설정 저장
+        update_option('azure_chatbot_settings', $settings);
+        
+        wp_send_json_success(array(
+            'message' => '설정이 저장되었습니다! (API Key 포함)',
             'settings' => $settings
         ));
     }

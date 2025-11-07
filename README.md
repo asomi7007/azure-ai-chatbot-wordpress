@@ -1,13 +1,28 @@
 # Azure AI Chatbot for WordPress
 
-[![Version](https://img.shields.io/badge/version-2.2.7-blue.svg)](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/latest)
+[![Version](https://img.shields.io/badge/version-3.0.16-blue.svg)](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/latest)
 [![WordPress](https://img.shields.io/badge/wordpress-6.0%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/php-7.4%2B-purple.svg)](https://www.php.net/)
 [![License](https://img.shields.io/badge/license-GPL--2.0%2B-green.svg)](LICENSE)
 
-A modern WordPress plugin that brings Azure AI Foundry agents and OpenAI-compatible chat models to your website with full Assistants API integration.
+A modern WordPress plugin that brings Azure AI Foundry agents and OpenAI-compatible chat models to your website with full Assistants API integration and OAuth 2.0 auto-setup.
 
 **[English](#) | [한국어](README-ko.md)**
+
+---
+
+## 🚀 New! OAuth 2.0 Auto-Setup
+
+**Zero-Code Configuration**: Complete Azure AI integration with just a few clicks!
+
+1. **Azure Authorization** → Login with Microsoft account
+2. **Resource Selection** → Choose existing or create new AI resources  
+3. **Auto-Configuration** → All settings populated automatically
+4. **Ready to Chat** → Start using your AI chatbot immediately
+
+✅ **Existing Resources Fully Supported**: Select existing AI Foundry Projects and get all settings auto-populated  
+✅ **API Key Auto-Retrieval**: Automatically retrieves and encrypts API keys  
+✅ **Complete Automation**: From OAuth approval to final configuration
 
 ---
 
@@ -15,16 +30,18 @@ A modern WordPress plugin that brings Azure AI Foundry agents and OpenAI-compati
 
 This is the **WordPress plugin** that enables Azure AI Foundry Agent mode integration. While other plugins support basic chat APIs, this plugin uniquely provides:
 
+- **🚀 OAuth 2.0 Auto-Setup**: Complete zero-code configuration with automatic resource detection
 - **Azure AI Foundry Agents**: Full Assistants API support with Function Calling, RAG, and file uploads
 - **Dual-Mode Architecture**: Choose between simple Chat mode or advanced Agent mode
 - **Enterprise Authentication**: Entra ID OAuth 2.0 support for enterprise deployments
-- **Zero-Code Setup**: Automated scripts handle all Azure configuration
+- **Existing Resource Support**: Works with both new and existing Azure AI resources
 
 ---
 
 ## Table of Contents
 
 - [Features](#features)
+- [OAuth Auto-Setup](#oauth-auto-setup)
 - [Quick Start](#quick-start)
   - [Chat Mode Setup](#chat-mode-setup)
   - [Agent Mode Setup](#agent-mode-setup)
@@ -60,6 +77,9 @@ This is the **WordPress plugin** that enables Azure AI Foundry Agent mode integr
 
 ### Core Features
 
+- **🚀 OAuth 2.0 Auto-Setup**: Complete WordPress configuration with just a few clicks
+- **🔄 Dual Resource Support**: Works with both new and existing Azure AI resources
+- **🔑 Auto API Key Retrieval**: Automatically finds and encrypts API keys
 - **Zero-Code Setup**: Complete configuration from WordPress admin panel
 - **Enterprise Security**: AES-256 encryption for credentials
 - **Fully Customizable**: Colors, position, messages, styling
@@ -69,7 +89,59 @@ This is the **WordPress plugin** that enables Azure AI Foundry Agent mode integr
 
 ---
 
+## OAuth Auto-Setup
+
+**🎯 The easiest way to set up Azure AI Chatbot**
+
+### How It Works
+
+1. **WordPress Admin** → AI Chatbot → OAuth Auto-Setup
+2. **Azure Authorization** → Click "Authorize with Azure" → Microsoft login
+3. **Resource Selection**: 
+   - Choose existing Resource Group or create new
+   - Select existing AI Foundry Project or create new
+4. **Mode Selection**: Choose Chat mode or Agent mode
+5. **Auto-Configuration**: All settings populated automatically
+6. **Ready!** → Your chatbot is configured and ready to use
+
+### Supported Scenarios
+
+✅ **Create Everything New**: New Resource Group → New AI Project → Auto-setup  
+✅ **Use Existing Resources**: Existing Resource Group → Existing AI Project → Auto-populate settings  
+✅ **Mixed Approach**: Existing Resource Group → New AI Project → Auto-setup  
+
+### What Gets Configured Automatically
+
+**Chat Mode:**
+- Endpoint URL
+- Deployment name (from existing deployments or new)
+- API Key (retrieved and encrypted)
+- Provider settings
+
+**Agent Mode:**
+- Agent endpoint
+- Agent ID (selected from existing or newly created)
+- Client ID, Client Secret, Tenant ID
+- OAuth configuration
+
+---
+
 ## Quick Start
+
+### Recommended: OAuth Auto-Setup
+
+**The fastest way to get started:**
+
+1. Install the plugin
+2. Go to **WordPress Admin** → **AI Chatbot** → **OAuth Auto-Setup**
+3. Click **"Authorize with Azure"**
+4. Select or create resources
+5. Choose your mode (Chat or Agent)
+6. **Done!** Your chatbot is ready
+
+### Alternative: Manual Setup with Scripts
+
+For users who prefer the command-line approach:
 
 ### Chat Mode Setup
 
@@ -363,45 +435,51 @@ Log location: `/wp-content/debug.log`
 
 ## Version History
 
-### Latest Release: v2.2.7 (2025-10-21)
+### Latest Release: v3.0.16 (2025-11-07)
 
-**Bug Fixes:**
-- 🐛 **Fixed public_access setting**: Checkbox unchecking now persists after saving
-- 🔧 **Enhanced sanitize_settings**: Added proper handling for public_access field
+**🚀 Complete OAuth Auto-Setup:**
+- ✨ **Existing Resource Support**: Full support for selecting existing AI Foundry Projects
+- 🔑 **Auto API Key Retrieval**: Automatically retrieves and encrypts API keys via Azure Management API
+- 📋 **Deployment Auto-Selection**: Lists and selects from existing model deployments
+- 🤖 **Agent Auto-Configuration**: Selects existing agents or creates new ones
+- 🎯 **Complete Automation**: Zero manual configuration required
 
-[Download v2.2.7](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/tag/v2.2.7)
+[Download v3.0.16](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/tag/v3.0.16)
 
-### v2.2.6 (2025-10-21)
+### v3.0.15 (2025-11-07)
 
-**Improvements:**
-- 🎨 **Smart widget display**: Widget hidden for anonymous users when public_access is disabled
-- ✨ **Better UX**: Unavailable widgets no longer shown to restricted users
-- 📦 **File optimization**: 46% smaller with Bandizip compression
+**💾 Auto-Save Configuration:**
+- 🎯 **WordPress Integration**: OAuth setup automatically saves to WordPress settings
+- 📝 **Field Population**: Chat/Agent mode fields auto-populated after setup
+- � **Security Integration**: Automatic OAuth credential integration
 
-[Download v2.2.6](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/tag/v2.2.6)
+[Download v3.0.15](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/tag/v3.0.15)
 
-### v2.2.5 (2025-10-21)
+### v3.0.1 (2025-11-07)
 
-**New Features:**
-- ✨ **Public access option**: Settings page checkbox for controlling anonymous user access
-- 🔓 **Anonymous user support**: Visitors without login can now use the chatbot (default: enabled)
+**🎉 OAuth 2.0 Auto-Setup Introduction:**
+- 🚀 **One-Click Setup**: Complete Azure integration with just OAuth approval
+- 🏗️ **Resource Creation**: Automatic Azure AI resource creation and configuration
+- 🔑 **Admin Consent**: Automated OAuth application consent handling
+- 🛡️ **Secure Tokens**: OAuth token security and management
 
-[Download v2.2.5](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/tag/v2.2.5)
+[Download v3.0.1](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/tag/v3.0.1)
 
-### v2.2.4 (2025-10-05)
+### v3.0.0 (2025-11-07)
 
-**Fixes:**
-- Fixed HTTP 404 errors in Chat mode
-- Improved API version initialization logic
-- Enhanced endpoint handling for multiple providers
+**🎉 OAuth 2.0 Auto-Setup System Introduction:**
+- 🚀 **Auto-Setup UI**: Azure authorization-based automatic configuration interface
+- 🏗️ **Resource Management**: Automatic Resource Group creation and selection
+- 🤖 **AI Project Creation**: Automatic AI Foundry Project setup
+- 🔄 **Dual Support**: Maintains compatibility with existing manual setup
 
-[Download v2.2.4](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/tag/v2.2.4)
+[Download v3.0.0](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/tag/v3.0.0)
 
 ### Earlier Versions
 
-**v2.2.3** - Documentation and FAQ improvements  
-**v2.2.2** - GitHub badges and changelog additions  
-**v2.2.1** - Endpoint slash handling fix  
+**v2.2.7** - Fixed public_access setting persistence  
+**v2.2.6** - Smart widget display improvements  
+**v2.2.5** - Anonymous user access control  
 **v2.2.0** - Multi-provider support (6 AI services)  
 **v2.1.0** - Dual mode introduction (Chat + Agent)  
 **v2.0.0** - Complete plugin redesign  

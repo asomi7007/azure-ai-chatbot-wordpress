@@ -3,7 +3,7 @@ Contributors: eldensolution
 Tags: azure, ai, chatbot, chat, ai-assistant
 Requires at least: 6.0
 Tested up to: 6.8
-Stable tag: 3.0.15
+Stable tag: 3.0.16
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -12,10 +12,14 @@ Azure AI Foundry 에이전트를 WordPress에 통합하는 강력한 채팅 위�
 
 == Description ==
 
-Azure AI Chatbot은 Azure AI Foundry의 강력한 AI 에이전트를 WordPress 웹사이트에 쉽게 통합할 수 있는 플러그인입니다.
+Azure AI Chatbot은 Azure AI Foundry의 강력한 AI 에이전트를 WordPress 웹사이트에 쉽게 통합할 수 있는 플러그인입니다. OAuth 2.0 자동 설정 기능으로 클릭 몇 번만으로 완전한 AI 챗봇을 구축할 수 있습니다.
 
 = 주요 기능 =
 
+* **OAuth 2.0 자동 설정**: Azure 승인 → 리소스 선택 → 설정 완료 (수동 입력 최소화)
+* **신규/기존 리소스 완전 지원**: 새로 생성하거나 기존 AI 리소스 모두 자동 설정
+* **API Key 자동 조회**: Azure Management API를 통한 자동 조회 및 암호화 저장
+* **듀얼 모드**: Chat 모드 (간단) + Agent 모드 (고급 Function Calling)
 * 관리자 페이지에서 모든 설정 가능
 * API Key AES-256 암호화 저장
 * 색상 및 위젯 위치 커스터마이징
@@ -49,7 +53,23 @@ Azure AI Chatbot은 Azure AI Foundry의 강력한 AI 에이전트를 WordPress �
 
 = 설정 =
 
-**빠른 시작: Azure 설정값 자동으로 가져오기**
+**🚀 OAuth 2.0 자동 설정 (추천)**
+
+1. WordPress 관리자 → AI Chatbot → OAuth 자동 설정
+2. "Azure 승인" 버튼 클릭 → Microsoft 로그인
+3. 리소스 그룹 선택 (기존 선택 또는 새로 생성)
+4. AI Foundry Project 선택 (기존 선택 또는 새로 생성)
+5. Chat/Agent 모드 선택
+6. 자동으로 모든 설정 완료!
+
+**자동 설정 장점:**
+- ✅ API Key 자동 조회 및 암호화 저장
+- ✅ 엔드포인트, 배포 이름 자동 설정
+- ✅ Agent ID 자동 생성 또는 기존 Agent 선택
+- ✅ 신규/기존 리소스 모두 완전 지원
+- ✅ 클릭 몇 번으로 설정 완료
+
+**빠른 시작: Azure 설정값 자동으로 가져오기 (구형 방식)**
 
 Azure Cloud Shell (https://shell.azure.com)에서 다음 명령어 중 하나를 실행하세요:
 
@@ -82,9 +102,25 @@ Agent 모드 (고급):
 
 == Frequently Asked Questions ==
 
+= OAuth 자동 설정을 사용할 수 있나요? =
+
+네! v3.0.14부터 OAuth 2.0 자동 설정을 지원합니다:
+
+1. WordPress 관리자 → AI Chatbot → OAuth 자동 설정
+2. "Azure 승인" 버튼 클릭
+3. 리소스 선택 또는 새로 생성
+4. 모든 설정 자동 완료!
+
+기존 AI 리소스도 완전 지원하여 API Key까지 자동으로 조회해서 저장합니다.
+
 = Azure 설정을 쉽게 할 수 있나요? =
 
-네! Azure Cloud Shell에서 자동 설정 스크립트를 실행하세요:
+네! 두 가지 방법이 있습니다:
+
+**방법 1: OAuth 자동 설정 (추천)**
+WordPress 관리자에서 OAuth 자동 설정 기능 사용
+
+**방법 2: Azure Cloud Shell 스크립트**
 
 Chat 모드: `curl -s https://raw.githubusercontent.com/asomi7007/azure-ai-chatbot-wordpress/main/test-chat-mode.sh | bash`
 Agent 모드: `curl -s https://raw.githubusercontent.com/asomi7007/azure-ai-chatbot-wordpress/main/test-agent-mode.sh | bash`
@@ -124,6 +160,59 @@ Agent 모드: 고급 기능 지원 (Function Calling, RAG, 파일 업로드 등,
 4. 사용 가이드 - 편집 가능한 마크다운 가이드
 
 == Changelog ==
+
+= 3.0.16 - 2025-11-07 =
+* 추가: 기존 리소스 선택 시 설정 자동 채우기 완전 구현
+* 추가: 배포 목록 자동 조회 (기존 AI Foundry Project에서)
+* 추가: API Key 자동 조회 및 암호화 저장 (Azure Management API 활용)
+* 추가: 기존 Project에서 Agent 선택 또는 새로 생성 지원
+* 개선: 신규/기존 리소스 모두 완전 자동 설정 지원
+* 개선: OAuth 승인 → 리소스 선택 → 설정 완료 (수동 입력 최소화)
+
+= 3.0.15 - 2025-11-07 =
+* 추가: 자동 설정 완료 후 WordPress 설정 자동 저장
+* 추가: Chat/Agent 모드 설정 필드 자동 채우기
+* 추가: 엔드포인트, 배포 이름, Agent ID 자동 저장
+* 추가: OAuth 설정에서 보안 정보 자동 연동
+
+= 3.0.14 - 2025-11-07 =
+* 추가: URL 파라미터 기반 OAuth 탭 자동 표시
+* 개선: Admin Consent 완료 후 자동으로 OAuth 설정 탭 활성화
+* 수정: 리다이렉트 URL 처리 최적화
+
+= 3.0.13 - 2025-11-07 =
+* 수정: Resource Group 선택 모달의 Promise 처리 개선
+* 수정: 비동기 처리 오류로 인한 무한 로딩 문제 해결
+* 개선: 모달 창 응답성 향상
+
+= 3.0.12 - 2025-11-07 =
+* 수정: OAuth 리다이렉트를 oauth-auto-setup 탭으로 올바르게 처리
+* 수정: JavaScript 오류 방지 및 안정성 향상
+* 개선: 팝업 창과 부모 창 간 통신 최적화
+
+= 3.0.11 - 2025-11-07 =
+* 추가: OAuth → Agent Mode 자동 연동 기능
+* 추가: localStorage 기반 세션 관리
+* 수정: 경고 메시지 표시 조건 개선
+* 개선: 자동 설정 플로우 완성도 향상
+
+= 3.0.10 - 2025-11-07 =
+* 수정: Admin Consent URL 인코딩 문제 해결
+* 수정: 리다이렉트 URL 처리 개선
+* 개선: OAuth 설정 안정성 향상
+
+= 3.0.1 - 2025-11-07 =
+* 추가: OAuth 2.0 자동 설정 기능 (클릭 몇 번으로 설정 완료)
+* 추가: Azure AI 리소스 자동 생성 및 설정
+* 추가: Admin Consent 자동 처리
+* 보안: OAuth 토큰 보안 관리
+
+= 3.0.0 - 2025-11-07 =
+* 메이저 업데이트: OAuth 2.0 자동 설정 시스템 도입
+* 추가: Azure 승인 기반 자동 설정 UI
+* 추가: 리소스 그룹 자동 생성/선택 기능
+* 추가: AI Foundry Project 자동 생성 기능
+* 개선: 기존 수동 설정과 자동 설정 병행 지원
 
 = 2.2.7 - 2025-10-21 =
 * 수정: public_access 설정 저장 오류 해결 (체크박스 해제가 저장되지 않던 문제)
@@ -180,6 +269,18 @@ Agent 모드: 고급 기능 지원 (Function Calling, RAG, 파일 업로드 등,
 * 초기 릴리즈
 
 == Upgrade Notice ==
+
+= 3.0.16 =
+중요 업데이트: 기존 AI 리소스 선택 시에도 설정 자동 채우기 완전 지원. API Key까지 자동 조회하여 완전 자동화 구현.
+
+= 3.0.15 =
+중요 업데이트: OAuth 자동 설정 완료 후 WordPress 설정 자동 저장 기능 추가. 수동 입력 최소화.
+
+= 3.0.1 =
+메이저 업데이트: OAuth 2.0 자동 설정 기능 추가. 클릭 몇 번으로 Azure AI 챗봇 완전 설정.
+
+= 3.0.0 =
+메이저 업데이트: OAuth 2.0 자동 설정 시스템 도입. Azure 승인 기반 완전 자동 설정.
 
 = 2.2.1 =
 Hotfix: 엔드포인트 입력 시 trailing slash 자동 제거로 404 에러 방지

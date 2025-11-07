@@ -2,12 +2,27 @@
 
 **[English](README.md) | [한국어](#)**
 
-Azure AI Foundry 에이전트와 OpenAI 호환 채팅 모델을 완전한 Assistants API 통합과 함께 WordPress 웹사이트에 제공하는 현대적인 플러그인입니다.
+Azure AI Foundry 에이전트와 OpenAI 호환 채팅 모델을 완전한 Assistants API 통합과 OAuth 2.0 자동 설정으로 WordPress 웹사이트에 제공하는 현대적인 플러그인입니다.
 
-[![Version](https://img.shields.io/badge/version-2.2.7-blue.svg)](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/latest)
+[![Version](https://img.shields.io/badge/version-3.0.16-blue.svg)](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/latest)
 [![WordPress](https://img.shields.io/badge/wordpress-6.0%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/php-7.4%2B-purple.svg)](https://www.php.net/)
 [![License](https://img.shields.io/badge/license-GPL--2.0%2B-green.svg)](LICENSE)
+
+---
+
+## 🚀 신기능! OAuth 2.0 자동 설정
+
+**제로 코드 설정**: 클릭 몇 번만으로 완전한 Azure AI 통합!
+
+1. **Azure 승인** → Microsoft 계정으로 로그인
+2. **리소스 선택** → 기존 선택 또는 새로 생성  
+3. **자동 설정** → 모든 설정이 자동으로 채워짐
+4. **채팅 시작** → AI 챗봇 즉시 사용 가능
+
+✅ **기존 리소스 완전 지원**: 기존 AI Foundry 프로젝트를 선택하면 모든 설정 자동 채움  
+✅ **API Key 자동 조회**: API Key를 자동으로 조회하고 암호화하여 저장  
+✅ **완전 자동화**: OAuth 승인부터 최종 설정까지 자동 완료
 
 ---
 
@@ -15,10 +30,11 @@ Azure AI Foundry 에이전트와 OpenAI 호환 채팅 모델을 완전한 Assist
 
 이 플러그인은 WordPress를 위한 **포괄적인 Azure AI Foundry Agent 모드 통합**을 제공합니다. 다른 플러그인들이 기본 채팅 API만 지원하는 반면, 이 플러그인은 독특하게 다음을 제공합니다:
 
+- **🚀 OAuth 2.0 자동 설정**: 자동 리소스 탐지로 완전한 제로 코드 설정
 - **Azure AI Foundry Agents**: Function Calling, RAG, 파일 업로드를 포함한 완전한 Assistants API 지원
 - **듀얼 모드 아키텍처**: 간단한 Chat 모드 또는 고급 Agent 모드 선택 가능
 - **엔터프라이즈 인증**: 기업 배포를 위한 Entra ID OAuth 2.0 지원
-- **제로 코드 설정**: 모든 Azure 설정을 자동화 스크립트로 처리
+- **기존 리소스 지원**: 신규 및 기존 Azure AI 리소스 모두 작동
 
 Azure AI Foundry의 강력한 에이전트 기능을 WordPress 사용자에게 제공하기 위해 제작되었습니다.
 

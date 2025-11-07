@@ -1461,9 +1461,10 @@ function startAutoResourceCreation(subscriptionId) {
                     chosenAI = resources[0];
                     console.log('[Auto Setup] 선택된 AI Resource 사용:', chosenAI.name);
                     if (operationMode === 'agent') {
-                        checkAndCreateAgent(chosenAI.id, subscriptionId, rg.name);
+                        checkAndCreateAgent(chosenAI.id, subscriptionId, rg.name, null, chosenAI);
                     } else {
-                        completeSetup(operationMode);
+                        // Chat 모드: 기존 리소스에서 설정 정보 가져오기
+                        getExistingResourceConfig(chosenAI, subscriptionId, rg.name);
                     }
                 } else {
                     // 여러 리소스가 있으면 선택을 요청 (모달)
@@ -1488,9 +1489,10 @@ function startAutoResourceCreation(subscriptionId) {
                                 chosenAI = resources[sel];
                                 console.log('[Auto Setup] 사용자 선택 AI Resource:', chosenAI.name);
                                 if (operationMode === 'agent') {
-                                    checkAndCreateAgent(chosenAI.id, subscriptionId, rg.name);
+                                    checkAndCreateAgent(chosenAI.id, subscriptionId, rg.name, null, chosenAI);
                                 } else {
-                                    completeSetup(operationMode);
+                                    // Chat 모드: 기존 리소스에서 설정 정보 가져오기
+                                    getExistingResourceConfig(chosenAI, subscriptionId, rg.name);
                                 }
                             } else {
                                 createAIResourceInRG(subscriptionId, rg.name, rg.location);
@@ -1630,7 +1632,7 @@ function createAIResourceInRG(subscriptionId, rgName, location) {
 }
 
 // Agent 확인 및 생성
-function checkAndCreateAgent(resourceId, subscriptionId, rgName, config) {
+function checkAndCreateAgent(resourceId, subscriptionId, rgName, config, existingResource) {
     console.log('[Auto Setup] Agent 확인 중...');
     
     jQuery.post(ajaxurl, {
@@ -1643,40 +1645,64 @@ function checkAndCreateAgent(resourceId, subscriptionId, rgName, config) {
             var agent = response.data.agents[0];
             console.log('[Auto Setup] 기존 Agent 사용:', agent.name);
             
-            // Agent ID를 config에 추가
-            if (config) {
+            // 기존 리소스인 경우 설정 정보 구성
+            if (existingResource && !config) {
+                var client_id = get_option('azure_chatbot_oauth_client_id', '');
+                var tenant_id = get_option('azure_chatbot_oauth_tenant_id', '');
+                
+                config = {
+                    endpoint: 'https://' + existingResource.name + '.' + existingResource.location + '.services.ai.azure.com/api/projects/' + existingResource.name,
+                    project_name: existingResource.name,
+                    location: existingResource.location,
+                    client_id: client_id,
+                    tenant_id: tenant_id,
+                    agent_id: agent.id,
+                    agent_name: agent.name
+                };
+            } else if (config) {
+                // 새로 생성된 리소스인 경우 Agent 정보 추가
                 config.agent_id = agent.id;
                 config.agent_name = agent.name;
             }
             
             completeSetup(operationMode, config);
         } else {
-            // Agent 없음 - 새로 생성
-            console.log('[Auto Setup] Agent 생성 중...');
-            var agentName = 'agent-' + new Date().getTime();
-            
-            jQuery.post(ajaxurl, {
-                action: 'azure_oauth_create_agent',
-                nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-                resource_id: resourceId,
-                agent_name: agentName,
-                description: 'Auto-created agent for WordPress chatbot'
-            }, function(agentResponse) {
-                if (agentResponse.success) {
-                    console.log('[Auto Setup] Agent 생성 완료');
-                    
-                    // Agent ID를 config에 추가
-                    if (config) {
-                        config.agent_id = agentResponse.data.agent_id;
-                        config.agent_name = agentName;
-                    }
-                    
-                    completeSetup(operationMode, config);
+            // Agent 없음 - 선택 옵션 제공
+            if (existingResource) {
+                // 기존 리소스에 Agent가 없으면 새로 생성할지 묻기
+                if (confirm('<?php echo esc_js(__('선택한 AI Foundry Project에 Agent가 없습니다. 새로 생성하시겠습니까?', 'azure-ai-chatbot')); ?>')) {
+                    createNewAgentForExistingResource(resourceId, existingResource, subscriptionId, rgName);
                 } else {
-                    console.error('[Auto Setup] Agent 생성 실패:', agentResponse.data.message);
-                    alert('<?php esc_html_e('Agent 생성 실패:', 'azure-ai-chatbot'); ?> ' + agentResponse.data.message);
+                    alert('<?php echo esc_js(__('Agent가 필요합니다. 다른 리소스를 선택하거나 새로 생성해주세요.', 'azure-ai-chatbot')); ?>');
                 }
-            });
+            } else {
+                // 새로 생성된 리소스 - Agent 생성
+                console.log('[Auto Setup] Agent 생성 중...');
+                var agentName = 'agent-' + new Date().getTime();
+                
+                jQuery.post(ajaxurl, {
+                    action: 'azure_oauth_create_agent',
+                    nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
+                    resource_id: resourceId,
+                    agent_name: agentName,
+                    description: 'Auto-created agent for WordPress chatbot'
+                }, function(agentResponse) {
+                    if (agentResponse.success) {
+                        console.log('[Auto Setup] Agent 생성 완료');
+                        
+                        // Agent ID를 config에 추가
+                        if (config) {
+                            config.agent_id = agentResponse.data.agent_id;
+                            config.agent_name = agentName;
+                        }
+                        
+                        completeSetup(operationMode, config);
+                    } else {
+                        console.error('[Auto Setup] Agent 생성 실패:', agentResponse.data.message);
+                        alert('<?php esc_html_e('Agent 생성 실패:', 'azure-ai-chatbot'); ?> ' + agentResponse.data.message);
+                    }
+                });
+            }
         }
     });
 }
@@ -1725,6 +1751,168 @@ function completeSetup(mode, config) {
         alert(successMsg + '\n\n' + <?php echo json_encode(__('설정 페이지로 이동하여 자동으로 입력된 값을 확인하세요.', 'azure-ai-chatbot')); ?>);
         window.location.href = '<?php echo admin_url("admin.php?page=azure-ai-chatbot"); ?>';
     }
+}
+
+// 기존 리소스에서 설정 정보 가져오기 (Chat 모드)
+function getExistingResourceConfig(resource, subscriptionId, rgName) {
+    console.log('[Auto Setup] 기존 리소스 설정 정보 조회 중...', resource.name);
+    
+    // Chat 모드 설정 정보 구성
+    var config = {
+        endpoint: 'https://' + resource.name + '.' + resource.location + '.inference.ml.azure.com',
+        deployment_name: '', // 배포 목록에서 선택하도록 함
+        model: '',
+        location: resource.location,
+        resource_name: resource.name
+    };
+    
+    // 배포 목록 조회
+    jQuery.post(ajaxurl, {
+        action: 'azure_oauth_get_deployments',
+        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
+        resource_id: resource.id,
+        subscription_id: subscriptionId,
+        resource_group: rgName
+    }, function(response) {
+        if (response.success && response.data.deployments && response.data.deployments.length > 0) {
+            var deployments = response.data.deployments;
+            console.log('[Auto Setup] 배포 목록 조회 성공:', deployments.length + '개');
+            
+            if (deployments.length === 1) {
+                // 배포 하나만 있으면 자동 선택
+                config.deployment_name = deployments[0].name;
+                config.model = deployments[0].model;
+                console.log('[Auto Setup] 배포 자동 선택:', config.deployment_name);
+                
+                // API Key 조회
+                getResourceApiKey(resource, subscriptionId, rgName, config);
+            } else {
+                // 여러 배포가 있으면 선택
+                var items = [];
+                for (var i = 0; i < deployments.length; i++) {
+                    items.push({ 
+                        label: deployments[i].name + ' (' + (deployments[i].model || '') + ')', 
+                        idx: i 
+                    });
+                }
+                
+                showSelectionModal('<?php echo esc_js(__('배포 선택', 'azure-ai-chatbot')); ?>', items, false)
+                .then(function(res) {
+                    if (res && res.action === 'ok' && res.data && typeof res.data.azure_choice !== 'undefined') {
+                        var sel = parseInt(res.data.azure_choice, 10);
+                        if (!isNaN(sel) && sel >= 0 && sel < deployments.length) {
+                            config.deployment_name = deployments[sel].name;
+                            config.model = deployments[sel].model;
+                            console.log('[Auto Setup] 사용자 선택 배포:', config.deployment_name);
+                            
+                            // API Key 조회
+                            getResourceApiKey(resource, subscriptionId, rgName, config);
+                        } else {
+                            alert('<?php echo esc_js(__('유효하지 않은 선택입니다.', 'azure-ai-chatbot')); ?>');
+                        }
+                    } else {
+                        alert('<?php echo esc_js(__('배포를 선택해주세요.', 'azure-ai-chatbot')); ?>');
+                    }
+                }).catch(function() {
+                    alert('<?php echo esc_js(__('배포를 선택해주세요.', 'azure-ai-chatbot')); ?>');
+                });
+            }
+        } else {
+            console.warn('[Auto Setup] 배포 목록 조회 실패 또는 배포 없음');
+            alert('<?php echo esc_js(__('이 리소스에는 배포된 모델이 없습니다. 다른 리소스를 선택하거나 새로 생성해주세요.', 'azure-ai-chatbot')); ?>');
+        }
+    }).fail(function() {
+        console.error('[Auto Setup] 배포 목록 조회 AJAX 실패');
+        alert('<?php echo esc_js(__('배포 목록 조회에 실패했습니다.', 'azure-ai-chatbot')); ?>');
+    });
+}
+
+// 리소스 API Key 조회
+function getResourceApiKey(resource, subscriptionId, rgName, config) {
+    console.log('[Auto Setup] API Key 조회 중...');
+    
+    jQuery.post(ajaxurl, {
+        action: 'azure_oauth_get_keys',
+        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
+        resource_id: resource.id,
+        subscription_id: subscriptionId,
+        resource_group: rgName
+    }, function(response) {
+        if (response.success && response.data.key) {
+            console.log('[Auto Setup] API Key 조회 성공');
+            config.api_key = response.data.key;
+            
+            // Chat 모드 설정에 API Key 포함하여 저장
+            var settings = {
+                mode: 'chat',
+                provider: 'azure-openai',
+                chat_endpoint: config.endpoint,
+                deployment_name: config.deployment_name,
+                api_key: config.api_key
+            };
+            
+            // WordPress 설정에 API Key 직접 저장
+            jQuery.post(ajaxurl, {
+                action: 'azure_oauth_save_existing_config',
+                nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
+                settings: settings
+            }, function(saveResponse) {
+                if (saveResponse.success) {
+                    console.log('[Auto Setup] Chat 모드 설정 완료 (API Key 포함)');
+                    completeSetup('chat', config);
+                } else {
+                    console.warn('[Auto Setup] 설정 저장 실패, 기본 저장으로 대체');
+                    completeSetup('chat', config);
+                }
+            }).fail(function() {
+                console.warn('[Auto Setup] 설정 저장 AJAX 실패, 기본 저장으로 대체');
+                completeSetup('chat', config);
+            });
+        } else {
+            console.warn('[Auto Setup] API Key 조회 실패');
+            // API Key 없이도 설정 저장 (수동 입력 필요)
+            completeSetup('chat', config);
+        }
+    }).fail(function() {
+        console.error('[Auto Setup] API Key 조회 AJAX 실패');
+        // API Key 없이도 설정 저장 (수동 입력 필요)
+        completeSetup('chat', config);
+    });
+}
+
+// 기존 리소스에 새 Agent 생성
+function createNewAgentForExistingResource(resourceId, resource, subscriptionId, rgName) {
+    var agentName = 'agent-' + new Date().getTime();
+    
+    jQuery.post(ajaxurl, {
+        action: 'azure_oauth_create_agent',
+        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
+        resource_id: resourceId,
+        agent_name: agentName,
+        description: 'Auto-created agent for WordPress chatbot'
+    }, function(agentResponse) {
+        if (agentResponse.success) {
+            console.log('[Auto Setup] 새 Agent 생성 완료');
+            
+            var client_id = '<?php echo esc_js(get_option('azure_chatbot_oauth_client_id', '')); ?>';
+            var tenant_id = '<?php echo esc_js(get_option('azure_chatbot_oauth_tenant_id', '')); ?>';
+            
+            var config = {
+                endpoint: 'https://' + resource.name + '.' + resource.location + '.services.ai.azure.com/api/projects/' + resource.name,
+                project_name: resource.name,
+                location: resource.location,
+                client_id: client_id,
+                tenant_id: tenant_id,
+                agent_id: agentResponse.data.agent_id,
+                agent_name: agentName
+            };
+            
+            completeSetup('agent', config);
+        } else {
+            console.error('[Auto Setup] Agent 생성 실패:', agentResponse.data.message);
+            alert('<?php esc_html_e('Agent 생성 실패:', 'azure-ai-chatbot'); ?> ' + agentResponse.data.message);
+        }
+    });
 }
 
 // Resource Group 생성 함수
