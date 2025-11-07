@@ -1418,8 +1418,11 @@ class Azure_Chatbot_OAuth {
         // 모드 정보 (현재 자동 설정을 실행한 모드)
         $current_mode = isset($settings_data['mode']) ? sanitize_text_field($settings_data['mode']) : 'chat';
         
-        // 주의: mode 필드는 업데이트하지 않음 (사용자가 설정 페이지에서 선택한 모드 유지)
-        // $settings['mode']는 그대로 유지
+        // 중요: mode 필드는 업데이트하지 않음 (사용자가 설정 페이지에서 선택한 모드 유지)
+        // 단, 아직 mode가 설정되지 않았다면 현재 모드로 설정
+        if (!isset($settings['mode']) || empty($settings['mode'])) {
+            $settings['mode'] = $current_mode;
+        }
         
         if ($current_mode === 'chat') {
             // Chat 모드 설정 저장 (Agent 설정은 유지)
@@ -1435,7 +1438,15 @@ class Azure_Chatbot_OAuth {
                 $settings['api_key_encrypted'] = $this->encrypt_api_key($api_key);
             }
             
-            error_log('[Azure OAuth] Chat 모드 설정 저장 완료 (Agent 설정 유지)');
+            // Chat Provider 기본값 설정
+            if (!isset($settings['chat_provider'])) {
+                $settings['chat_provider'] = 'azure-openai';
+            }
+            
+            error_log('[Azure OAuth] Chat 모드 설정 저장 완료:');
+            error_log('  - chat_endpoint: ' . ($settings['chat_endpoint'] ?? ''));
+            error_log('  - deployment_name: ' . ($settings['deployment_name'] ?? ''));
+            error_log('  - api_key_encrypted: ' . (isset($settings['api_key_encrypted']) ? 'YES' : 'NO'));
             
         } else if ($current_mode === 'agent') {
             // Agent 모드 설정 저장 (Chat 설정은 유지)
@@ -1457,17 +1468,28 @@ class Azure_Chatbot_OAuth {
                 $settings['tenant_id'] = sanitize_text_field($settings_data['tenant_id']);
             }
             
-            error_log('[Azure OAuth] Agent 모드 설정 저장 완료 (Chat 설정 유지)');
+            error_log('[Azure OAuth] Agent 모드 설정 저장 완료:');
+            error_log('  - agent_endpoint: ' . ($settings['agent_endpoint'] ?? ''));
+            error_log('  - agent_id: ' . ($settings['agent_id'] ?? ''));
+            error_log('  - client_id: ' . ($settings['client_id'] ?? ''));
+            error_log('  - tenant_id: ' . ($settings['tenant_id'] ?? ''));
+            error_log('  - client_secret_encrypted: ' . (isset($settings['client_secret_encrypted']) ? 'YES' : 'NO'));
         }
         
         // 설정 저장
-        update_option('azure_chatbot_settings', $settings);
+        $save_result = update_option('azure_chatbot_settings', $settings);
         
-        error_log('[Azure OAuth] ajax_save_existing_config - 전체 설정 저장 완료: ' . print_r($settings, true));
+        error_log('[Azure OAuth] update_option 결과: ' . ($save_result ? 'SUCCESS' : 'FAILED or NO CHANGE'));
+        error_log('[Azure OAuth] 저장된 전체 설정: ' . print_r($settings, true));
+        
+        // 저장 후 다시 읽어서 확인
+        $saved_settings = get_option('azure_chatbot_settings', array());
+        error_log('[Azure OAuth] DB에서 다시 읽은 설정: ' . print_r($saved_settings, true));
         
         wp_send_json_success(array(
             'message' => '설정이 저장되었습니다! (' . $current_mode . ' 모드 설정 완료, 기존 설정 유지)',
-            'settings' => $settings
+            'settings' => $saved_settings,
+            'save_result' => $save_result
         ));
     }
     
