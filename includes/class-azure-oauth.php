@@ -620,7 +620,7 @@ class Azure_Chatbot_OAuth {
     }
     
     /**
-     * AJAX: Agent ID 목록 조회 (Agent 모드 ?�용)
+     * AJAX: Agent ID 목록 조회 (Agent 모드 전용)
      */
     public function ajax_get_agents() {
         check_ajax_referer('azure_oauth_nonce', 'nonce');
@@ -635,11 +635,19 @@ class Azure_Chatbot_OAuth {
             wp_send_json_error(array('message' => 'Resource ID가 필요합니다.'));
         }
         
+        // OAuth 설정에서 인증 정보 가져오기 (이미 검증된 값)
+        $client_id = $this->client_id;
+        $tenant_id = $this->tenant_id;
+        
+        if (empty($client_id) || empty($tenant_id)) {
+            wp_send_json_error(array('message' => 'OAuth 설정이 올바르지 않습니다. Client ID와 Tenant ID를 확인하세요.'));
+        }
+        
         // AI Foundry Project의 Endpoint 조회
-        $resource_info = $this->call_azure_api($resource_id, '2023-10-01');
+        $resource_info = $this->call_azure_api($resource_id, '2023-05-01');
         
         if (is_wp_error($resource_info)) {
-            wp_send_json_error(array('message' => '리소스 정보 조회 실패: ' . $resource_info->get_error_message()));
+            wp_send_json_error(array('message' => $resource_info->get_error_message()));
         }
         
         // Discovery URL (Project Endpoint) 추출
@@ -650,52 +658,77 @@ class Azure_Chatbot_OAuth {
         if (empty($discovery_url)) {
             wp_send_json_error(array('message' => 'Project Endpoint를 찾을 수 없습니다.'));
         }
-
-        // 프로젝트 이름 추출 (보통 리소스 이름과 동일)
-        $project_name = isset($resource_info['name']) ? $resource_info['name'] : '';
-        if (empty($project_name)) {
-            wp_send_json_error(array('message' => '프로젝트 이름을 찾을 수 없습니다.'));
-        }
-
-        // discoveryUrl에서 호스트 부분만 추출
+        
+        // Agent 목록 조회 (OpenAI Assistants API 사용)
+        // 올바른 엔드포인트: https://{endpoint}/openai/assistants?api-version=2024-05-01-preview
+        // discovery_url 형식: https://xxxxx.services.ai.azure.com/discovery/...
+        // 필요한 형식: https://xxxxx.openai.azure.com/openai/assistants
+        
+        // Discovery URL에서 base endpoint 추출
         $parsed_url = parse_url($discovery_url);
         $host = isset($parsed_url['host']) ? $parsed_url['host'] : '';
+        
         if (empty($host)) {
-            wp_send_json_error(array('message' => 'Project Endpoint 호스트를 파싱할 수 없습니다.'));
-        }
-
-        // Agent 목록 조회 URL 구성 (사용자 제공 코드 기반)
-        // 형식: https://{host}/api/projects/{projectName}/agents
-        $agents_url = 'https://' . $host . '/api/projects/' . $project_name . '/agents';
-        
-        // API 호출 (Bearer 토큰 사용)
-        $result = $this->call_azure_api($agents_url, null, 'GET', null, false);
-
-        if (is_wp_error($result)) {
-            wp_send_json_error(array(
-                'message' => 'Agent 목록 조회 실패: ' . $result->get_error_message(),
-                'debug' => array(
-                    'url' => $agents_url,
-                    'error_code' => $result->get_error_code(),
-                    'error_data' => $result->get_error_data()
-                )
-            ));
+            wp_send_json_error(array('message' => 'Discovery URL 파싱 실패'));
         }
         
-        if (!isset($result['value']) || !is_array($result['value'])) {
+        // services.ai.azure.com을 openai.azure.com으로 변경
+        $openai_host = str_replace('.services.ai.azure.com', '.openai.azure.com', $host);
+        $agents_url = 'https://' . $openai_host . '/openai/assistants?api-version=2024-05-01-preview';
+        
+        // OAuth Access Token으로 인증 (이미 검증된 토큰 사용)
+        $access_token = $this->get_access_token();
+        if (is_wp_error($access_token)) {
+            wp_send_json_error(array('message' => 'OAuth 토큰을 가져올 수 없습니다: ' . $access_token->get_error_message()));
+        }
+        
+        $response = wp_remote_get($agents_url, array(
+            'headers' => array(
+                'Authorization' => 'Bearer ' . $access_token,
+                'Content-Type' => 'application/json'
+            ),
+            'timeout' => 30
+        ));
+        
+        if (is_wp_error($response)) {
+            wp_send_json_error(array('message' => 'Agent 목록 조회 실패: ' . $response->get_error_message()));
+        }
+        
+        $status_code = wp_remote_retrieve_response_code($response);
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
+        
+        // 디버그 로그
+        error_log('[Azure OAuth] Agent 조회 요청 URL: ' . $agents_url);
+        error_log('[Azure OAuth] Agent 조회 응답 코드: ' . $status_code);
+        error_log('[Azure OAuth] Agent 조회 응답 본문: ' . $body);
+        
+        if ($status_code !== 200) {
+            $error_msg = 'Agent 목록 조회 실패 (HTTP ' . $status_code . ')';
+            if (isset($data['error']['message'])) {
+                $error_msg .= ': ' . $data['error']['message'];
+            }
+            wp_send_json_error(array('message' => $error_msg, 'debug' => array(
+                'url' => $agents_url,
+                'status' => $status_code,
+                'response' => $body
+            )));
+        }
+        
+        if (!isset($data['data']) || !is_array($data['data'])) {
             wp_send_json_error(array('message' => 'Agent 목록을 찾을 수 없습니다. Project에 Agent가 생성되어 있는지 확인하세요.', 'debug' => array(
                 'url' => $agents_url,
-                'response' => $result
+                'response' => $body
             )));
         }
         
         $agents = array();
-        foreach ($result['value'] as $agent) {
+        foreach ($data['data'] as $agent) {
             $agents[] = array(
-                'id' => $agent['name'], // AI Project API는 id 대신 name을 사용
-                'name' => isset($agent['properties']['displayName']) ? $agent['properties']['displayName'] : $agent['name'],
-                'description' => isset($agent['properties']['description']) ? $agent['properties']['description'] : '',
-                'created_at' => isset($agent['systemData']['createdAt']) ? $agent['systemData']['createdAt'] : ''
+                'id' => $agent['id'],
+                'name' => isset($agent['name']) ? $agent['name'] : $agent['id'],
+                'description' => isset($agent['description']) ? $agent['description'] : '',
+                'created_at' => isset($agent['created_at']) ? $agent['created_at'] : ''
             );
         }
         
