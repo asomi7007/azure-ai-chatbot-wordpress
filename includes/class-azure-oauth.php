@@ -1272,41 +1272,92 @@ class Azure_Chatbot_OAuth {
             wp_send_json_error(array('message' => 'Azure 토큰을 가져올 수 없습니다.'));
         }
         
-        // AI Foundry Project에서 배포 목록 조회
-        $api_url = "https://management.azure.com" . $resource_id . "/deployments?api-version=2024-05-01-preview";
-        
-        $response = wp_remote_get($api_url, array(
-            'headers' => array(
-                'Authorization' => 'Bearer ' . $access_token,
-                'Content-Type' => 'application/json'
-            ),
-            'timeout' => 30
-        ));
-        
-        if (is_wp_error($response)) {
-            wp_send_json_error(array('message' => '배포 목록 조회 실패: ' . $response->get_error_message()));
-        }
-        
-        $body = wp_remote_retrieve_body($response);
-        $data = json_decode($body, true);
-        $status_code = wp_remote_retrieve_response_code($response);
-        
-        if ($status_code !== 200) {
-            wp_send_json_error(array('message' => '배포 목록 조회 실패: HTTP ' . $status_code));
-        }
+        // 리소스 타입 판별
+        $is_cognitive_services = strpos($resource_id, '/Microsoft.CognitiveServices/accounts/') !== false;
+        $is_ai_foundry = strpos($resource_id, '/Microsoft.MachineLearningServices/workspaces/') !== false;
         
         $deployments = array();
-        if (isset($data['value']) && is_array($data['value'])) {
-            foreach ($data['value'] as $deployment) {
-                if (isset($deployment['name']) && isset($deployment['properties'])) {
-                    $deployments[] = array(
-                        'name' => $deployment['name'],
-                        'model' => isset($deployment['properties']['model']['name']) ? $deployment['properties']['model']['name'] : '',
-                        'version' => isset($deployment['properties']['model']['version']) ? $deployment['properties']['model']['version'] : '',
-                        'status' => isset($deployment['properties']['provisioningState']) ? $deployment['properties']['provisioningState'] : ''
-                    );
+        
+        if ($is_cognitive_services) {
+            // Cognitive Services: 배포 목록 API
+            $api_url = "https://management.azure.com" . $resource_id . "/deployments?api-version=2023-05-01";
+            
+            $response = wp_remote_get($api_url, array(
+                'headers' => array(
+                    'Authorization' => 'Bearer ' . $access_token,
+                    'Content-Type' => 'application/json'
+                ),
+                'timeout' => 30
+            ));
+            
+            if (is_wp_error($response)) {
+                wp_send_json_error(array('message' => '배포 목록 조회 실패: ' . $response->get_error_message()));
+            }
+            
+            $body = wp_remote_retrieve_body($response);
+            $data = json_decode($body, true);
+            $status_code = wp_remote_retrieve_response_code($response);
+            
+            if ($status_code !== 200) {
+                error_log('[Azure OAuth] Cognitive Services 배포 조회 실패 - HTTP ' . $status_code);
+                error_log('[Azure OAuth] Response: ' . $body);
+                wp_send_json_error(array('message' => '배포 목록 조회 실패: HTTP ' . $status_code . ' - ' . substr($body, 0, 200)));
+            }
+            
+            if (isset($data['value']) && is_array($data['value'])) {
+                foreach ($data['value'] as $deployment) {
+                    if (isset($deployment['name']) && isset($deployment['properties'])) {
+                        $deployments[] = array(
+                            'name' => $deployment['name'],
+                            'model' => isset($deployment['properties']['model']['name']) ? $deployment['properties']['model']['name'] : '',
+                            'version' => isset($deployment['properties']['model']['version']) ? $deployment['properties']['model']['version'] : '',
+                            'status' => isset($deployment['properties']['provisioningState']) ? $deployment['properties']['provisioningState'] : '',
+                            'capacity' => isset($deployment['sku']['capacity']) ? $deployment['sku']['capacity'] : ''
+                        );
+                    }
                 }
             }
+            
+        } else if ($is_ai_foundry) {
+            // AI Foundry Project: 배포 목록 API
+            $api_url = "https://management.azure.com" . $resource_id . "/deployments?api-version=2024-05-01-preview";
+            
+            $response = wp_remote_get($api_url, array(
+                'headers' => array(
+                    'Authorization' => 'Bearer ' . $access_token,
+                    'Content-Type' => 'application/json'
+                ),
+                'timeout' => 30
+            ));
+            
+            if (is_wp_error($response)) {
+                wp_send_json_error(array('message' => '배포 목록 조회 실패: ' . $response->get_error_message()));
+            }
+            
+            $body = wp_remote_retrieve_body($response);
+            $data = json_decode($body, true);
+            $status_code = wp_remote_retrieve_response_code($response);
+            
+            if ($status_code !== 200) {
+                error_log('[Azure OAuth] AI Foundry 배포 조회 실패 - HTTP ' . $status_code);
+                error_log('[Azure OAuth] Response: ' . $body);
+                wp_send_json_error(array('message' => '배포 목록 조회 실패: HTTP ' . $status_code . ' - ' . substr($body, 0, 200)));
+            }
+            
+            if (isset($data['value']) && is_array($data['value'])) {
+                foreach ($data['value'] as $deployment) {
+                    if (isset($deployment['name']) && isset($deployment['properties'])) {
+                        $deployments[] = array(
+                            'name' => $deployment['name'],
+                            'model' => isset($deployment['properties']['model']['name']) ? $deployment['properties']['model']['name'] : '',
+                            'version' => isset($deployment['properties']['model']['version']) ? $deployment['properties']['model']['version'] : '',
+                            'status' => isset($deployment['properties']['provisioningState']) ? $deployment['properties']['provisioningState'] : ''
+                        );
+                    }
+                }
+            }
+        } else {
+            wp_send_json_error(array('message' => '지원하지 않는 리소스 타입입니다.'));
         }
         
         wp_send_json_success(array(
