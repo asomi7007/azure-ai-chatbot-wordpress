@@ -1667,6 +1667,8 @@ function createAIResourceInRG(subscriptionId, rgName, location) {
 // Agent 확인 및 생성
 function checkAndCreateAgent(resourceId, subscriptionId, rgName, config, existingResource) {
     console.log('[Auto Setup] Agent 확인 중...');
+    console.log('[Auto Setup] Resource ID:', resourceId);
+    console.log('[Auto Setup] existingResource:', existingResource);
     
     jQuery.post(ajaxurl, {
         action: 'azure_oauth_get_agents',
@@ -1676,29 +1678,99 @@ function checkAndCreateAgent(resourceId, subscriptionId, rgName, config, existin
         if (response.success && response.data.agents.length > 0) {
             // 기존 Agent 있음
             var agent = response.data.agents[0];
-            console.log('[Auto Setup] 기존 Agent 사용:', agent.name);
+            console.log('[Auto Setup] 기존 Agent 사용:', agent.name, 'ID:', agent.id);
+            
+            // OAuth Client ID와 Tenant ID 가져오기
+            var client_id = '<?php echo esc_js(get_option('azure_chatbot_oauth_client_id', '')); ?>';
+            var tenant_id = '<?php echo esc_js(get_option('azure_chatbot_oauth_tenant_id', '')); ?>';
+            var client_secret = '<?php echo esc_js(get_option('azure_chatbot_oauth_client_secret', '')); ?>';
+            
+            console.log('[Auto Setup] OAuth Client ID:', client_id);
+            console.log('[Auto Setup] OAuth Tenant ID:', tenant_id);
+            console.log('[Auto Setup] OAuth Client Secret:', client_secret ? '***' : '(empty)');
             
             // 기존 리소스인 경우 설정 정보 구성
-            if (existingResource && !config) {
-                var client_id = get_option('azure_chatbot_oauth_client_id', '');
-                var tenant_id = get_option('azure_chatbot_oauth_tenant_id', '');
-                
+            if (existingResource) {
+                console.log('[Auto Setup] 기존 리소스 설정 구성 중...');
                 config = {
-                    endpoint: 'https://' + existingResource.name + '.' + existingResource.location + '.services.ai.azure.com/api/projects/' + existingResource.name,
+                    agent_endpoint: 'https://' + existingResource.name + '.' + existingResource.location + '.services.ai.azure.com/agents/v1.0/projects/' + existingResource.name,
                     project_name: existingResource.name,
                     location: existingResource.location,
                     client_id: client_id,
                     tenant_id: tenant_id,
-                    agent_id: agent.id,
+                    client_secret: client_secret,
+                    agent_id: agent.id || agent.name,
                     agent_name: agent.name
                 };
+                
+                console.log('[Auto Setup] Agent 모드 설정 구성:', config);
+                
+                // Agent 모드 설정 저장
+                var settings = {
+                    mode: 'agent',
+                    agent_endpoint: config.agent_endpoint,
+                    agent_id: config.agent_id,
+                    client_id: config.client_id,
+                    tenant_id: config.tenant_id,
+                    client_secret: config.client_secret
+                };
+                
+                console.log('[Auto Setup] Agent 모드 설정 저장 요청:', settings);
+                
+                jQuery.post(ajaxurl, {
+                    action: 'azure_oauth_save_existing_config',
+                    nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
+                    settings: settings
+                }, function(saveResponse) {
+                    console.log('[Auto Setup] Agent 모드 설정 저장 응답:', saveResponse);
+                    if (saveResponse.success) {
+                        console.log('[Auto Setup] Agent 모드 설정 완료');
+                        completeSetup('agent', config);
+                    } else {
+                        console.warn('[Auto Setup] Agent 모드 설정 저장 실패, 기본 저장으로 대체');
+                        completeSetup('agent', config);
+                    }
+                }).fail(function(xhr, status, error) {
+                    console.error('[Auto Setup] Agent 모드 설정 저장 AJAX 실패:', { status, error });
+                    console.error('[Auto Setup] XHR Response:', xhr.responseText);
+                    completeSetup('agent', config);
+                });
             } else if (config) {
                 // 새로 생성된 리소스인 경우 Agent 정보 추가
-                config.agent_id = agent.id;
+                console.log('[Auto Setup] 새 리소스에 Agent 정보 추가');
+                config.agent_id = agent.id || agent.name;
                 config.agent_name = agent.name;
+                config.client_id = client_id;
+                config.tenant_id = tenant_id;
+                config.client_secret = client_secret;
+                
+                // Agent 모드 설정 저장
+                var settings = {
+                    mode: 'agent',
+                    agent_endpoint: config.agent_endpoint || config.endpoint,
+                    agent_id: config.agent_id,
+                    client_id: config.client_id,
+                    tenant_id: config.tenant_id,
+                    client_secret: config.client_secret
+                };
+                
+                jQuery.post(ajaxurl, {
+                    action: 'azure_oauth_save_existing_config',
+                    nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
+                    settings: settings
+                }, function(saveResponse) {
+                    if (saveResponse.success) {
+                        console.log('[Auto Setup] Agent 모드 설정 완료 (새 리소스)');
+                        completeSetup('agent', config);
+                    } else {
+                        console.warn('[Auto Setup] Agent 모드 설정 저장 실패, 기본 저장으로 대체');
+                        completeSetup('agent', config);
+                    }
+                }).fail(function() {
+                    console.warn('[Auto Setup] Agent 모드 설정 저장 AJAX 실패, 기본 저장으로 대체');
+                    completeSetup('agent', config);
+                });
             }
-            
-            completeSetup(operationMode, config);
         } else {
             // Agent 없음 - 선택 옵션 제공
             if (existingResource) {

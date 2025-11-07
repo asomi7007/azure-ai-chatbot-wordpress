@@ -1410,35 +1410,107 @@ class Azure_Chatbot_OAuth {
             wp_send_json_error(array('message' => '설정 데이터가 누락되었습니다.'));
         }
         
+        error_log('[Azure OAuth] ajax_save_existing_config - settings_data: ' . print_r($settings_data, true));
+        
         // 현재 설정 가져오기
         $settings = get_option('azure_chatbot_settings', array());
         
-        // 전달받은 설정 병합
-        if (isset($settings_data['mode'])) {
-            $settings['mode'] = sanitize_text_field($settings_data['mode']);
-        }
-        if (isset($settings_data['provider'])) {
-            $settings['provider'] = sanitize_text_field($settings_data['provider']);
-        }
-        if (isset($settings_data['chat_endpoint'])) {
-            $settings['chat_endpoint'] = sanitize_text_field($settings_data['chat_endpoint']);
-        }
-        if (isset($settings_data['deployment_name'])) {
-            $settings['deployment_name'] = sanitize_text_field($settings_data['deployment_name']);
-        }
-        if (isset($settings_data['api_key'])) {
-            // API Key는 암호화하여 저장
-            $plugin = Azure_AI_Chatbot::get_instance();
-            $settings['api_key_encrypted'] = $plugin->encrypt($settings_data['api_key']);
+        // 모드별 설정 저장
+        $mode = isset($settings_data['mode']) ? sanitize_text_field($settings_data['mode']) : 'chat';
+        $settings['mode'] = $mode;
+        
+        if ($mode === 'chat') {
+            // Chat 모드 설정
+            if (isset($settings_data['chat_endpoint'])) {
+                $settings['chat_endpoint'] = sanitize_text_field($settings_data['chat_endpoint']);
+            }
+            if (isset($settings_data['deployment_name'])) {
+                $settings['deployment_name'] = sanitize_text_field($settings_data['deployment_name']);
+            }
+            if (isset($settings_data['api_key'])) {
+                // API Key는 암호화하여 저장
+                $api_key = sanitize_text_field($settings_data['api_key']);
+                $settings['api_key_encrypted'] = $this->encrypt_api_key($api_key);
+            }
+        } else if ($mode === 'agent') {
+            // Agent 모드 설정
+            if (isset($settings_data['agent_endpoint'])) {
+                $settings['agent_endpoint'] = sanitize_text_field($settings_data['agent_endpoint']);
+            }
+            if (isset($settings_data['agent_id'])) {
+                $settings['agent_id'] = sanitize_text_field($settings_data['agent_id']);
+            }
+            if (isset($settings_data['client_id'])) {
+                $settings['client_id'] = sanitize_text_field($settings_data['client_id']);
+            }
+            if (isset($settings_data['client_secret'])) {
+                // Client Secret은 암호화하여 저장
+                $client_secret = sanitize_text_field($settings_data['client_secret']);
+                $settings['client_secret_encrypted'] = $this->encrypt_api_key($client_secret);
+            }
+            if (isset($settings_data['tenant_id'])) {
+                $settings['tenant_id'] = sanitize_text_field($settings_data['tenant_id']);
+            }
         }
         
         // 설정 저장
         update_option('azure_chatbot_settings', $settings);
         
+        error_log('[Azure OAuth] ajax_save_existing_config - settings saved: ' . print_r($settings, true));
+        
         wp_send_json_success(array(
-            'message' => '설정이 저장되었습니다! (API Key 포함)',
+            'message' => '설정이 저장되었습니다! (' . $mode . ' 모드)',
             'settings' => $settings
         ));
+    }
+    
+    /**
+     * API Key 암호화 (간단한 base64 인코딩)
+     */
+    private function encrypt_api_key($key) {
+        if (empty($key)) {
+            return '';
+        }
+        
+        // OpenSSL 사용 가능 시 암호화, 아니면 base64만 사용
+        if (function_exists('openssl_encrypt')) {
+            $method = 'aes-256-cbc';
+            $encryption_key = $this->get_encryption_key();
+            $iv_length = openssl_cipher_iv_length($method);
+            $iv = openssl_random_pseudo_bytes($iv_length);
+            
+            $encrypted = openssl_encrypt(
+                $key,
+                $method,
+                $encryption_key,
+                OPENSSL_RAW_DATA,
+                $iv
+            );
+            
+            return base64_encode($iv . $encrypted);
+        }
+        
+        return base64_encode($key);
+    }
+    
+    /**
+     * 암호화 키 생성
+     */
+    private function get_encryption_key() {
+        $key_parts = [
+            defined('AUTH_KEY') ? AUTH_KEY : '',
+            defined('SECURE_AUTH_KEY') ? SECURE_AUTH_KEY : '',
+            defined('LOGGED_IN_KEY') ? LOGGED_IN_KEY : '',
+            defined('NONCE_KEY') ? NONCE_KEY : ''
+        ];
+        
+        $combined_key = implode('', $key_parts);
+        
+        if (empty($combined_key)) {
+            $combined_key = 'default-insecure-key-' . get_site_url();
+        }
+        
+        return hash('sha256', $combined_key, true);
     }
 }
 
