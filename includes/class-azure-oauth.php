@@ -635,14 +635,6 @@ class Azure_Chatbot_OAuth {
             wp_send_json_error(array('message' => 'Resource ID가 필요합니다.'));
         }
         
-        // OAuth 설정에서 인증 정보 가져오기 (이미 검증된 값)
-        $client_id = $this->client_id;
-        $tenant_id = $this->tenant_id;
-        
-        if (empty($client_id) || empty($tenant_id)) {
-            wp_send_json_error(array('message' => 'OAuth 설정이 올바르지 않습니다. Client ID와 Tenant ID를 확인하세요.'));
-        }
-        
         // AI Foundry Project의 Endpoint 조회
         $resource_info = $this->call_azure_api($resource_id, '2023-05-01');
         
@@ -657,6 +649,30 @@ class Azure_Chatbot_OAuth {
             
         if (empty($discovery_url)) {
             wp_send_json_error(array('message' => 'Project Endpoint를 찾을 수 없습니다.'));
+        }
+        
+        // Resource ID에서 구독 ID와 리소스 그룹 추출
+        // 형식: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/...
+        if (!preg_match('#/subscriptions/([^/]+)/resourceGroups/([^/]+)/#', $resource_id, $matches)) {
+            wp_send_json_error(array('message' => 'Resource ID 형식이 올바르지 않습니다.'));
+        }
+        
+        $subscription_id = $matches[1];
+        $resource_group = $matches[2];
+        
+        // AI Foundry Project의 API Key 가져오기
+        $keys_endpoint = $resource_id . '/listKeys?api-version=2023-05-01';
+        $keys_response = $this->call_azure_api($keys_endpoint, null, 'POST');
+        
+        if (is_wp_error($keys_response)) {
+            wp_send_json_error(array('message' => 'API Key 조회 실패: ' . $keys_response->get_error_message()));
+        }
+        
+        // Primary Key 추출
+        $subscription_key = isset($keys_response['primaryKey']) ? $keys_response['primaryKey'] : '';
+        
+        if (empty($subscription_key)) {
+            wp_send_json_error(array('message' => 'API Key를 찾을 수 없습니다. Project 설정을 확인하세요.'));
         }
         
         // Agent 목록 조회 (OpenAI Assistants API 사용)
@@ -676,15 +692,9 @@ class Azure_Chatbot_OAuth {
         $openai_host = str_replace('.services.ai.azure.com', '.openai.azure.com', $host);
         $agents_url = 'https://' . $openai_host . '/openai/assistants?api-version=2024-05-01-preview';
         
-        // OAuth Access Token으로 인증 (이미 검증된 토큰 사용)
-        $access_token = $this->get_access_token();
-        if (is_wp_error($access_token)) {
-            wp_send_json_error(array('message' => 'OAuth 토큰을 가져올 수 없습니다: ' . $access_token->get_error_message()));
-        }
-        
         $response = wp_remote_get($agents_url, array(
             'headers' => array(
-                'Authorization' => 'Bearer ' . $access_token,
+                'api-key' => $subscription_key,
                 'Content-Type' => 'application/json'
             ),
             'timeout' => 30
@@ -1570,21 +1580,38 @@ class Azure_Chatbot_OAuth {
                 $settings['agent_id'] = sanitize_text_field($settings_data['agent_id']);
                 $debug_logs[] = '[PHP] agent_id 설정: ' . $settings['agent_id'];
             }
+            
+            // ✅ OAuth 인증에서 받은 Client ID/Secret/Tenant ID 자동 채우기
+            // (프론트엔드에서 전달되지 않았더라도 자동으로 채움)
             if (isset($settings_data['client_id'])) {
                 $settings['client_id'] = sanitize_text_field($settings_data['client_id']);
-                $debug_logs[] = '[PHP] client_id 설정: ' . $settings['client_id'];
+                $debug_logs[] = '[PHP] client_id 설정 (프론트엔드): ' . $settings['client_id'];
+            } else if (!empty($this->client_id)) {
+                // OAuth 설정값 자동 채우기
+                $settings['client_id'] = $this->client_id;
+                $debug_logs[] = '[PHP] client_id 자동 설정 (OAuth): ' . $settings['client_id'];
             }
+            
             if (isset($settings_data['client_secret'])) {
                 // Client Secret은 암호화하여 저장
                 $client_secret = sanitize_text_field($settings_data['client_secret']);
-                $debug_logs[] = '[PHP] Client Secret 길이: ' . strlen($client_secret);
+                $debug_logs[] = '[PHP] Client Secret 길이 (프론트엔드): ' . strlen($client_secret);
                 
                 $settings['client_secret_encrypted'] = $this->encrypt_api_key($client_secret, $debug_logs);
                 $debug_logs[] = '[PHP] client_secret_encrypted 저장: ' . (isset($settings['client_secret_encrypted']) ? 'YES' : 'NO');
+            } else if (!empty($this->client_secret)) {
+                // OAuth 설정값 자동 채우기 (이미 암호화되어 있음)
+                $settings['client_secret_encrypted'] = $this->client_secret;
+                $debug_logs[] = '[PHP] client_secret 자동 설정 (OAuth, 암호화됨)';
             }
+            
             if (isset($settings_data['tenant_id'])) {
                 $settings['tenant_id'] = sanitize_text_field($settings_data['tenant_id']);
-                $debug_logs[] = '[PHP] tenant_id 설정: ' . $settings['tenant_id'];
+                $debug_logs[] = '[PHP] tenant_id 설정 (프론트엔드): ' . $settings['tenant_id'];
+            } else if (!empty($this->tenant_id)) {
+                // OAuth 설정값 자동 채우기
+                $settings['tenant_id'] = $this->tenant_id;
+                $debug_logs[] = '[PHP] tenant_id 자동 설정 (OAuth): ' . $settings['tenant_id'];
             }
         }
         
