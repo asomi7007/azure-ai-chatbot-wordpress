@@ -3,7 +3,7 @@ Contributors: eldensolution
 Tags: azure, ai, chatbot, chat, ai-assistant
 Requires at least: 6.0
 Tested up to: 6.8
-Stable tag: 3.0.17
+Stable tag: 3.0.40
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -275,6 +275,15 @@ Agent 모드: 고급 기능 지원 (Function Calling, RAG, 파일 업로드 등,
 * 초기 릴리즈
 
 == Upgrade Notice ==
+
+= 3.0.40 =
+UI 개선: 모든 V2 표시 제거, 문서 개선. 기존 설정은 그대로 유지됩니다.
+
+= 3.0.39 =
+중요 업데이트: Chat 엔드포인트 .openai.azure.com 형식 자동 변환. Agent 2개 이상 시 선택 UI 추가.
+
+= 3.0.38 =
+중요 업데이트: 모드 무관 양방향 자동 설정. Chat/Agent 어떤 모드 선택해도 양쪽 설정 모두 자동 저장.
 
 = 3.0.17 =
 긴급 수정: Resource Group 생성 실패 및 토큰 만료 문제 디버깅 개선. 에러 메시지 상세화.

@@ -1,5 +1,424 @@
 # 변경 이력
 
+## [3.0.40] - 2025-11-08
+
+### ✨ **UI 개선 및 문서 정리**
+- **🎨 V2 표시 제거**: 메뉴, 제목 등에서 모든 "V2" 텍스트 제거
+- **📚 문서 개선**: README, 가이드 문서 전면 개편
+- **🌐 한영 번역 개선**: 더 명확한 설명과 구조
+
+### 주요 변경사항
+
+#### UI 텍스트 정리
+**변경 전:**
+- 메뉴: "AI Chatbot V2"
+- 페이지 제목: "Azure AI Chatbot V2"
+
+**변경 후:**
+- 메뉴: "AI Chatbot"
+- 페이지 제목: "Azure AI Chatbot"
+
+#### 문서 개선
+- README.md: 한영 병기, 구조 개선
+- 사용 가이드: 단계별 상세 설명 추가
+- readme.txt: WordPress.org 표준 형식 준수
+- 에러 메시지 가독성 향상
+
+### 파일 변경사항
+- `azure-ai-chatbot.php`: 메뉴 텍스트 정리
+- `README.md`: 전면 개편
+- `readme.txt`: 버전 3.0.40 업데이트
+- `CHANGELOG.md`: 변경사항 기록
+
+## [3.0.39] - 2025-11-09
+
+### ✨ **자동 설정 개선: 엔드포인트 형식 수정 및 Agent 선택 UI**
+- **🔧 Chat 엔드포인트 형식 수정**: `.cognitiveservices.azure.com` → `.openai.azure.com` 자동 변환
+- **🎯 Agent 선택 UI 개선**: 2개 이상 Agent 발견 시 리소스 그룹처럼 모달 선택 UI 제공
+- **📝 양방향 수집 로직 안정화**: Chat + Agent 정보 병렬 수집 시 오류 처리 개선
+
+### 주요 변경사항
+
+#### 🔧 Chat 엔드포인트 형식
+**문제:**
+- Azure Management API가 `.cognitiveservices.azure.com` 형식 반환
+- Chat 모드는 `.openai.azure.com` 형식 필요
+
+**해결:**
+```javascript
+// templates/oauth-auto-setup.php - getResourceApiKeyForBoth()
+if (endpoint.includes('.cognitiveservices.azure.com')) {
+    endpoint = endpoint.replace('.cognitiveservices.azure.com', '.openai.azure.com');
+    console.log('[Auto Setup] [Chat] 엔드포인트 변환됨:', endpoint);
+}
+```
+
+**예시:**
+- ❌ 이전: `https://eduelden04-2296-resource.cognitiveservices.azure.com/`
+- ✅ 현재: `https://eduelden04-2296-resource.openai.azure.com/`
+
+#### 🎯 Agent 선택 UI
+**문제:**
+- Agent 2개 이상일 때 첫 번째만 자동 선택
+- 사용자가 선호하는 Agent 선택 불가
+
+**해결:**
+```javascript
+// Agent 선택 로직
+if (agents.length === 1) {
+    // 1개면 자동 선택
+    processAgent(agents[0]);
+} else {
+    // 2개 이상이면 모달 표시
+    showSelectionModal('Agent 선택', items, false)
+    .then(function(res) {
+        processAgent(agents[sel]);
+    });
+}
+```
+
+**UI:**
+- 리소스 그룹 선택 모달과 동일한 UI/UX
+- Agent 이름 + ID 표시
+- 선택 취소 시 빈 설정으로 진행 (경고 없음)
+
+#### 📝 양방향 수집 로직
+**개선:**
+- Chat 정보 수집 실패 시에도 Agent 수집 계속 진행
+- Agent 선택 취소 시 빈 설정(`{}`)으로 callback 호출
+- 에러 처리 개선: `console.warn` 사용, alert 제거
+
+### 설정 예시
+
+#### Chat 모드 (자동 변환)
+```
+chat_endpoint: https://your-resource.openai.azure.com
+deployment_name: gpt-4o
+api_key_encrypted: [암호화된 키]
+```
+
+#### Agent 모드 (2개 이상 선택)
+```
+Agent 선택 모달:
+  ○ agent-prod (ID: a1b2c3d4)
+  ● agent-dev (ID: e5f6g7h8)  ← 사용자 선택
+  
+저장:
+agent_id: e5f6g7h8
+agent_endpoint: https://project.region.services.ai.azure.com/...
+```
+
+### 디버그 로그
+```
+[Auto Setup] [Chat] 엔드포인트 변환됨: https://xxx.openai.azure.com/
+[Auto Setup] [Agent] Agent 선택 모달 표시 (3개)
+[Auto Setup] [Agent] 사용자 선택 Agent: agent-dev
+```
+
+## [3.0.38] - 2025-11-09
+
+### ✨ **모드 무관 양방향 자동 설정**
+- **🔄 Chat + Agent 양쪽 정보 동시 수집**: 사용자가 선택한 모드(Chat/Agent)와 무관하게 **양쪽 모두** 자동 수집
+- **📦 통합 설정 저장**: 한 번의 자동 설정으로 Chat 모드 + Agent 모드 설정 모두 완료
+- **🎯 사용자 요구사항**: "챗모드를 선택하던 에이전트 모드를 선택하던 챗모드의 값과 에이전트 모드 값을 다 자동으로 가지고 와서 체우라고"
+
+### 주요 변경사항
+#### 🔧 `templates/oauth-auto-setup.php`
+- **`collectBothChatAndAgentConfig()` 함수 추가**: Chat + Agent 정보를 동시에 수집하는 새 함수
+- **`checkAIResources()` 함수 수정**: 
+  - ❌ 이전: `if (operationMode === 'agent')` 분기 처리 (한쪽만 수집)
+  - ✅ 현재: `collectBothChatAndAgentConfig()` 호출 (양쪽 모두 수집)
+- **양방향 수집 전용 함수**:
+  - `getExistingResourceConfigForBoth()`: Chat 정보 수집 (배포, API Key, 엔드포인트)
+  - `checkAndCreateAgentForBoth()`: Agent 정보 수집 (Agent 목록, Client ID/Secret)
+  - `checkBothCollected()`: 양쪽 수집 완료 확인 및 리다이렉트
+
+### 설정 프로세스
+1. **OAuth 인증 및 리소스 선택**
+2. **Chat 정보 자동 수집** ✅
+   - 배포 목록 조회 → 첫 번째 배포 자동 선택
+   - API Key 조회 → Azure OpenAI 엔드포인트 획득
+   - `azure_oauth_save_existing_config` AJAX로 저장 (mode='chat')
+3. **Agent 정보 자동 수집** ✅
+   - Agent 목록 조회 → 첫 번째 Agent 자동 선택
+   - OAuth Client ID/Secret 획득
+   - `azure_oauth_save_existing_config` AJAX로 저장 (mode='agent')
+4. **양쪽 수집 완료 확인**
+   - `checkBothCollected()` → 통합 성공 메시지
+   - "Chat 모드와 Agent 모드 설정이 모두 저장되었습니다."
+
+### 저장되는 필드
+#### Chat 모드
+- ✅ `chat_endpoint`: Azure OpenAI 엔드포인트
+- ✅ `deployment_name`: 배포 이름 (gpt-4o 등)
+- ✅ `api_key_encrypted`: 암호화된 API Key
+
+#### Agent 모드
+- ✅ `agent_endpoint`: AI Foundry Project 엔드포인트
+- ✅ `agent_id`: Agent ID
+- ✅ `client_id`: OAuth Client ID
+- ✅ `tenant_id`: Tenant ID
+- ✅ `client_secret_encrypted`: 암호화된 Client Secret
+
+### 디버그 로그
+- **Chat 수집**: `[Auto Setup] [Chat] ...`
+- **Agent 수집**: `[Auto Setup] [Agent] ...`
+- **통합 확인**: `[Auto Setup] ========== Chat + Agent 양방향 수집 완료 ==========`
+
+### 사용자 경험
+- **이전**: Chat 모드 선택 → Chat 값만 저장, Agent 값 빈칸
+- **현재**: Chat/Agent 어떤 모드 선택해도 → **양쪽 값 모두 자동 저장**
+- **설정 페이지**: 모드 전환 시 양쪽 값 모두 유지 ✅
+
+## [3.0.34] - 2025-11-08
+
+### ✨ 성공 메시지 개선 및 Agent 모드 확인
+- **📝 통합 성공 메시지**: "자동 설정이 완료되었습니다!" (모드별 상세 설명 포함)
+- **🔍 Agent 모드 자동 설정 확인**: 
+  - ✅ Agent 목록 조회
+  - ✅ Agent 선택 (1개: 자동, 2개 이상: 모달)
+  - ✅ Agent 설정 저장 (endpoint, agent_id, client_id, tenant_id, client_secret)
+  - ✅ 설정 필드 개별 확인 로깅
+
+### 성공 메시지 변경
+**이전:**
+- Chat 모드: "Chat 모드 설정이 완료되었습니다!"
+- Agent 모드: "Agent 모드 설정이 완료되었습니다!"
+
+**변경:**
+- 공통: "자동 설정이 완료되었습니다!"
+- Chat 모드 상세: "Chat 모드 설정(Endpoint, Deployment, API Key)이 저장되었습니다."
+- Agent 모드 상세: "Agent 모드 설정(Project, Agent, Client ID/Secret)이 저장되었습니다."
+
+### Agent 모드 자동 설정 플로우
+1. OAuth 인증
+2. Subscription 선택
+3. Resource Group 선택
+4. AI Foundry Project 선택
+5. **Agent 목록 조회** ✅
+6. **Agent 선택** (자동 또는 모달) ✅
+7. **Client ID/Secret 포함 설정 저장** ✅
+8. 성공 메시지 및 리다이렉트
+
+### 확인된 기능
+- ✅ Chat 모드: Endpoint, Deployment, API Key 자동 저장
+- ✅ Agent 모드: Project, Agent, Client ID/Secret 자동 저장
+- ✅ 양방향 설정 유지 (Chat 설정 ↔ Agent 설정)
+
+## [3.0.33] - 2025-11-08
+
+### 🔐 API Key 암호화 프로세스 상세 로깅
+- **📊 암호화 전 과정 로깅**: `encrypt_api_key()` 함수의 모든 단계 출력
+- **🔍 OpenSSL 상태 확인**: OpenSSL 사용 가능 여부 및 암호화 방식 출력
+- **📏 데이터 길이 추적**: 원본 → 암호화 → base64 각 단계의 길이 출력
+- **✅ 저장 상태 확인**: `$settings` 배열에 실제로 저장되었는지 확인
+
+### WordPress debug.log 출력 예시
+```
+[Azure OAuth] API Key 암호화 시작:
+  - Original API Key length: 88
+  - Original API Key (first 10 chars): 6AZiAu7mKc...
+  - Encrypted result: SUCCESS
+  - Encrypted length: 128
+  - Encrypted (first 20 chars): dG4yN3B5T...
+  - Saved to $settings: YES
+
+[Azure OAuth] encrypt_api_key() 호출됨
+  - Input key empty: NO
+  - Input key length: 88
+  - openssl_encrypt available: YES
+  - Encryption method: aes-256-cbc
+  - Encryption key length: 32
+  - IV length: 16
+  - IV generated: YES
+  - openssl_encrypt result: SUCCESS
+  - Encrypted data length: 96
+  - base64_encode result length: 128
+  - Final result (first 30 chars): dG4yN3B5T...
+```
+
+### 진단 목적
+이 로그로 다음을 확인 가능:
+1. API Key가 함수에 전달되는지
+2. OpenSSL이 정상 작동하는지
+3. 암호화가 성공하는지
+4. `$settings` 배열에 저장되는지
+
+### 사용 방법
+1. v3.0.33 업로드
+2. 자동 설정 실행
+3. debug.log 확인:
+   ```bash
+   tail -100 /var/www/wordpress/wp-content/debug.log | grep -A 20 "API Key 암호화"
+   ```
+
+## [3.0.32] - 2025-11-08
+
+### 🧪 강제 디버그 로그 생성
+- **📝 플러그인 로드 시 자동 로그**: 플러그인 초기화 시 debug.log에 자동으로 로그 작성
+- **🔍 디버그 설정 확인**: `WP_DEBUG`, `WP_DEBUG_LOG` 상태 출력
+- **📁 경로 확인**: `wp-content` 및 `debug.log` 경로 출력
+
+### 로그 출력 예시
+```
+====================================
+[Azure OAuth] Plugin Loaded - 2025-11-08 01:23:45
+[Azure OAuth] WP_DEBUG: TRUE
+[Azure OAuth] WP_DEBUG_LOG: TRUE
+[Azure OAuth] wp-content path: /var/www/wordpress/wp-content
+[Azure OAuth] debug.log path: /var/www/wordpress/wp-content/debug.log
+====================================
+```
+
+### 사용 방법
+1. v3.0.32 업로드
+2. WordPress 관리자 페이지 새로고침
+3. **즉시 debug.log 파일 생성됨**
+4. 확인:
+   ```bash
+   ls -la /var/www/wordpress/wp-content/debug.log
+   tail -50 /var/www/wordpress/wp-content/debug.log
+   ```
+
+### 주의사항
+- 웹 서비스 재시작 **불필요**
+- 플러그인 재활성화 **불필요**
+- 단순 페이지 새로고침만으로 로그 생성
+
+## [3.0.31] - 2025-11-08
+
+### 🔍 필드별 상세 디버깅 로깅 추가
+- **📊 각 필드 개별 확인**: `chat_endpoint`, `deployment_name`, `api_key_encrypted` 등 모든 필드 개별 출력
+- **✅ NOT SET 표시**: 설정되지 않은 필드는 명확히 'NOT SET' 표시
+- **📏 API Key 길이 표시**: 암호화된 API Key의 문자 수 출력
+
+### 기술 세부사항
+**브라우저 콘솔 출력 예시:**
+```javascript
+[Auto Setup] 설정 필드 확인:
+  - mode: chat
+  - chat_endpoint: https://... 또는 NOT SET
+  - deployment_name: gpt-4o 또는 NOT SET
+  - api_key_encrypted: YES (128 chars) 또는 NOT SET
+  - chat_provider: azure-openai 또는 NOT SET
+  - agent_endpoint: NOT SET
+  - agent_id: NOT SET
+  - client_id: NOT SET
+  - tenant_id: NOT SET
+```
+
+### 디버깅 목적
+이 버전으로 테스트하면 **어떤 필드가 실제로 저장되지 않는지** 정확히 파악 가능
+
+### 다음 단계
+1. v3.0.31 업로드
+2. 자동 설정 실행
+3. 브라우저 콘솔에서 "설정 필드 확인" 로그 확인
+4. WordPress debug.log 확인:
+   ```bash
+   tail -100 /var/www/wordpress/wp-content/debug.log | grep "Azure OAuth"
+   ```
+
+## [3.0.30] - 2025-11-08
+
+### 🔧 DB 저장 강제 실행 (Critical Fix)
+- **💾 delete_option + add_option 사용**: `update_option`이 동일 값 저장하지 않는 문제 해결
+- **📊 로깅 대폭 강화**: 저장 전/후 `$settings` 배열 전체 출력
+- **🔍 필드별 상세 로깅**: 각 필드의 실제 값 또는 'NOT SET' 표시
+
+### 기술 세부사항
+**강제 저장 로직:**
+```php
+// update_option 대신 delete + add 사용
+delete_option('azure_chatbot_settings');
+$save_result = add_option('azure_chatbot_settings', $settings, '', 'yes');
+```
+
+**상세 로깅:**
+```php
+error_log('[Azure OAuth] 저장 전 $settings 배열:');
+error_log(print_r($settings, true));
+// ...
+error_log('[Azure OAuth] DB에서 다시 읽은 설정:');
+error_log(print_r($saved_settings, true));
+```
+
+### 디버깅 체크리스트
+WordPress debug.log에서 다음 확인:
+1. ✅ "저장 전 $settings 배열" - Chat 필드들이 있는지
+2. ✅ "delete_option + add_option 결과: SUCCESS"
+3. ✅ "DB에서 다시 읽은 설정" - Chat 필드들이 유지되는지
+4. ✅ 브라우저 콘솔 `saveResponse.data.settings` - Chat 필드 포함 확인
+
+### 영향
+- ❌ 이전: `update_option`이 동일 값 감지 시 저장하지 않음
+- ✅ 수정: `delete + add`로 무조건 강제 저장
+
+## [3.0.29] - 2025-11-08
+
+### 🐛 Session Warning 수정 및 설정 저장 개선
+- **⚠️ Session Warning 수정**: `headers_sent()` 체크 추가로 "Session cannot be started" 경고 해결
+- **📝 chat_provider 자동 설정**: JavaScript에서 제거하고 PHP에서 항상 `azure-openai`로 설정
+- **🔍 로깅 개선**: `chat_provider` 필드도 error_log에 출력
+
+### 기술 세부사항
+**Session 수정:**
+```php
+if (!session_id() && !headers_sent()) {
+    session_start();
+}
+```
+
+**chat_provider 강제 설정:**
+```php
+// Chat Provider는 항상 azure-openai로 설정
+$settings['chat_provider'] = 'azure-openai';
+```
+
+### 디버깅 요청
+다음 로그를 확인하세요:
+```bash
+tail -100 /var/www/wordpress/wp-content/debug.log | grep "Azure OAuth"
+```
+
+### 영향
+- ✅ Session 경고 제거
+- ✅ chat_provider 항상 설정 보장
+- 🔍 WordPress debug.log 확인 필요 (Chat 필드 저장 여부 확인)
+
+## [3.0.28] - 2025-11-08
+
+### 🐛 설정 저장 디버깅 강화
+- **📊 AJAX 응답 상세 로깅 추가**: Chat/Agent 모드 설정 저장 시 saveResponse 전체 출력
+- **⏰ DB 커밋 대기 시간 추가**: completeSetup에서 리다이렉트 전 2초 대기 (WordPress DB 커밋 보장)
+- **🔍 설정 저장 결과 확인**: 브라우저 콘솔에서 저장된 설정 전체 출력
+
+### 기술 세부사항
+**추가된 로깅:**
+```javascript
+console.log('[Auto Setup] Chat 모드 설정 저장 응답:', saveResponse);
+console.log('[Auto Setup] saveResponse.success:', saveResponse.success);
+console.log('[Auto Setup] saveResponse.data:', saveResponse.data);
+console.log('[Auto Setup] 저장된 설정:', saveResponse.data.settings);
+```
+
+**리다이렉트 지연:**
+```javascript
+setTimeout(function() {
+    window.location.href = '...';
+}, 2000); // DB 커밋 시간 보장
+```
+
+### 디버깅 체크리스트
+1. ✅ AJAX 호출 성공 여부 (`saveResponse.success`)
+2. ✅ `update_option` 반환값 (`saveResponse.data.save_result`)
+3. ✅ DB에 저장된 실제 설정 (`saveResponse.data.settings`)
+4. ✅ WordPress error_log의 상세 로그
+
+### 영향
+- 🔍 이전: AJAX 성공 메시지만 출력, DB 저장 상태 불명확
+- ✅ 수정: 저장된 전체 설정을 콘솔에서 확인 가능, 리다이렉트 전 충분한 대기
+
 ## [3.0.17] - 2025-11-07
 
 ### 🐛 긴급 버그 수정 및 디버깅 개선

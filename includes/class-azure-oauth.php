@@ -29,6 +29,15 @@ class Azure_Chatbot_OAuth {
      * ?�성??
      */
     public function __construct() {
+        // 플러그인 로드 시 디버그 로그 테스트
+        error_log('====================================');
+        error_log('[Azure OAuth] Plugin Loaded - ' . date('Y-m-d H:i:s'));
+        error_log('[Azure OAuth] WP_DEBUG: ' . (defined('WP_DEBUG') && WP_DEBUG ? 'TRUE' : 'FALSE'));
+        error_log('[Azure OAuth] WP_DEBUG_LOG: ' . (defined('WP_DEBUG_LOG') && WP_DEBUG_LOG ? 'TRUE' : 'FALSE'));
+        error_log('[Azure OAuth] wp-content path: ' . WP_CONTENT_DIR);
+        error_log('[Azure OAuth] debug.log path: ' . WP_CONTENT_DIR . '/debug.log');
+        error_log('====================================');
+        
         $this->load_config();
         $this->init_hooks();
     }
@@ -1404,109 +1413,169 @@ class Azure_Chatbot_OAuth {
             wp_send_json_error(array('message' => '권한이 없습니다.'));
         }
         
+        // 로그 배열 생성 (콘솔에 출력용)
+        $debug_logs = array();
+        
         $settings_data = isset($_POST['settings']) ? $_POST['settings'] : array();
         
         if (empty($settings_data)) {
             wp_send_json_error(array('message' => '설정 데이터가 누락되었습니다.'));
         }
         
-        error_log('[Azure OAuth] ajax_save_existing_config - settings_data: ' . print_r($settings_data, true));
+        $debug_logs[] = '[PHP] ajax_save_existing_config 호출됨';
+        $debug_logs[] = '[PHP] settings_data: ' . json_encode($settings_data, JSON_UNESCAPED_SLASHES);
         
         // 현재 설정 가져오기 (기존 설정 유지)
         $settings = get_option('azure_chatbot_settings', array());
+        $debug_logs[] = '[PHP] 기존 설정 로드됨: ' . json_encode($settings, JSON_UNESCAPED_SLASHES);
         
         // 모드 정보 (현재 자동 설정을 실행한 모드)
         $current_mode = isset($settings_data['mode']) ? sanitize_text_field($settings_data['mode']) : 'chat';
+        $debug_logs[] = '[PHP] current_mode: ' . $current_mode;
         
         // 중요: mode 필드는 업데이트하지 않음 (사용자가 설정 페이지에서 선택한 모드 유지)
         // 단, 아직 mode가 설정되지 않았다면 현재 모드로 설정
         if (!isset($settings['mode']) || empty($settings['mode'])) {
             $settings['mode'] = $current_mode;
+            $debug_logs[] = '[PHP] mode 필드 설정: ' . $current_mode;
         }
         
         if ($current_mode === 'chat') {
+            $debug_logs[] = '[PHP] Chat 모드 설정 저장 시작';
+            
             // Chat 모드 설정 저장 (Agent 설정은 유지)
             if (isset($settings_data['chat_endpoint'])) {
                 $settings['chat_endpoint'] = sanitize_text_field($settings_data['chat_endpoint']);
+                $debug_logs[] = '[PHP] chat_endpoint 설정: ' . $settings['chat_endpoint'];
             }
             if (isset($settings_data['deployment_name'])) {
                 $settings['deployment_name'] = sanitize_text_field($settings_data['deployment_name']);
+                $debug_logs[] = '[PHP] deployment_name 설정: ' . $settings['deployment_name'];
             }
             if (isset($settings_data['api_key'])) {
                 // API Key는 암호화하여 저장
                 $api_key = sanitize_text_field($settings_data['api_key']);
-                $settings['api_key_encrypted'] = $this->encrypt_api_key($api_key);
+                $debug_logs[] = '[PHP] API Key 원본 길이: ' . strlen($api_key);
+                $debug_logs[] = '[PHP] API Key (first 10): ' . substr($api_key, 0, 10) . '...';
+                
+                $encrypted = $this->encrypt_api_key($api_key, $debug_logs);
+                $debug_logs[] = '[PHP] 암호화 결과: ' . ($encrypted ? 'SUCCESS (' . strlen($encrypted) . ' chars)' : 'FAILED');
+                
+                $settings['api_key_encrypted'] = $encrypted;
+                $debug_logs[] = '[PHP] $settings[api_key_encrypted] 저장: ' . (isset($settings['api_key_encrypted']) && !empty($settings['api_key_encrypted']) ? 'YES' : 'NO');
             }
             
-            // Chat Provider 기본값 설정
-            if (!isset($settings['chat_provider'])) {
-                $settings['chat_provider'] = 'azure-openai';
-            }
-            
-            error_log('[Azure OAuth] Chat 모드 설정 저장 완료:');
-            error_log('  - chat_endpoint: ' . ($settings['chat_endpoint'] ?? ''));
-            error_log('  - deployment_name: ' . ($settings['deployment_name'] ?? ''));
-            error_log('  - api_key_encrypted: ' . (isset($settings['api_key_encrypted']) ? 'YES' : 'NO'));
+            // Chat Provider는 항상 azure-openai로 설정
+            $settings['chat_provider'] = 'azure-openai';
+            $debug_logs[] = '[PHP] chat_provider 설정: azure-openai';
             
         } else if ($current_mode === 'agent') {
+            $debug_logs[] = '[PHP] Agent 모드 설정 저장 시작';
+            
             // Agent 모드 설정 저장 (Chat 설정은 유지)
             if (isset($settings_data['agent_endpoint'])) {
                 $settings['agent_endpoint'] = sanitize_text_field($settings_data['agent_endpoint']);
+                $debug_logs[] = '[PHP] agent_endpoint 설정: ' . $settings['agent_endpoint'];
             }
             if (isset($settings_data['agent_id'])) {
                 $settings['agent_id'] = sanitize_text_field($settings_data['agent_id']);
+                $debug_logs[] = '[PHP] agent_id 설정: ' . $settings['agent_id'];
             }
             if (isset($settings_data['client_id'])) {
                 $settings['client_id'] = sanitize_text_field($settings_data['client_id']);
+                $debug_logs[] = '[PHP] client_id 설정: ' . $settings['client_id'];
             }
             if (isset($settings_data['client_secret'])) {
                 // Client Secret은 암호화하여 저장
                 $client_secret = sanitize_text_field($settings_data['client_secret']);
-                $settings['client_secret_encrypted'] = $this->encrypt_api_key($client_secret);
+                $debug_logs[] = '[PHP] Client Secret 길이: ' . strlen($client_secret);
+                
+                $settings['client_secret_encrypted'] = $this->encrypt_api_key($client_secret, $debug_logs);
+                $debug_logs[] = '[PHP] client_secret_encrypted 저장: ' . (isset($settings['client_secret_encrypted']) ? 'YES' : 'NO');
             }
             if (isset($settings_data['tenant_id'])) {
                 $settings['tenant_id'] = sanitize_text_field($settings_data['tenant_id']);
+                $debug_logs[] = '[PHP] tenant_id 설정: ' . $settings['tenant_id'];
             }
-            
-            error_log('[Azure OAuth] Agent 모드 설정 저장 완료:');
-            error_log('  - agent_endpoint: ' . ($settings['agent_endpoint'] ?? ''));
-            error_log('  - agent_id: ' . ($settings['agent_id'] ?? ''));
-            error_log('  - client_id: ' . ($settings['client_id'] ?? ''));
-            error_log('  - tenant_id: ' . ($settings['tenant_id'] ?? ''));
-            error_log('  - client_secret_encrypted: ' . (isset($settings['client_secret_encrypted']) ? 'YES' : 'NO'));
         }
         
-        // 설정 저장
+        // 저장 전 최종 설정 로깅
+        $debug_logs[] = '[PHP] ====== 저장 전 $settings 배열 ======';
+        $debug_logs[] = '[PHP] ' . json_encode($settings, JSON_UNESCAPED_SLASHES);
+        
+        // api_key_encrypted 필드 확인
+        if ($current_mode === 'chat' && isset($settings['api_key_encrypted'])) {
+            $debug_logs[] = '[PHP] api_key_encrypted 필드 저장 전 확인: YES (' . strlen($settings['api_key_encrypted']) . ' chars)';
+        } else {
+            $debug_logs[] = '[PHP] api_key_encrypted 필드 저장 전 확인: NO';
+        }
+        
+        // 설정 저장 - update_option 직접 사용 (sanitize_settings 우회)
         $save_result = update_option('azure_chatbot_settings', $settings);
         
-        error_log('[Azure OAuth] update_option 결과: ' . ($save_result ? 'SUCCESS' : 'FAILED or NO CHANGE'));
-        error_log('[Azure OAuth] 저장된 전체 설정: ' . print_r($settings, true));
+        $debug_logs[] = '[PHP] update_option 직접 호출 결과: ' . ($save_result ? 'SUCCESS' : 'NO CHANGE');
         
         // 저장 후 다시 읽어서 확인
         $saved_settings = get_option('azure_chatbot_settings', array());
-        error_log('[Azure OAuth] DB에서 다시 읽은 설정: ' . print_r($saved_settings, true));
+        $debug_logs[] = '[PHP] ====== DB에서 다시 읽은 설정 ======';
+        
+        // api_key_encrypted 필드 존재 여부 확인
+        if (isset($saved_settings['api_key_encrypted'])) {
+            $debug_logs[] = '[PHP] ✅ api_key_encrypted 필드 DB 저장 확인: YES (' . strlen($saved_settings['api_key_encrypted']) . ' chars)';
+        } else {
+            $debug_logs[] = '[PHP] ❌ api_key_encrypted 필드 DB 저장 확인: NO (저장 실패!)';
+        }
+        
+        $debug_logs[] = '[PHP] ' . json_encode($saved_settings, JSON_UNESCAPED_SLASHES);
         
         wp_send_json_success(array(
             'message' => '설정이 저장되었습니다! (' . $current_mode . ' 모드 설정 완료, 기존 설정 유지)',
             'settings' => $saved_settings,
-            'save_result' => $save_result
+            'save_result' => $save_result,
+            'debug_logs' => $debug_logs  // 👈 PHP 로그 추가!
         ));
     }
     
     /**
      * API Key 암호화 (간단한 base64 인코딩)
      */
-    private function encrypt_api_key($key) {
+    private function encrypt_api_key($key, &$debug_logs = null) {
+        if ($debug_logs !== null) {
+            $debug_logs[] = '[PHP] encrypt_api_key() 호출됨';
+            $debug_logs[] = '[PHP]   - Input key empty: ' . (empty($key) ? 'YES' : 'NO');
+            $debug_logs[] = '[PHP]   - Input key length: ' . strlen($key);
+        }
+        
         if (empty($key)) {
+            if ($debug_logs !== null) {
+                $debug_logs[] = '[PHP]   - Returning empty string (key is empty)';
+            }
             return '';
         }
         
         // OpenSSL 사용 가능 시 암호화, 아니면 base64만 사용
-        if (function_exists('openssl_encrypt')) {
+        $openssl_available = function_exists('openssl_encrypt');
+        if ($debug_logs !== null) {
+            $debug_logs[] = '[PHP]   - openssl_encrypt available: ' . ($openssl_available ? 'YES' : 'NO');
+        }
+        
+        if ($openssl_available) {
             $method = 'aes-256-cbc';
             $encryption_key = $this->get_encryption_key();
+            if ($debug_logs !== null) {
+                $debug_logs[] = '[PHP]   - Encryption method: ' . $method;
+                $debug_logs[] = '[PHP]   - Encryption key length: ' . strlen($encryption_key);
+            }
+            
             $iv_length = openssl_cipher_iv_length($method);
+            if ($debug_logs !== null) {
+                $debug_logs[] = '[PHP]   - IV length: ' . $iv_length;
+            }
+            
             $iv = openssl_random_pseudo_bytes($iv_length);
+            if ($debug_logs !== null) {
+                $debug_logs[] = '[PHP]   - IV generated: ' . (strlen($iv) === $iv_length ? 'YES' : 'NO');
+            }
             
             $encrypted = openssl_encrypt(
                 $key,
@@ -1516,10 +1585,30 @@ class Azure_Chatbot_OAuth {
                 $iv
             );
             
-            return base64_encode($iv . $encrypted);
+            if ($debug_logs !== null) {
+                $debug_logs[] = '[PHP]   - openssl_encrypt result: ' . ($encrypted !== false ? 'SUCCESS' : 'FAILED');
+                if ($encrypted !== false) {
+                    $debug_logs[] = '[PHP]   - Encrypted data length: ' . strlen($encrypted);
+                }
+            }
+            
+            $result = base64_encode($iv . $encrypted);
+            if ($debug_logs !== null) {
+                $debug_logs[] = '[PHP]   - base64_encode result length: ' . strlen($result);
+                $debug_logs[] = '[PHP]   - Final result (first 30 chars): ' . substr($result, 0, 30) . '...';
+            }
+            
+            return $result;
         }
         
-        return base64_encode($key);
+        if ($debug_logs !== null) {
+            $debug_logs[] = '[PHP]   - Using fallback base64_encode';
+        }
+        $result = base64_encode($key);
+        if ($debug_logs !== null) {
+            $debug_logs[] = '[PHP]   - base64_encode result length: ' . strlen($result);
+        }
+        return $result;
     }
     
     /**

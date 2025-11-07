@@ -3,7 +3,7 @@
  * Plugin Name: Azure AI Chatbot
  * Plugin URI: https://github.com/asomi7007/azure-ai-chatbot-wordpress
  * Description: Integrate Azure AI Foundry agents and OpenAI-compatible chat models into WordPress with a modern chat widget
- * Version: 3.0.27
+ * Version: 3.0.40
  * Author: Elden Solution
  * Author URI: https://www.eldensolution.kr
  * License: GPL-2.0+
@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
 }
 
 // 플러그인 상수 정의
-define('AZURE_CHATBOT_VERSION', '3.0.27');
+define('AZURE_CHATBOT_VERSION', '3.0.40');
 define('AZURE_CHATBOT_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('AZURE_CHATBOT_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('AZURE_CHATBOT_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -514,8 +514,8 @@ class Azure_AI_Chatbot {
      */
     public function add_admin_menu() {
         add_menu_page(
-            'Azure AI Chatbot V2',
-            'AI Chatbot V2',
+            'Azure AI Chatbot',
+            'AI Chatbot',
             'manage_options',
             'azure-ai-chatbot',
             [$this, 'render_settings_page'],
@@ -568,12 +568,11 @@ class Azure_AI_Chatbot {
         // 모드 선택
         $sanitized['mode'] = sanitize_text_field($input['mode'] ?? 'agent');
         
-        // Agent 모드 설정 (Entra ID)
-        $sanitized['client_id'] = sanitize_text_field($input['client_id'] ?? '');
-        $sanitized['tenant_id'] = sanitize_text_field($input['tenant_id'] ?? '');
-        // Agent 엔드포인트는 경로 포함해야 하므로 esc_url_raw 대신 sanitize_text_field 사용
-        $sanitized['agent_endpoint'] = sanitize_text_field($input['agent_endpoint'] ?? '');
-        $sanitized['agent_id'] = sanitize_text_field($input['agent_id'] ?? '');
+        // Agent 모드 설정 (Entra ID) - OAuth에서 값이 없으면 기존 값 유지
+        $sanitized['client_id'] = !empty($input['client_id']) ? sanitize_text_field($input['client_id']) : ($old_options['client_id'] ?? '');
+        $sanitized['tenant_id'] = !empty($input['tenant_id']) ? sanitize_text_field($input['tenant_id']) : ($old_options['tenant_id'] ?? '');
+        $sanitized['agent_endpoint'] = !empty($input['agent_endpoint']) ? sanitize_text_field($input['agent_endpoint']) : ($old_options['agent_endpoint'] ?? '');
+        $sanitized['agent_id'] = !empty($input['agent_id']) ? sanitize_text_field($input['agent_id']) : ($old_options['agent_id'] ?? '');
         
         // Client Secret 암호화하여 저장
         if (!empty($input['client_secret'])) {
@@ -584,12 +583,17 @@ class Azure_AI_Chatbot {
             } else {
                 $sanitized['client_secret_encrypted'] = $old_options['client_secret_encrypted'] ?? '';
             }
+        } elseif (!empty($input['client_secret_encrypted'])) {
+            // OAuth 자동 설정에서 이미 암호화된 값이 전달된 경우 👈 추가!
+            $sanitized['client_secret_encrypted'] = sanitize_text_field($input['client_secret_encrypted']);
+        } else {
+            $sanitized['client_secret_encrypted'] = $old_options['client_secret_encrypted'] ?? '';
         }
         
-        // Chat 모드 설정 (API Key)
-        $sanitized['chat_provider'] = sanitize_text_field($input['chat_provider'] ?? 'azure-openai');
-        $sanitized['chat_endpoint'] = rtrim(sanitize_text_field($input['chat_endpoint'] ?? ''), '/');
-        $sanitized['deployment_name'] = sanitize_text_field($input['deployment_name'] ?? '');
+        // Chat 모드 설정 (API Key) - OAuth에서 값이 없으면 기존 값 유지
+        $sanitized['chat_provider'] = !empty($input['chat_provider']) ? sanitize_text_field($input['chat_provider']) : ($old_options['chat_provider'] ?? 'azure-openai');
+        $sanitized['chat_endpoint'] = !empty($input['chat_endpoint']) ? rtrim(sanitize_text_field($input['chat_endpoint']), '/') : ($old_options['chat_endpoint'] ?? '');
+        $sanitized['deployment_name'] = !empty($input['deployment_name']) ? sanitize_text_field($input['deployment_name']) : ($old_options['deployment_name'] ?? '');
         
         // API Key 암호화하여 저장
         if (!empty($input['api_key'])) {
@@ -600,6 +604,12 @@ class Azure_AI_Chatbot {
             } else {
                 $sanitized['api_key_encrypted'] = $old_options['api_key_encrypted'] ?? '';
             }
+        } elseif (!empty($input['api_key_encrypted'])) {
+            // OAuth 자동 설정에서 이미 암호화된 값이 전달된 경우 👈 추가!
+            $sanitized['api_key_encrypted'] = sanitize_text_field($input['api_key_encrypted']);
+        } else {
+            // 기존 값 유지
+            $sanitized['api_key_encrypted'] = $old_options['api_key_encrypted'] ?? '';
         }
         
         // 공통 설정
