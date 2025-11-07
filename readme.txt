@@ -3,7 +3,7 @@ Contributors: eldensolution
 Tags: azure, ai, chatbot, chat, ai-assistant
 Requires at least: 6.0
 Tested up to: 6.8
-Stable tag: 3.0.16
+Stable tag: 3.0.17
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -161,6 +161,12 @@ Agent 모드: 고급 기능 지원 (Function Calling, RAG, 파일 업로드 등,
 
 == Changelog ==
 
+= 3.0.17 - 2025-11-07 =
+* 수정: Resource Group 생성 실패 시 상세 에러 메시지 표시
+* 수정: 토큰 만료 감지 및 재인증 안내 개선
+* 추가: AJAX 요청 실패 시 상세 디버깅 정보 표시
+* 개선: 에러 처리 로직 전면 개선 및 사용자 피드백 강화
+
 = 3.0.16 - 2025-11-07 =
 * 추가: 기존 리소스 선택 시 설정 자동 채우기 완전 구현
 * 추가: 배포 목록 자동 조회 (기존 AI Foundry Project에서)
@@ -269,6 +275,9 @@ Agent 모드: 고급 기능 지원 (Function Calling, RAG, 파일 업로드 등,
 * 초기 릴리즈
 
 == Upgrade Notice ==
+
+= 3.0.17 =
+긴급 수정: Resource Group 생성 실패 및 토큰 만료 문제 디버깅 개선. 에러 메시지 상세화.
 
 = 3.0.16 =
 중요 업데이트: 기존 AI 리소스 선택 시에도 설정 자동 채우기 완전 지원. API Key까지 자동 조회하여 완전 자동화 구현.

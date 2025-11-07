@@ -931,7 +931,7 @@ class Azure_Chatbot_OAuth {
         check_ajax_referer('azure_oauth_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
-            wp_send_json_error(array('message' => '권한???�습?�다.'));
+            wp_send_json_error(array('message' => '권한이 없습니다.'));
         }
         
         $name = isset($_POST['name']) ? sanitize_text_field($_POST['name']) : '';
@@ -940,6 +940,19 @@ class Azure_Chatbot_OAuth {
         
         if (empty($name) || empty($location) || empty($subscription)) {
             wp_send_json_error(array('message' => '모든 필드가 필요합니다.'));
+        }
+        
+        // 세션에서 토큰 가져오기
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+        
+        if (!isset($_SESSION['azure_access_token'])) {
+            error_log('[Azure OAuth] Resource Group 생성 실패: 토큰 없음');
+            wp_send_json_error(array(
+                'message' => '인증 토큰이 없습니다. 다시 로그인하세요.',
+                'code' => 401
+            ));
         }
         
         // 리소스 그룹 생성
@@ -952,13 +965,34 @@ class Azure_Chatbot_OAuth {
             )
         );
         
+        error_log('[Azure OAuth] Resource Group 생성 요청: ' . $name . ' @ ' . $location);
+        
         $result = $this->call_azure_api($endpoint, null, 'PUT', $body, false);
         
         if (is_wp_error($result)) {
-            wp_send_json_error(array('message' => $result->get_error_message()));
+            $error_message = $result->get_error_message();
+            $error_code = $result->get_error_code();
+            
+            error_log('[Azure OAuth] Resource Group 생성 실패: ' . $error_message);
+            
+            // 토큰 만료 체크
+            if ($error_code === 401 || strpos($error_message, 'Unauthorized') !== false) {
+                unset($_SESSION['azure_access_token']);
+                wp_send_json_error(array(
+                    'message' => '인증이 만료되었습니다. 다시 로그인하세요.',
+                    'code' => 401
+                ));
+            }
+            
+            wp_send_json_error(array(
+                'message' => $error_message,
+                'code' => $error_code
+            ));
         }
         
         $resource_id = isset($result['id']) ? $result['id'] : '';
+        
+        error_log('[Azure OAuth] Resource Group 생성 성공: ' . $resource_id);
         
         wp_send_json_success(array(
             'message' => '리소스 그룹이 생성되었습니다.',

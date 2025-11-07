@@ -1422,6 +1422,9 @@ function startAutoResourceCreation(subscriptionId) {
     console.log('[Auto Setup] Subscription ID:', subscriptionId);
     console.log('[Auto Setup] Operation Mode:', operationMode);
     
+    window.lastSubscriptionId = subscriptionId;
+    jQuery('#auto-setup-progress').html('<div class="notice notice-info"><p>🔄 기존 리소스를 확인하고 있습니다...</p></div>');
+    
     // 1단계: 기존 Resource Group 확인
     console.log('[Auto Setup] 기존 Resource Group 확인 중...');
     jQuery.post(ajaxurl, {
@@ -1429,9 +1432,39 @@ function startAutoResourceCreation(subscriptionId) {
         nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
         subscription_id: subscriptionId
     }, function(rgResponse) {
-        if (!rgResponse.success || !rgResponse.data || rgResponse.data.resource_groups.length === 0) {
+        console.log('[Auto Setup] Resource Group 조회 응답:', rgResponse);
+        
+        if (!rgResponse.success) {
+            console.error('[Auto Setup] Resource Group 조회 실패:', rgResponse.data);
+            var errorMsg = rgResponse.data && rgResponse.data.message ? rgResponse.data.message : 
+                          (rgResponse.data || '알 수 없는 오류');
+            jQuery('#auto-setup-progress').append(
+                '<div class="notice notice-error"><p>❌ Resource Group 조회 실패: ' + errorMsg + '</p></div>'
+            );
+            
+            // 토큰 만료 체크
+            if (rgResponse.data && (rgResponse.data.message || '').includes('인증')) {
+                jQuery('#auto-setup-progress').append(
+                    '<div class="notice notice-warning"><p>⚠️ 인증이 만료되었습니다. "Azure 자동 설정 시작"을 다시 클릭하세요.</p></div>'
+                );
+                localStorage.removeItem('azure_oauth_token_flag');
+                return;
+            }
+            
+            // RG 조회 실패해도 새로 생성 시도
+            jQuery('#auto-setup-progress').append(
+                '<div class="notice notice-info"><p>ℹ️ 새로운 Resource Group을 생성합니다...</p></div>'
+            );
+            createNewResourceGroupAndAI(subscriptionId);
+            return;
+        }
+        
+        if (!rgResponse.data || rgResponse.data.resource_groups.length === 0) {
             // Resource Group 없음 - 새로 생성
             console.log('[Auto Setup] 기존 Resource Group 없음, 새로 생성');
+            jQuery('#auto-setup-progress').append(
+                '<div class="notice notice-info"><p>ℹ️ Resource Group이 없습니다. 새로 생성합니다...</p></div>'
+            );
             createNewResourceGroupAndAI(subscriptionId);
             return;
         }
@@ -1917,6 +1950,8 @@ function createNewAgentForExistingResource(resourceId, resource, subscriptionId,
 
 // Resource Group 생성 함수
 function createResourceGroup(subscriptionId, name, location, callback) {
+    console.log('[Auto Setup] Resource Group 생성 요청:', { subscriptionId, name, location });
+    
     jQuery.post(ajaxurl, {
         action: 'azure_oauth_create_resource_group',
         nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
@@ -1924,7 +1959,39 @@ function createResourceGroup(subscriptionId, name, location, callback) {
         name: name,
         location: location
     }, function(response) {
+        console.log('[Auto Setup] Resource Group 생성 응답:', response);
+        
+        if (response.success) {
+            console.log('[Auto Setup] Resource Group 생성 성공:', name);
+            jQuery('#auto-setup-progress').append('<div class="notice notice-success"><p>✅ Resource Group 생성 완료: ' + name + '</p></div>');
+        } else {
+            console.error('[Auto Setup] Resource Group 생성 실패:', response.data);
+            var errorMsg = response.data && response.data.message ? response.data.message : 
+                          (response.data || '알 수 없는 오류');
+            jQuery('#auto-setup-progress').append(
+                '<div class="notice notice-error"><p>❌ Resource Group 생성 실패: ' + errorMsg + '</p></div>'
+            );
+            
+            // 토큰 만료 체크
+            if (response.data && response.data.code === 401) {
+                jQuery('#auto-setup-progress').append(
+                    '<div class="notice notice-warning"><p>⚠️ 인증이 만료되었습니다. "Azure 자동 설정 시작"을 다시 클릭하세요.</p></div>'
+                );
+                localStorage.removeItem('azure_oauth_token_flag');
+            }
+        }
+        
         callback(response.success);
+    }).fail(function(xhr, status, error) {
+        console.error('[Auto Setup] Resource Group 생성 AJAX 실패:', { status, error });
+        console.error('[Auto Setup] XHR Response:', xhr.responseText);
+        
+        jQuery('#auto-setup-progress').append(
+            '<div class="notice notice-error"><p>❌ Resource Group 생성 요청 실패: ' + error + '</p>' +
+            '<p>상세 정보: ' + (xhr.responseText || 'No response') + '</p></div>'
+        );
+        
+        callback(false);
     });
 }
 
