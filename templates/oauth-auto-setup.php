@@ -1883,6 +1883,11 @@ function getExistingResourceConfig(resource, subscriptionId, rgName) {
 // 리소스 API Key 조회
 function getResourceApiKey(resource, subscriptionId, rgName, config) {
     console.log('[Auto Setup] API Key 조회 중...');
+    console.log('[Auto Setup] API Key 조회 요청:', {
+        resource_id: resource.id,
+        subscription_id: subscriptionId,
+        resource_group: rgName
+    });
     
     jQuery.post(ajaxurl, {
         action: 'azure_oauth_get_keys',
@@ -1891,6 +1896,10 @@ function getResourceApiKey(resource, subscriptionId, rgName, config) {
         subscription_id: subscriptionId,
         resource_group: rgName
     }, function(response) {
+        console.log('[Auto Setup] API Key 조회 응답:', response);
+        console.log('[Auto Setup] response.success:', response.success);
+        console.log('[Auto Setup] response.data:', JSON.stringify(response.data, null, 2));
+        
         if (response.success && response.data.key) {
             console.log('[Auto Setup] API Key 조회 성공');
             config.api_key = response.data.key;
@@ -1923,11 +1932,16 @@ function getResourceApiKey(resource, subscriptionId, rgName, config) {
             });
         } else {
             console.warn('[Auto Setup] API Key 조회 실패');
+            console.warn('[Auto Setup] response.success:', response.success);
+            console.warn('[Auto Setup] response.data:', JSON.stringify(response.data, null, 2));
+            console.warn('[Auto Setup] response.data.key:', response.data ? response.data.key : 'undefined');
+            
             // API Key 없이도 설정 저장 (수동 입력 필요)
             completeSetup('chat', config);
         }
-    }).fail(function() {
-        console.error('[Auto Setup] API Key 조회 AJAX 실패');
+    }).fail(function(xhr, status, error) {
+        console.error('[Auto Setup] API Key 조회 AJAX 실패:', { status, error });
+        console.error('[Auto Setup] XHR Response:', xhr.responseText);
         // API Key 없이도 설정 저장 (수동 입력 필요)
         completeSetup('chat', config);
     });

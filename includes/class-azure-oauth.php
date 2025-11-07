@@ -697,30 +697,41 @@ class Azure_Chatbot_OAuth {
         check_ajax_referer('azure_oauth_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
-            wp_send_json_error(array('message' => '권한???�습?�다.'));
+            wp_send_json_error(array('message' => '권한이 없습니다.'));
         }
         
         $resource_id = isset($_POST['resource_id']) ? sanitize_text_field($_POST['resource_id']) : '';
         $mode = isset($_POST['mode']) ? sanitize_text_field($_POST['mode']) : 'chat';
         
         if (empty($resource_id)) {
-            wp_send_json_error(array('message' => 'Resource ID가 ?�요?�니??'));
+            wp_send_json_error(array('message' => 'Resource ID가 필요합니다.'));
         }
+        
+        error_log('[Azure OAuth] API Key 조회 시작 - Resource ID: ' . $resource_id);
+        error_log('[Azure OAuth] Mode: ' . $mode);
         
         // Keys 조회
         $endpoint = "{$resource_id}/listKeys";
+        error_log('[Azure OAuth] listKeys endpoint: ' . $endpoint);
+        
         $result = $this->call_azure_api($endpoint, '2023-05-01');
         
         if (is_wp_error($result)) {
-            wp_send_json_error(array('message' => $result->get_error_message()));
+            error_log('[Azure OAuth] listKeys 실패: ' . $result->get_error_message());
+            wp_send_json_error(array('message' => 'API Key 조회 실패: ' . $result->get_error_message()));
         }
         
-        // Endpoint ?�보 조회
+        error_log('[Azure OAuth] listKeys 성공: ' . json_encode($result));
+        
+        // Endpoint 정보 조회
         $resource_info = $this->call_azure_api($resource_id, '2023-05-01');
         
         if (is_wp_error($resource_info)) {
-            wp_send_json_error(array('message' => $resource_info->get_error_message()));
+            error_log('[Azure OAuth] Resource 정보 조회 실패: ' . $resource_info->get_error_message());
+            wp_send_json_error(array('message' => 'Resource 정보 조회 실패: ' . $resource_info->get_error_message()));
         }
+        
+        error_log('[Azure OAuth] Resource 정보: ' . json_encode($resource_info));
         
         $endpoint_url = '';
         if ($mode === 'agent') {
@@ -737,9 +748,13 @@ class Azure_Chatbot_OAuth {
         
         $api_key = isset($result['key1']) ? $result['key1'] : '';
         
+        error_log('[Azure OAuth] Endpoint URL: ' . $endpoint_url);
+        error_log('[Azure OAuth] API Key exists: ' . (!empty($api_key) ? 'YES' : 'NO'));
+        
         wp_send_json_success(array(
             'endpoint' => $endpoint_url,
-            'api_key' => $api_key
+            'key' => $api_key,
+            'api_key' => $api_key  // 하위 호환성
         ));
     }
     
