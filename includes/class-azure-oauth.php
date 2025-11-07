@@ -1412,15 +1412,17 @@ class Azure_Chatbot_OAuth {
         
         error_log('[Azure OAuth] ajax_save_existing_config - settings_data: ' . print_r($settings_data, true));
         
-        // 현재 설정 가져오기
+        // 현재 설정 가져오기 (기존 설정 유지)
         $settings = get_option('azure_chatbot_settings', array());
         
-        // 모드별 설정 저장
-        $mode = isset($settings_data['mode']) ? sanitize_text_field($settings_data['mode']) : 'chat';
-        $settings['mode'] = $mode;
+        // 모드 정보 (현재 자동 설정을 실행한 모드)
+        $current_mode = isset($settings_data['mode']) ? sanitize_text_field($settings_data['mode']) : 'chat';
         
-        if ($mode === 'chat') {
-            // Chat 모드 설정
+        // 주의: mode 필드는 업데이트하지 않음 (사용자가 설정 페이지에서 선택한 모드 유지)
+        // $settings['mode']는 그대로 유지
+        
+        if ($current_mode === 'chat') {
+            // Chat 모드 설정 저장 (Agent 설정은 유지)
             if (isset($settings_data['chat_endpoint'])) {
                 $settings['chat_endpoint'] = sanitize_text_field($settings_data['chat_endpoint']);
             }
@@ -1432,8 +1434,11 @@ class Azure_Chatbot_OAuth {
                 $api_key = sanitize_text_field($settings_data['api_key']);
                 $settings['api_key_encrypted'] = $this->encrypt_api_key($api_key);
             }
-        } else if ($mode === 'agent') {
-            // Agent 모드 설정
+            
+            error_log('[Azure OAuth] Chat 모드 설정 저장 완료 (Agent 설정 유지)');
+            
+        } else if ($current_mode === 'agent') {
+            // Agent 모드 설정 저장 (Chat 설정은 유지)
             if (isset($settings_data['agent_endpoint'])) {
                 $settings['agent_endpoint'] = sanitize_text_field($settings_data['agent_endpoint']);
             }
@@ -1451,15 +1456,17 @@ class Azure_Chatbot_OAuth {
             if (isset($settings_data['tenant_id'])) {
                 $settings['tenant_id'] = sanitize_text_field($settings_data['tenant_id']);
             }
+            
+            error_log('[Azure OAuth] Agent 모드 설정 저장 완료 (Chat 설정 유지)');
         }
         
         // 설정 저장
         update_option('azure_chatbot_settings', $settings);
         
-        error_log('[Azure OAuth] ajax_save_existing_config - settings saved: ' . print_r($settings, true));
+        error_log('[Azure OAuth] ajax_save_existing_config - 전체 설정 저장 완료: ' . print_r($settings, true));
         
         wp_send_json_success(array(
-            'message' => '설정이 저장되었습니다! (' . $mode . ' 모드)',
+            'message' => '설정이 저장되었습니다! (' . $current_mode . ' 모드 설정 완료, 기존 설정 유지)',
             'settings' => $settings
         ));
     }
