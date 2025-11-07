@@ -1800,6 +1800,12 @@ function getExistingResourceConfig(resource, subscriptionId, rgName) {
     };
     
     // 배포 목록 조회
+    console.log('[Auto Setup] 배포 목록 조회 요청:', { 
+        resource_id: resource.id, 
+        subscription_id: subscriptionId, 
+        resource_group: rgName 
+    });
+    
     jQuery.post(ajaxurl, {
         action: 'azure_oauth_get_deployments',
         nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
@@ -1807,6 +1813,8 @@ function getExistingResourceConfig(resource, subscriptionId, rgName) {
         subscription_id: subscriptionId,
         resource_group: rgName
     }, function(response) {
+        console.log('[Auto Setup] 배포 목록 조회 응답:', response);
+        
         if (response.success && response.data.deployments && response.data.deployments.length > 0) {
             var deployments = response.data.deployments;
             console.log('[Auto Setup] 배포 목록 조회 성공:', deployments.length + '개');
@@ -1852,11 +1860,18 @@ function getExistingResourceConfig(resource, subscriptionId, rgName) {
             }
         } else {
             console.warn('[Auto Setup] 배포 목록 조회 실패 또는 배포 없음');
-            alert('<?php echo esc_js(__('이 리소스에는 배포된 모델이 없습니다. 다른 리소스를 선택하거나 새로 생성해주세요.', 'azure-ai-chatbot')); ?>');
+            console.warn('[Auto Setup] 응답 데이터:', response.data);
+            
+            var errorMsg = '이 리소스에는 배포된 모델이 없습니다.';
+            if (response.data && response.data.message) {
+                errorMsg += '\n원인: ' + response.data.message;
+            }
+            alert(errorMsg + '\n\n다른 리소스를 선택하거나 새로 생성해주세요.');
         }
-    }).fail(function() {
-        console.error('[Auto Setup] 배포 목록 조회 AJAX 실패');
-        alert('<?php echo esc_js(__('배포 목록 조회에 실패했습니다.', 'azure-ai-chatbot')); ?>');
+    }).fail(function(xhr, status, error) {
+        console.error('[Auto Setup] 배포 목록 조회 AJAX 실패:', { status, error });
+        console.error('[Auto Setup] XHR Response:', xhr.responseText);
+        alert('<?php echo esc_js(__('배포 목록 조회에 실패했습니다.', 'azure-ai-chatbot')); ?>\n상세: ' + error + '\n' + (xhr.responseText || ''));
     });
 }
 
