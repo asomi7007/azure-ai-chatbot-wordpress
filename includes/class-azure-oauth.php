@@ -79,6 +79,7 @@ class Azure_Chatbot_OAuth {
         add_action('wp_ajax_azure_oauth_get_resource_groups', array($this, 'ajax_get_resource_groups'));
         add_action('wp_ajax_azure_oauth_get_resources', array($this, 'ajax_get_resources'));
         add_action('wp_ajax_azure_oauth_get_agents', array($this, 'ajax_get_agents'));
+    add_action('wp_ajax_azure_oauth_set_operation_mode', array($this, 'ajax_set_operation_mode'));
         add_action('wp_ajax_azure_oauth_get_keys', array($this, 'ajax_get_keys'));
         add_action('wp_ajax_save_oauth_settings', array($this, 'ajax_save_oauth_settings'));
         add_action('wp_ajax_azure_oauth_clear_session', array($this, 'ajax_clear_session'));
@@ -625,20 +626,20 @@ class Azure_Chatbot_OAuth {
         check_ajax_referer('azure_oauth_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
-            wp_send_json_error(array('message' => '권한???�습?�다.'));
+            wp_send_json_error(array('message' => '권한이 없습니다.'));
         }
         
         $resource_id = isset($_POST['resource_id']) ? sanitize_text_field($_POST['resource_id']) : '';
         
         if (empty($resource_id)) {
-            wp_send_json_error(array('message' => 'Resource ID가 ?�요?�니??'));
+            wp_send_json_error(array('message' => 'Resource ID가 필요합니다.'));
         }
         
-        // AI Foundry Project??Endpoint 조회
-        $resource_info = $this->call_azure_api($resource_id, '2023-05-01');
+        // AI Foundry Project의 Endpoint 조회
+        $resource_info = $this->call_azure_api($resource_id, '2023-10-01');
         
         if (is_wp_error($resource_info)) {
-            wp_send_json_error(array('message' => $resource_info->get_error_message()));
+            wp_send_json_error(array('message' => '리소스 정보 조회 실패: ' . $resource_info->get_error_message()));
         }
         
         // Discovery URL (Project Endpoint) 추출
@@ -647,56 +648,78 @@ class Azure_Chatbot_OAuth {
             : '';
             
         if (empty($discovery_url)) {
-            wp_send_json_error(array('message' => 'Project Endpoint�?찾을 ???�습?�다.'));
+            wp_send_json_error(array('message' => 'Project Endpoint를 찾을 수 없습니다.'));
+        }
+
+        // 프로젝트 이름 추출 (보통 리소스 이름과 동일)
+        $project_name = isset($resource_info['name']) ? $resource_info['name'] : '';
+        if (empty($project_name)) {
+            wp_send_json_error(array('message' => '프로젝트 이름을 찾을 수 없습니다.'));
+        }
+
+        // discoveryUrl에서 호스트 부분만 추출
+        $parsed_url = parse_url($discovery_url);
+        $host = isset($parsed_url['host']) ? $parsed_url['host'] : '';
+        if (empty($host)) {
+            wp_send_json_error(array('message' => 'Project Endpoint 호스트를 파싱할 수 없습니다.'));
+        }
+
+        // Agent 목록 조회 URL 구성 (사용자 제공 코드 기반)
+        // 형식: https://{host}/api/projects/{projectName}/agents
+        $agents_url = 'https://' . $host . '/api/projects/' . $project_name . '/agents';
+        
+        // API 호출 (Bearer 토큰 사용)
+        $result = $this->call_azure_api($agents_url, null, 'GET', null, false);
+
+        if (is_wp_error($result)) {
+            wp_send_json_error(array(
+                'message' => 'Agent 목록 조회 실패: ' . $result->get_error_message(),
+                'debug' => array(
+                    'url' => $agents_url,
+                    'error_code' => $result->get_error_code(),
+                    'error_data' => $result->get_error_data()
+                )
+            ));
         }
         
-        // Keys 조회 (Subscription Key ?�요)
-        $keys_endpoint = "{$resource_id}/listKeys";
-        $keys_result = $this->call_azure_api($keys_endpoint, '2023-05-01');
-        
-        if (is_wp_error($keys_result)) {
-            wp_send_json_error(array('message' => $keys_result->get_error_message()));
-        }
-        
-        $subscription_key = isset($keys_result['key1']) ? $keys_result['key1'] : '';
-        
-        if (empty($subscription_key)) {
-            wp_send_json_error(array('message' => 'Subscription Key�?찾을 ???�습?�다.'));
-        }
-        
-        // Agent 목록 조회 (AI Foundry Agents API)
-        $agents_url = rtrim($discovery_url, '/') . '/agents';
-        
-        $response = wp_remote_get($agents_url, array(
-            'headers' => array(
-                'api-key' => $subscription_key,
-                'Content-Type' => 'application/json'
-            ),
-            'timeout' => 30
-        ));
-        
-        if (is_wp_error($response)) {
-            wp_send_json_error(array('message' => 'Agent 목록 조회 ?�패: ' . $response->get_error_message()));
-        }
-        
-        $body = wp_remote_retrieve_body($response);
-        $data = json_decode($body, true);
-        
-        if (!isset($data['data']) || !is_array($data['data'])) {
-            wp_send_json_error(array('message' => 'Agent 목록??찾을 ???�습?�다. Project??Agent가 ?�성?�어 ?�는지 ?�인?�세??'));
+        if (!isset($result['value']) || !is_array($result['value'])) {
+            wp_send_json_error(array('message' => 'Agent 목록을 찾을 수 없습니다. Project에 Agent가 생성되어 있는지 확인하세요.', 'debug' => array(
+                'url' => $agents_url,
+                'response' => $result
+            )));
         }
         
         $agents = array();
-        foreach ($data['data'] as $agent) {
+        foreach ($result['value'] as $agent) {
             $agents[] = array(
-                'id' => $agent['id'],
-                'name' => isset($agent['name']) ? $agent['name'] : $agent['id'],
-                'description' => isset($agent['description']) ? $agent['description'] : '',
-                'created_at' => isset($agent['created_at']) ? $agent['created_at'] : ''
+                'id' => $agent['name'], // AI Project API는 id 대신 name을 사용
+                'name' => isset($agent['properties']['displayName']) ? $agent['properties']['displayName'] : $agent['name'],
+                'description' => isset($agent['properties']['description']) ? $agent['properties']['description'] : '',
+                'created_at' => isset($agent['systemData']['createdAt']) ? $agent['systemData']['createdAt'] : ''
             );
         }
         
         wp_send_json_success(array('agents' => $agents));
+    }
+
+    /**
+     * AJAX: 자동 설정 모드 값 저장
+     */
+    public function ajax_set_operation_mode() {
+        check_ajax_referer('azure_oauth_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => '권한이 없습니다.'));
+        }
+
+        $mode = isset($_POST['mode']) ? sanitize_text_field($_POST['mode']) : '';
+        if (!in_array($mode, array('chat', 'agent'), true)) {
+            $mode = 'chat';
+        }
+
+        update_option('azure_ai_chatbot_operation_mode', $mode);
+
+        wp_send_json_success(array('mode' => $mode));
     }
     
     /**
@@ -1412,6 +1435,39 @@ class Azure_Chatbot_OAuth {
         if (!current_user_can('manage_options')) {
             wp_send_json_error(array('message' => '권한이 없습니다.'));
         }
+        
+        // 로그 배열 생성 (콘솔에 출력용)
+        $debug_logs = array();
+        
+        $settings_data = isset($_POST['settings']) ? $_POST['settings'] : array();
+        
+        if (empty($settings_data)) {
+            wp_send_json_error(array('message' => '설정 데이터가 누락되었습니다.'));
+        }
+        
+        $debug_logs[] = '[PHP] ajax_save_existing_config 호출됨';
+        $debug_logs[] = '[PHP] settings_data: ' . json_encode($settings_data, JSON_UNESCAPED_SLASHES);
+        
+        // 현재 설정 가져오기 (기존 설정 유지)
+        $settings = get_option('azure_chatbot_settings', array());
+        $debug_logs[] = '[PHP] 기존 설정 로드됨: ' . json_encode($settings, JSON_UNESCAPED_SLASHES);
+        
+        // 모드 정보 (현재 자동 설정을 실행한 모드)
+        $current_mode = isset($settings_data['mode']) ? sanitize_text_field($settings_data['mode']) : 'chat';
+        $debug_logs[] = '[PHP] current_mode: ' . $current_mode;
+        
+        // 중요: mode 필드는 업데이트하지 않음 (사용자가 설정 페이지에서 선택한 모드 유지)
+        // 단, 아직 mode가 설정되지 않았다면 현재 모드로 설정
+        if (!isset($settings['mode']) || empty($settings['mode'])) {
+            $settings['mode'] = $current_mode;
+            $debug_logs[] = '[PHP] mode 필드 설정: ' . $current_mode;
+        }
+        
+        if ($current_mode === 'chat') {
+            $debug_logs[] = '[PHP] Chat 모드 설정 저장 시작';
+            
+            // Chat 모드 설정 저장 (Agent 설정은 유지)
+            if (isset($settings_data['chat_endpoint'])) {
         
         // 로그 배열 생성 (콘솔에 출력용)
         $debug_logs = array();

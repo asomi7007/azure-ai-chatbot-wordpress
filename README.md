@@ -1,6 +1,6 @@
 # Azure AI Chatbot for WordPress
 
-[![Version](https://img.shields.io/badge/version-3.0.17-blue.svg)](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/latest)
+[![Version](https://img.shields.io/badge/version-3.0.41-blue.svg)](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/latest)
 [![WordPress](https://img.shields.io/badge/wordpress-6.0%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/php-7.4%2B-purple.svg)](https://www.php.net/)
 [![License](https://img.shields.io/badge/license-GPL--2.0%2B-green.svg)](LICENSE)
@@ -435,15 +435,23 @@ Log location: `/wp-content/debug.log`
 
 ## Version History
 
-### Latest Release: v3.0.17 (2025-11-07)
+### Latest Release: v3.0.41 (2025-11-08)
 
-**🐛 Critical Bug Fixes:**
-- 🔧 **Detailed Error Messages**: Resource Group creation failures now show detailed error information
-- 🔑 **Token Expiration Detection**: Improved authentication token expiration detection and re-authentication guidance
-- 📊 **Enhanced Debugging**: Added detailed debugging information for AJAX request failures
-- 💬 **Better User Feedback**: Improved error handling throughout the auto-setup process
+**� Auto-Setup Reliability Improvements:**
+- ✅ **Mode Persistence Fix**: The OAuth auto-setup wizard now respects the mode you selected, keeping Chat or Agent mode active after configuration completes.
+- 🤖 **Agent Data Capture**: Agent mode settings are saved even when you initiated setup from Chat mode, preventing missing agent credentials.
+- �️ **UI Feedback Polish**: Clearer success and warning messages when switching modes post-setup.
 
-[Download v3.0.17](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/tag/v3.0.17)
+[Download v3.0.41](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/tag/v3.0.41)
+
+### v3.0.40 (2025-11-08)
+
+**✨ UI Refresh & Docs:**
+- 🎨 Removed lingering “V2” labels across the admin experience.
+- 📚 Refined README and guides for the new workflow.
+- 🌐 Improved Korean/English translations for clarity.
+
+[Download v3.0.40](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/tag/v3.0.40)
 
 ### v3.0.16 (2025-11-07)
 

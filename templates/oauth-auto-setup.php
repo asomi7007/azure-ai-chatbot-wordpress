@@ -375,12 +375,12 @@ if (isset($_GET['oauth_error'])) {
                             </th>
                             <td>
                                 <label>
-                                    <input type="radio" name="oauth_mode" value="chat" checked />
+                                    <input type="radio" name="oauth_mode" value="chat" <?php checked($operation_mode, 'chat'); ?> />
                                     <?php esc_html_e('Chat 모드 (Azure OpenAI)', 'azure-ai-chatbot'); ?>
                                 </label>
                                 <br>
                                 <label>
-                                    <input type="radio" name="oauth_mode" value="agent" />
+                                    <input type="radio" name="oauth_mode" value="agent" <?php checked($operation_mode, 'agent'); ?> />
                                     <?php esc_html_e('Agent 모드 (AI Foundry)', 'azure-ai-chatbot'); ?>
                                 </label>
                             </td>
@@ -649,11 +649,33 @@ if (!autoSetupMode && hasTokenFromStorage && window.location.search.indexOf('oau
 
 var operationMode = '<?php echo esc_js(get_option('azure_ai_chatbot_operation_mode', 'chat')); ?>';
 
+// OAuth 리디렉션 후 localStorage에서 operationMode를 읽어옴
+try {
+    var savedMode = localStorage.getItem('azure_oauth_operation_mode');
+    if (savedMode && (savedMode === 'chat' || savedMode === 'agent')) {
+        operationMode = savedMode;
+        console.log('[Auto Setup] Operation mode loaded from localStorage:', operationMode);
+        // 사용 후 삭제
+        localStorage.removeItem('azure_oauth_operation_mode');
+    }
+} catch(e) {
+    console.warn('[Auto Setup] Cannot access localStorage for operationMode:', e);
+}
+
 console.log('[Auto Setup] Auto mode:', autoSetupMode);
 console.log('[Auto Setup] Operation mode:', operationMode);
 console.log('[Auto Setup] Has token from storage:', hasTokenFromStorage);
 
 function openOAuthPopup(url) {
+    // 팝업을 열기 전에 현재 선택된 operationMode를 localStorage에 저장
+    try {
+        var selectedMode = jQuery('input[name="oauth_mode"]:checked').val() || 'chat';
+        localStorage.setItem('azure_oauth_operation_mode', selectedMode);
+        console.log('[Auto Setup] Saving operation mode to localStorage before OAuth:', selectedMode);
+    } catch(e) {
+        console.warn('[Auto Setup] Cannot save operationMode to localStorage:', e);
+    }
+
     var width = 600;
     var height = 700;
     var left = (screen.width - width) / 2;
@@ -789,6 +811,25 @@ jQuery(document).ready(function($) {
     // 모드 변경 시 리소스 다시 로드 및 UI 업데이트
     $('input[name="oauth_mode"]').on('change', function() {
         var mode = $(this).val();
+        var previousMode = operationMode;
+
+        // 전역 모드 값 갱신 및 서버에 저장
+        operationMode = mode;
+        if (previousMode !== mode) {
+            $.post(ajaxurl, {
+                action: 'azure_oauth_set_operation_mode',
+                nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
+                mode: mode
+            }, function(response) {
+                if (response && response.success) {
+                    console.log('[Auto Setup] Operation mode 저장 완료:', response.data.mode);
+                } else {
+                    console.warn('[Auto Setup] Operation mode 저장 실패:', response);
+                }
+            }).fail(function(xhr, status, error) {
+                console.error('[Auto Setup] Operation mode 저장 AJAX 실패:', { status: status, error: error });
+            });
+        }
         
         if (mode === 'agent') {
             $('#agent_selection_row').show();
@@ -826,6 +867,9 @@ jQuery(document).ready(function($) {
             $('#new_ai_deployment_name').val(deploymentName);
         }
     });
+
+    // 초기 모드 상태 반영
+    $('input[name="oauth_mode"]:checked').trigger('change');
 });
 
 function updateFetchButton() {
@@ -998,6 +1042,9 @@ function loadAgents(resourceId) {
     }, function(response) {
         $select.prop('disabled', false);
         
+        // 디버깅 강화: 전체 응답을 콘솔에 기록
+        console.log('[Auto Setup] [Agent] get_agents 응답:', response);
+
         if (response.success) {
             if (response.data.agents.length === 0) {
                 $select.html('<option value="">Agent가 없습니다. AI Foundry에서 Agent를 생성하세요.</option>');
@@ -1012,8 +1059,17 @@ function loadAgents(resourceId) {
                 });
             }
         } else {
-            $select.html('<option value="">오류: ' + response.data.message + '</option>');
+            var errorMessage = response.data && response.data.message ? response.data.message : '알 수 없는 오류';
+            $select.html('<option value="">오류: ' + errorMessage + '</option>');
         }
+    }).fail(function(xhr, status, error) {
+        // 디버깅 강화: 실패 시 모든 정보 기록
+        console.error('[Auto Setup] [Agent] get_agents AJAX 실패:', {
+            status: status,
+            error: error,
+            responseText: xhr.responseText
+        });
+        $select.html('<option value="">네트워크 오류 또는 서버 에러</option>').prop('disabled', false);
     });
 }
 
@@ -1902,6 +1958,7 @@ function completeSetup(mode, config) {
     
     console.log('[Auto Setup] Setup complete. Mode:', mode);
     console.log('[Auto Setup] Config:', config);
+    console.log('[Auto Setup] Current operationMode variable:', operationMode);
     
     // localStorage 토큰 플래그 제거
     try {
@@ -1912,16 +1969,33 @@ function completeSetup(mode, config) {
         console.warn('[Auto Setup] Cannot clear localStorage:', e);
     }
     
-    // 설정은 이미 ajax_save_existing_config에서 저장되었으므로
-    // 별도 저장 없이 바로 리다이렉트 (DB 커밋 대기 2초)
-    console.log('[Auto Setup] Settings already saved, redirecting in 2 seconds...');
-    alert(successMsg + '\n\n' + detailMsg + '\n\n' + <?php echo json_encode(__('설정 페이지에서 확인하세요.', 'azure-ai-chatbot')); ?>);
-    
-    // DB 커밋 시간 보장을 위해 2초 대기 후 리다이렉트
-    setTimeout(function() {
-        console.log('[Auto Setup] Redirecting now...');
-        window.location.href = '<?php echo admin_url("admin.php?page=azure-ai-chatbot"); ?>';
-    }, 2000);
+    // ✅ 중요: 사용자가 선택한 operationMode를 서버에 최종 저장
+    console.log('[Auto Setup] Saving final operation mode to server:', operationMode);
+    jQuery.post(ajaxurl, {
+        action: 'azure_oauth_set_operation_mode',
+        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
+        mode: operationMode  // completeSetup의 mode 파라미터가 아닌 전역 operationMode 사용
+    }, function(response) {
+        console.log('[Auto Setup] Final mode saved:', response);
+        
+        // 설정은 이미 ajax_save_existing_config에서 저장되었으므로
+        // 별도 저장 없이 바로 리다이렉트 (DB 커밋 대기 2초)
+        console.log('[Auto Setup] Settings already saved, redirecting in 2 seconds...');
+        alert(successMsg + '\n\n' + detailMsg + '\n\n' + <?php echo json_encode(__('설정 페이지에서 확인하세요.', 'azure-ai-chatbot')); ?>);
+        
+        // DB 커밋 시간 보장을 위해 2초 대기 후 리다이렉트
+        setTimeout(function() {
+            console.log('[Auto Setup] Redirecting now...');
+            window.location.href = '<?php echo admin_url("admin.php?page=azure-ai-chatbot"); ?>';
+        }, 2000);
+    }).fail(function() {
+        console.error('[Auto Setup] Failed to save final mode, redirecting anyway...');
+        alert(successMsg + '\n\n' + detailMsg + '\n\n' + <?php echo json_encode(__('설정 페이지에서 확인하세요.', 'azure-ai-chatbot')); ?>);
+        
+        setTimeout(function() {
+            window.location.href = '<?php echo admin_url("admin.php?page=azure-ai-chatbot"); ?>';
+        }, 2000);
+    });
 }
 
 // ✅ Chat + Agent 양쪽 정보 모두 수집하는 함수
@@ -1965,6 +2039,7 @@ function checkBothCollected() {
         console.log('[Auto Setup] ========== Chat + Agent 양방향 수집 완료 ==========');
         console.log('[Auto Setup] Chat Config:', window.chatConfig);
         console.log('[Auto Setup] Agent Config:', window.agentConfig);
+        console.log('[Auto Setup] Current operationMode variable:', operationMode);
         
         // 최종 완료 메시지
         var successMsg = <?php echo json_encode(__('자동 설정이 완료되었습니다!', 'azure-ai-chatbot')); ?>;
@@ -1979,14 +2054,31 @@ function checkBothCollected() {
             console.warn('[Auto Setup] Cannot clear localStorage:', e);
         }
         
-        console.log('[Auto Setup] Settings already saved, redirecting in 2 seconds...');
-        alert(successMsg + '\n\n' + detailMsg + '\n\n' + <?php echo json_encode(__('설정 페이지에서 확인하세요.', 'azure-ai-chatbot')); ?>);
-        
-        // DB 커밋 시간 보장을 위해 2초 대기 후 리다이렉트
-        setTimeout(function() {
-            console.log('[Auto Setup] Redirecting now...');
-            window.location.href = '<?php echo admin_url("admin.php?page=azure-ai-chatbot"); ?>';
-        }, 2000);
+        // ✅ 중요: 사용자가 선택한 operationMode를 서버에 최종 저장
+        console.log('[Auto Setup] Saving final operation mode to server:', operationMode);
+        jQuery.post(ajaxurl, {
+            action: 'azure_oauth_set_operation_mode',
+            nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
+            mode: operationMode  // 전역 operationMode 사용
+        }, function(response) {
+            console.log('[Auto Setup] Final mode saved:', response);
+            
+            console.log('[Auto Setup] Settings already saved, redirecting in 2 seconds...');
+            alert(successMsg + '\n\n' + detailMsg + '\n\n' + <?php echo json_encode(__('설정 페이지에서 확인하세요.', 'azure-ai-chatbot')); ?>);
+            
+            // DB 커밋 시간 보장을 위해 2초 대기 후 리다이렉트
+            setTimeout(function() {
+                console.log('[Auto Setup] Redirecting now...');
+                window.location.href = '<?php echo admin_url("admin.php?page=azure-ai-chatbot"); ?>';
+            }, 2000);
+        }).fail(function() {
+            console.error('[Auto Setup] Failed to save final mode, redirecting anyway...');
+            alert(successMsg + '\n\n' + detailMsg + '\n\n' + <?php echo json_encode(__('설정 페이지에서 확인하세요.', 'azure-ai-chatbot')); ?>);
+            
+            setTimeout(function() {
+                window.location.href = '<?php echo admin_url("admin.php?page=azure-ai-chatbot"); ?>';
+            }, 2000);
+        });
     }
 }
 

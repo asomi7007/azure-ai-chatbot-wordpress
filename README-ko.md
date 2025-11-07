@@ -4,7 +4,7 @@
 
 Azure AI Foundry 에이전트와 OpenAI 호환 채팅 모델을 완전한 Assistants API 통합과 OAuth 2.0 자동 설정으로 WordPress 웹사이트에 제공하는 현대적인 플러그인입니다.
 
-[![Version](https://img.shields.io/badge/version-3.0.17-blue.svg)](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/latest)
+[![Version](https://img.shields.io/badge/version-3.0.41-blue.svg)](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/latest)
 [![WordPress](https://img.shields.io/badge/wordpress-6.0%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/php-7.4%2B-purple.svg)](https://www.php.net/)
 [![License](https://img.shields.io/badge/license-GPL--2.0%2B-green.svg)](LICENSE)
@@ -377,7 +377,25 @@ define('WP_DEBUG_DISPLAY', false);
 
 ## 버전 히스토리
 
-### 최신 릴리즈: v2.2.7 (2025-10-21)
+### 최신 릴리즈: v3.0.41 (2025-11-08)
+
+**🔄 자동 설정 안정성 개선:**
+- ✅ **모드 지속성 수정**: OAuth 자동 설정 마법사가 선택한 모드를 유지하여 설정 완료 후에도 Chat 또는 Agent 모드가 활성 상태로 유지됩니다.
+- 🤖 **Agent 데이터 캡처**: Chat 모드에서 설정을 시작하더라도 Agent 모드 설정이 저장되어 Agent 자격 증명 누락을 방지합니다.
+- 🛠️ **UI 피드백 개선**: 설정 후 모드 전환 시 더 명확한 성공 및 경고 메시지를 제공합니다.
+
+[v3.0.41 다운로드](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/tag/v3.0.41)
+
+### v3.0.40 (2025-11-08)
+
+**✨ UI 개선 및 문서 정리:**
+- 🎨 관리자 화면에서 남아있던 "V2" 라벨 제거
+- 📚 새 워크플로우를 위한 README 및 가이드 개선
+- 🌐 명확성을 위한 한국어/영어 번역 개선
+
+[v3.0.40 다운로드](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/tag/v3.0.40)
+
+### v2.2.7 (2025-10-21)
 
 **버그 수정:**
 - 🐛 **public_access 설정 저장 오류**: 체크박스 해제가 저장되지 않던 문제 수정

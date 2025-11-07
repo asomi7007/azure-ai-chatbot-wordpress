@@ -1,5 +1,89 @@
 # 변경 이력
 
+## [3.0.41] - 2025-11-08
+
+### � **치명적 버그 수정 (Critical Bug Fixes)**
+- **🔧 Operation Mode 유지 실패 수정**: OAuth 인증 후 사용자가 선택한 모드(Chat/Agent)가 항상 Chat으로 초기화되던 문제 해결
+- **🤖 Agent 목록 조회 실패 수정**: Agent 모드에서 "Agent 없음" 오류가 발생하던 문제 해결
+- **💾 localStorage 기반 모드 저장**: OAuth 리디렉션 과정에서 선택한 모드를 localStorage에 저장하여 복원
+- **🔍 디버깅 강화**: Agent API 호출 실패 시 상세한 오류 정보를 콘솔에 출력
+- **� API 버전 수정**: Assistants API 버전을 `2024-05-01-preview`로 변경하여 호환성 개선
+
+### 주요 변경사항
+#### 🔧 `templates/oauth-auto-setup.php`
+- **localStorage 기반 모드 저장**: OAuth 인증 시작 전 선택한 모드를 localStorage에 저장
+- **페이지 로드 시 모드 복원**: 인증 후 리다이렉트 시 localStorage에서 모드 값을 읽어와 `operationMode` 변수 초기화
+- **Agent AJAX 응답 로깅 강화**: 성공/실패 여부와 관계없이 전체 응답을 콘솔에 기록
+
+#### 🔧 `includes/class-azure-oauth.php`
+- **API 버전 변경**: Assistants API 호출 시 `2025-04-01-preview` → `2024-05-01-preview`로 수정
+- **상세 오류 로깅**: Agent 목록 조회 실패 시 HTTP 상태 코드, 응답 본문, 오류 메시지 상세 기록
+
+### 기술 세부사항
+**문제 1: Operation Mode 초기화**
+- OAuth 인증을 위해 Microsoft 로그인 페이지로 이동 후 돌아올 때, PHP의 `get_option()`이 이전 값을 가져와 사용자의 선택이 무시됨
+- JavaScript 전역 변수 `operationMode`가 항상 'chat'으로 초기화됨
+
+**해결 1:**
+```javascript
+// OAuth 팝업 열기 전
+function openOAuthPopup(url) {
+    var selectedMode = jQuery('input[name="oauth_mode"]:checked').val() || 'chat';
+    localStorage.setItem('azure_oauth_operation_mode', selectedMode);
+    // ...
+}
+
+// 페이지 로드 시
+var operationMode = '<?php echo esc_js(get_option(...)); ?>';
+try {
+    var savedMode = localStorage.getItem('azure_oauth_operation_mode');
+    if (savedMode) {
+        operationMode = savedMode;
+        localStorage.removeItem('azure_oauth_operation_mode');
+    }
+} catch(e) { }
+```
+
+**문제 2: Agent 목록 조회 실패**
+- API 버전 `2025-04-01-preview`가 일부 Azure 리전에서 지원되지 않음
+- AJAX 응답의 디버그 정보가 콘솔에 출력되지 않아 원인 파악 어려움
+
+**해결 2:**
+```php
+// API 버전 변경
+$agents_url = '...' . '?api-version=2024-05-01-preview';
+
+// 상세 로깅
+error_log('[Azure OAuth] Agent 조회 요청 URL: ' . $agents_url);
+error_log('[Azure OAuth] Agent 조회 응답 코드: ' . $status_code);
+error_log('[Azure OAuth] Agent 조회 응답 본문: ' . $body);
+```
+
+```javascript
+// 클라이언트 측 로깅
+console.log('[Auto Setup] [Agent] get_agents 응답:', response);
+console.error('[Auto Setup] [Agent] get_agents AJAX 실패:', {
+    status: status,
+    error: error,
+    responseText: xhr.responseText
+});
+```
+
+### 영향
+- ❌ **이전 (v3.0.40)**: 
+  - OAuth 인증 후 선택한 모드가 항상 'Chat'으로 초기화됨
+  - Agent 모드를 선택했어도 Chat 모드로 설정됨
+  - Agent 목록 조회 시 "Agent 없음" 오류 발생
+- ✅ **현재 (v3.0.41)**: 
+  - 사용자가 선택한 모드(Chat 또는 Agent)가 OAuth 인증 후에도 정확히 유지됨
+  - Agent 모드 선택 시 Agent 목록이 정상적으로 조회됨
+  - API 호출 실패 시 상세한 디버깅 정보 제공
+
+### 사용자 경험 개선
+- **자동 설정 플로우**: Agent 모드 선택 → OAuth 인증 → **Agent 모드 유지** → Agent 목록 표시 → 설정 완료
+- **디버깅**: 문제 발생 시 브라우저 콘솔에서 상세한 오류 정보 확인 가능
+- **안정성**: API 버전 호환성 개선으로 더 많은 Azure 리전에서 안정적으로 동작
+
 ## [3.0.40] - 2025-11-08
 
 ### ✨ **UI 개선 및 문서 정리**
