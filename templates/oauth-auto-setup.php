@@ -1814,6 +1814,8 @@ function getExistingResourceConfig(resource, subscriptionId, rgName) {
         resource_group: rgName
     }, function(response) {
         console.log('[Auto Setup] 배포 목록 조회 응답:', response);
+        console.log('[Auto Setup] response.success:', response.success);
+        console.log('[Auto Setup] response.data:', JSON.stringify(response.data, null, 2));
         
         if (response.success && response.data.deployments && response.data.deployments.length > 0) {
             var deployments = response.data.deployments;
@@ -1860,7 +1862,10 @@ function getExistingResourceConfig(resource, subscriptionId, rgName) {
             }
         } else {
             console.warn('[Auto Setup] 배포 목록 조회 실패 또는 배포 없음');
-            console.warn('[Auto Setup] 응답 데이터:', response.data);
+            console.warn('[Auto Setup] response.success:', response.success);
+            console.warn('[Auto Setup] response.data:', JSON.stringify(response.data, null, 2));
+            console.warn('[Auto Setup] response.data.deployments:', response.data ? response.data.deployments : 'undefined');
+            console.warn('[Auto Setup] response.data.deployments length:', response.data && response.data.deployments ? response.data.deployments.length : 'N/A');
             
             var errorMsg = '이 리소스에는 배포된 모델이 없습니다.';
             if (response.data && response.data.message) {
