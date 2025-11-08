@@ -4,6 +4,10 @@ if (!defined('ABSPATH')) exit;
 $plugin = Azure_AI_Chatbot::get_instance();
 $options = get_option('azure_chatbot_settings', []);
 
+// OAuth 설정 가져오기 (Agent 설정 자동 채우기용)
+$oauth_settings = get_option('azure_chatbot_oauth_settings', []);
+$has_oauth = !empty($oauth_settings['client_id']) && !empty($oauth_settings['tenant_id']) && !empty($oauth_settings['client_secret']);
+
 // API Key 마스킹
 $masked_api_key = '';
 if (!empty($options['api_key_encrypted'])) {
@@ -24,6 +28,32 @@ if (!empty($options['client_secret_encrypted'])) {
     } else {
         $masked_client_secret = str_repeat('•', strlen($decrypted_secret));
     }
+}
+
+// OAuth에서 Client ID, Tenant ID 가져오기 (Agent 설정용)
+$display_client_id = '';
+$display_tenant_id = '';
+$oauth_readonly = false;
+
+if ($has_oauth) {
+    // OAuth 설정이 있으면 그 값을 표시하고 readonly로 설정
+    $display_client_id = $oauth_settings['client_id'];
+    $display_tenant_id = $oauth_settings['tenant_id'];
+    $oauth_readonly = true;
+    
+    // Client Secret 마스킹 (OAuth 설정)
+    if (!empty($oauth_settings['client_secret'])) {
+        $decrypted_oauth_secret = $plugin->decrypt($oauth_settings['client_secret']);
+        if ($decrypted_oauth_secret && strlen($decrypted_oauth_secret) > 8) {
+            $masked_client_secret = substr($decrypted_oauth_secret, 0, 4) . str_repeat('•', strlen($decrypted_oauth_secret) - 8) . substr($decrypted_oauth_secret, -4);
+        } else {
+            $masked_client_secret = str_repeat('•', strlen($decrypted_oauth_secret));
+        }
+    }
+} else {
+    // OAuth 설정이 없으면 Agent 설정에서 가져오기 (입력 가능)
+    $display_client_id = $options['client_id'] ?? '';
+    $display_tenant_id = $options['tenant_id'] ?? '';
 }
 
 // 현재 모드
@@ -247,11 +277,18 @@ if (!empty($options['agent_endpoint'])) {
                                 <input type="text" 
                                        id="client_id" 
                                        name="azure_chatbot_settings[client_id]" 
-                                       value="<?php echo esc_attr($options['client_id'] ?? ''); ?>" 
+                                       value="<?php echo esc_attr($display_client_id); ?>" 
                                        class="regular-text"
-                                       placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+                                       placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                       <?php echo $oauth_readonly ? 'readonly style="background-color: #f0f0f0; cursor: not-allowed;"' : ''; ?> />
                                 <p class="description">
-                                    <?php esc_html_e('Service Principal의 Application (Client) ID', 'azure-ai-chatbot'); ?>
+                                    <?php 
+                                    if ($oauth_readonly) {
+                                        esc_html_e('OAuth 자동 설정에서 가져온 값입니다 (자동 설정됨)', 'azure-ai-chatbot');
+                                    } else {
+                                        esc_html_e('Service Principal의 Application (Client) ID', 'azure-ai-chatbot');
+                                    }
+                                    ?>
                                 </p>
                             </td>
                         </tr>
@@ -266,12 +303,19 @@ if (!empty($options['agent_endpoint'])) {
                                        name="azure_chatbot_settings[client_secret]" 
                                        value="<?php echo esc_attr($masked_client_secret); ?>" 
                                        class="regular-text"
-                                       placeholder="<?php esc_attr_e('Client Secret을 입력하세요', 'azure-ai-chatbot'); ?>" />
-                                <button type="button" id="toggle-client-secret" class="button">
+                                       placeholder="<?php esc_attr_e('Client Secret을 입력하세요', 'azure-ai-chatbot'); ?>"
+                                       <?php echo $oauth_readonly ? 'readonly style="background-color: #f0f0f0; cursor: not-allowed;"' : ''; ?> />
+                                <button type="button" id="toggle-client-secret" class="button"<?php echo $oauth_readonly ? ' disabled style="cursor: not-allowed;"' : ''; ?>>
                                     <span class="dashicons dashicons-visibility"></span>
                                 </button>
                                 <p class="description">
-                                    <?php esc_html_e('Client Secret은 암호화되어 안전하게 저장됩니다. (AES-256 암호화)', 'azure-ai-chatbot'); ?>
+                                    <?php 
+                                    if ($oauth_readonly) {
+                                        esc_html_e('OAuth 자동 설정에서 가져온 값입니다 (자동 설정됨, AES-256 암호화)', 'azure-ai-chatbot');
+                                    } else {
+                                        esc_html_e('Client Secret은 암호화되어 안전하게 저장됩니다. (AES-256 암호화)', 'azure-ai-chatbot');
+                                    }
+                                    ?>
                                 </p>
                             </td>
                         </tr>
@@ -284,11 +328,18 @@ if (!empty($options['agent_endpoint'])) {
                                 <input type="text" 
                                        id="tenant_id" 
                                        name="azure_chatbot_settings[tenant_id]" 
-                                       value="<?php echo esc_attr($options['tenant_id'] ?? ''); ?>" 
+                                       value="<?php echo esc_attr($display_tenant_id); ?>" 
                                        class="regular-text"
-                                       placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+                                       placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                       <?php echo $oauth_readonly ? 'readonly style="background-color: #f0f0f0; cursor: not-allowed;"' : ''; ?> />
                                 <p class="description">
-                                    Azure Entra ID (Azure AD) Tenant ID
+                                    <?php 
+                                    if ($oauth_readonly) {
+                                        esc_html_e('OAuth 자동 설정에서 가져온 값입니다 (자동 설정됨)', 'azure-ai-chatbot');
+                                    } else {
+                                        echo 'Azure Entra ID (Azure AD) Tenant ID';
+                                    }
+                                    ?>
                                 </p>
                             </td>
                         </tr>

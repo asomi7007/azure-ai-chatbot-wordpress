@@ -760,7 +760,13 @@ class Azure_Chatbot_OAuth {
             $mode = 'chat';
         }
 
+        // ✅ 두 곳에 모두 저장 (동기화)
         update_option('azure_ai_chatbot_operation_mode', $mode);
+        
+        // azure_chatbot_settings의 mode도 업데이트
+        $settings = get_option('azure_chatbot_settings', array());
+        $settings['mode'] = $mode;
+        update_option('azure_chatbot_settings', $settings);
 
         wp_send_json_success(array('mode' => $mode));
     }
@@ -1499,45 +1505,9 @@ class Azure_Chatbot_OAuth {
         $current_mode = isset($settings_data['mode']) ? sanitize_text_field($settings_data['mode']) : 'chat';
         $debug_logs[] = '[PHP] current_mode: ' . $current_mode;
         
-        // 중요: mode 필드는 업데이트하지 않음 (사용자가 설정 페이지에서 선택한 모드 유지)
-        // 단, 아직 mode가 설정되지 않았다면 현재 모드로 설정
-        if (!isset($settings['mode']) || empty($settings['mode'])) {
-            $settings['mode'] = $current_mode;
-            $debug_logs[] = '[PHP] mode 필드 설정: ' . $current_mode;
-        }
-        
-        if ($current_mode === 'chat') {
-            $debug_logs[] = '[PHP] Chat 모드 설정 저장 시작';
-            
-            // Chat 모드 설정 저장 (Agent 설정은 유지)
-            if (isset($settings_data['chat_endpoint'])) {
-        
-        // 로그 배열 생성 (콘솔에 출력용)
-        $debug_logs = array();
-        
-        $settings_data = isset($_POST['settings']) ? $_POST['settings'] : array();
-        
-        if (empty($settings_data)) {
-            wp_send_json_error(array('message' => '설정 데이터가 누락되었습니다.'));
-        }
-        
-        $debug_logs[] = '[PHP] ajax_save_existing_config 호출됨';
-        $debug_logs[] = '[PHP] settings_data: ' . json_encode($settings_data, JSON_UNESCAPED_SLASHES);
-        
-        // 현재 설정 가져오기 (기존 설정 유지)
-        $settings = get_option('azure_chatbot_settings', array());
-        $debug_logs[] = '[PHP] 기존 설정 로드됨: ' . json_encode($settings, JSON_UNESCAPED_SLASHES);
-        
-        // 모드 정보 (현재 자동 설정을 실행한 모드)
-        $current_mode = isset($settings_data['mode']) ? sanitize_text_field($settings_data['mode']) : 'chat';
-        $debug_logs[] = '[PHP] current_mode: ' . $current_mode;
-        
-        // 중요: mode 필드는 업데이트하지 않음 (사용자가 설정 페이지에서 선택한 모드 유지)
-        // 단, 아직 mode가 설정되지 않았다면 현재 모드로 설정
-        if (!isset($settings['mode']) || empty($settings['mode'])) {
-            $settings['mode'] = $current_mode;
-            $debug_logs[] = '[PHP] mode 필드 설정: ' . $current_mode;
-        }
+        // ✅ 중요: 사용자가 선택한 mode를 항상 저장 (DB 업데이트)
+        $settings['mode'] = $current_mode;
+        $debug_logs[] = '[PHP] mode 필드 강제 설정: ' . $current_mode;
         
         if ($current_mode === 'chat') {
             $debug_logs[] = '[PHP] Chat 모드 설정 저장 시작';
