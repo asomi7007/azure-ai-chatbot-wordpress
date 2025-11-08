@@ -997,15 +997,34 @@ class Azure_AI_Chatbot {
             $mode = $this->options['mode'];
             
             if ($mode === 'agent') {
+                // OAuth 설정 우선 사용 (자동 설정에서 저장된 값)
+                $oauth_settings = get_option('azure_chatbot_oauth_settings', []);
+                
+                // Client ID, Tenant ID, Client Secret 결정
+                $client_id = !empty($oauth_settings['client_id']) ? $oauth_settings['client_id'] : $this->options['client_id'];
+                $tenant_id = !empty($oauth_settings['tenant_id']) ? $oauth_settings['tenant_id'] : $this->options['tenant_id'];
+                
+                // Client Secret 복호화
+                $client_secret = '';
+                if (!empty($oauth_settings['client_secret'])) {
+                    $client_secret = $this->decrypt($oauth_settings['client_secret']);
+                } else if (!empty($this->options['client_secret_encrypted'])) {
+                    $client_secret = $this->decrypt($this->options['client_secret_encrypted']);
+                }
+                
+                if (empty($client_secret)) {
+                    throw new Exception('Client Secret을 복호화할 수 없습니다.');
+                }
+                
                 // Agent 모드: Entra ID + Assistants API
                 $api_handler = new Azure_AI_API_Handler(
                     $this->options['agent_endpoint'],
                     $this->options['agent_id'],
                     'entra_id',
                     null,
-                    $this->options['client_id'],
-                    $this->options['client_secret'],
-                    $this->options['tenant_id']
+                    $client_id,
+                    $client_secret,
+                    $tenant_id
                 );
                 
                 // 간단한 테스트 메시지 전송
@@ -1367,6 +1386,7 @@ class Azure_AI_API_Handler {
     }
     
     private function create_thread() {
+        // endpoint가 이미 /api/projects/{project} 형식이므로 /threads만 추가
         $response = $this->api_request(
             '/threads',
             'POST',
@@ -1507,6 +1527,11 @@ class Azure_AI_API_Handler {
     
     private function api_request($path, $method, $data = null) {
         $url = $this->endpoint . $path;
+        
+        // 디버그 로그
+        error_log('[API Request] Endpoint: ' . $this->endpoint);
+        error_log('[API Request] Path: ' . $path);
+        error_log('[API Request] Final URL: ' . $url);
         
         // 제공자 정보 가져오기
         $options = get_option('azure_chatbot_settings', []);
