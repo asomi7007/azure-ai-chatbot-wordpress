@@ -185,13 +185,13 @@ echo "🤖 4단계: AI Agent 확인"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-# OAuth Token 생성
+# OAuth Token 생성 (Agent API용)
 echo "🔑 인증 토큰 생성 중..."
 TOKEN_RESPONSE=$(curl -s -X POST "https://login.microsoftonline.com/$TENANT_ID/oauth2/v2.0/token" \
     -H "Content-Type: application/x-www-form-urlencoded" \
     -d "client_id=$CLIENT_ID" \
     -d "client_secret=$CLIENT_SECRET" \
-    -d "scope=https://cognitiveservices.azure.com/.default" \
+    -d "scope=https://ai.azure.com/.default" \
     -d "grant_type=client_credentials")
 
 ACCESS_TOKEN=$(echo $TOKEN_RESPONSE | jq -r '.access_token')
@@ -209,12 +209,39 @@ fi
 
 echo "✅ 인증 성공!"
 
-# Agent 목록 조회
+# Agent 목록 조회 (OpenAI Assistants API 사용)
+# services.ai.azure.com을 openai.azure.com으로 변경
+OPENAI_ENDPOINT=$(echo "$AGENT_ENDPOINT" | sed 's|https://\([^.]*\)\.services\.ai\.azure\.com/api/projects/\([^/]*\)|https://\1.openai.azure.com|')
+ASSISTANTS_URL="${OPENAI_ENDPOINT}/openai/assistants?api-version=2024-05-01-preview"
+
 echo ""
 echo "🔍 Agent 목록 조회 중..."
+echo "   URL: $ASSISTANTS_URL"
+
+# API Key 조회 (Assistants API는 Bearer Token이 아닌 API Key 필요)
+echo "🔑 API Key 조회 중..."
+KEYS_RESPONSE=$(az cognitiveservices account keys list \
+    --name "$RESOURCE_NAME" \
+    --resource-group "$RESOURCE_GROUP" \
+    -o json)
+
+API_KEY=$(echo $KEYS_RESPONSE | jq -r '.key1')
+
+if [ -z "$API_KEY" ] || [ "$API_KEY" == "null" ]; then
+    echo "❌ API Key 조회 실패!"
+    echo "Service Principal에 키 조회 권한이 없을 수 있습니다."
+    echo ""
+    echo "다음 명령으로 수동 확인:"
+    echo "az cognitiveservices account keys list --name $RESOURCE_NAME --resource-group $RESOURCE_GROUP"
+    exit 1
+fi
+
+echo "✅ API Key 조회 성공!"
+
+# Agent 목록 조회 (API Key 인증)
 AGENTS_RESPONSE=$(curl -s -X GET \
-    "${AGENT_ENDPOINT}/assistants?api-version=v1" \
-    -H "Authorization: Bearer $ACCESS_TOKEN" \
+    "$ASSISTANTS_URL" \
+    -H "api-key: $API_KEY" \
     -H "Content-Type: application/json")
 
 AGENT_COUNT=$(echo $AGENTS_RESPONSE | jq -r '.data | length' 2>/dev/null || echo "0")
@@ -243,8 +270,8 @@ if [ "$AGENT_COUNT" == "0" ] || [ "$AGENT_COUNT" == "null" ]; then
         echo "📝 Agent 생성 중..."
         
         CREATE_RESPONSE=$(curl -s -X POST \
-            "${AGENT_ENDPOINT}/assistants?api-version=v1" \
-            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            "$ASSISTANTS_URL" \
+            -H "api-key: $API_KEY" \
             -H "Content-Type: application/json" \
             -d "{
                 \"model\": \"$AGENT_MODEL\",
@@ -303,11 +330,13 @@ else
 fi
 
 echo ""
-echo "🧪 5단계: 연결 테스트"
+echo "🧪 5단계: 연결 테스트 (OAuth Bearer Token 방식)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
+echo "WordPress 플러그인은 OAuth Bearer Token을 사용합니다."
+echo ""
 
-# Thread 생성 테스트
+# Thread 생성 테스트 (OAuth Bearer Token)
 echo "1️⃣ Thread 생성 테스트..."
 THREAD_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST \
     "${AGENT_ENDPOINT}/threads?api-version=v1" \
