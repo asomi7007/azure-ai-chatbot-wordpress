@@ -83,6 +83,33 @@ if (isset($_GET['oauth_error'])) {
                     <strong><?php esc_html_e('자동 설정을 사용하려면 OAuth 설정이 필요합니다.', 'azure-ai-chatbot'); ?></strong><br>
                     <?php esc_html_e('Azure Portal에서 App Registration을 생성하거나 아래 자동 설정 스크립트를 사용하세요.', 'azure-ai-chatbot'); ?>
                 </p>
+                <details style="margin-top: 10px;">
+                    <summary style="cursor: pointer; color: #0073aa; font-weight: 600;">
+                        <span class="dashicons dashicons-info-outline" style="margin-top: 2px;"></span>
+                        <?php esc_html_e('OAuth 인증이 필요한 이유', 'azure-ai-chatbot'); ?>
+                    </summary>
+                    <div style="margin: 10px 0 0 25px; padding: 10px; background: #fff; border-left: 3px solid #0073aa;">
+                        <p><strong><?php esc_html_e('OAuth 인증의 역할:', 'azure-ai-chatbot'); ?></strong></p>
+                        <ul style="margin: 5px 0;">
+                            <li><?php esc_html_e('Azure 구독의 리소스 목록을 안전하게 조회', 'azure-ai-chatbot'); ?></li>
+                            <li><?php esc_html_e('기존 AI Foundry 프로젝트 자동 탐지', 'azure-ai-chatbot'); ?></li>
+                            <li><?php esc_html_e('API Key 자동 조회 및 암호화 저장', 'azure-ai-chatbot'); ?></li>
+                            <li><?php esc_html_e('Agent 목록 자동 검색 및 선택', 'azure-ai-chatbot'); ?></li>
+                        </ul>
+                        <p style="margin-top: 10px;"><strong><?php esc_html_e('자동 설정 과정:', 'azure-ai-chatbot'); ?></strong></p>
+                        <ol style="margin: 5px 0;">
+                            <li><?php esc_html_e('OAuth로 Azure에 로그인 → 권한 부여', 'azure-ai-chatbot'); ?></li>
+                            <li><?php esc_html_e('구독/리소스 선택 → 설정값 자동 조회', 'azure-ai-chatbot'); ?></li>
+                            <li><?php esc_html_e('Agent 모드: Client ID/Secret 자동 채움', 'azure-ai-chatbot'); ?></li>
+                            <li><?php esc_html_e('모든 설정 완료 → 즉시 사용 가능', 'azure-ai-chatbot'); ?></li>
+                        </ol>
+                        <p style="margin-top: 10px; padding: 8px; background: #f0f6fc; border-radius: 4px;">
+                            <span class="dashicons dashicons-lock" style="color: #0078d4;"></span>
+                            <strong><?php esc_html_e('보안:', 'azure-ai-chatbot'); ?></strong>
+                            <?php esc_html_e('OAuth 토큰은 일시적이며 설정 완료 후 자동 삭제됩니다. 저장되는 것은 암호화된 API Key와 Agent 인증 정보만입니다.', 'azure-ai-chatbot'); ?>
+                        </p>
+                    </div>
+                </details>
             </div>
             
             <!-- App Registration 자동 설정 안내 -->
@@ -666,7 +693,66 @@ console.log('[Auto Setup] Auto mode:', autoSetupMode);
 console.log('[Auto Setup] Operation mode:', operationMode);
 console.log('[Auto Setup] Has token from storage:', hasTokenFromStorage);
 
+// 페이지 로드 시 저장된 설정 복원 함수
+function loadSavedSettings() {
+    console.log('[Auto Setup] loadSavedSettings() called');
+    
+    <?php
+    $saved_settings = get_option('azure_chatbot_settings', array());
+    if (!empty($saved_settings)):
+    ?>
+    var savedSettings = <?php echo json_encode($saved_settings); ?>;
+    console.log('[Auto Setup] Found saved settings:', savedSettings);
+    
+    // Chat 모드 설정 복원
+    if (savedSettings.chat_endpoint || savedSettings.deployment_name) {
+        console.log('[Auto Setup] Restoring Chat mode settings');
+        // UI에 표시할 정보 준비 (드롭다운 선택은 리소스 로드 후 자동 선택됨)
+    }
+    
+    // Agent 모드 설정 복원
+    if (savedSettings.agent_endpoint || savedSettings.agent_id) {
+        console.log('[Auto Setup] Restoring Agent mode settings');
+        // UI에 표시할 정보 준비
+    }
+    
+    // 알림 메시지 표시
+    if (savedSettings.mode) {
+        var modeText = savedSettings.mode === 'chat' ? 'Chat' : 'Agent';
+        jQuery('#wpbody-content').prepend(
+            '<div class="notice notice-info is-dismissible" style="margin-top: 10px;">' +
+            '<p>📌 <strong><?php echo esc_html__('이전 설정이 감지되었습니다', 'azure-ai-chatbot'); ?>:</strong> ' +
+            modeText + ' <?php echo esc_html__('모드로 마지막 설정이 저장되어 있습니다.', 'azure-ai-chatbot'); ?>' +
+            '</p></div>'
+        );
+    }
+    <?php endif; ?>
+}
+
 function openOAuthPopup(url) {
+    console.log('[Auto Setup] Starting OAuth auto-setup - Resetting all settings first');
+    
+    // 팝업을 열기 전에 모든 설정 초기화 (동기적으로 처리)
+    jQuery.ajax({
+        url: ajaxurl,
+        type: 'POST',
+        async: false, // 동기 처리
+        data: {
+            action: 'azure_oauth_reset_all_settings',
+            nonce: '<?php echo wp_create_nonce('azure_oauth_nonce'); ?>'
+        },
+        success: function(response) {
+            if (response.success) {
+                console.log('[Auto Setup] Settings reset complete:', response.data.message);
+            } else {
+                console.error('[Auto Setup] Settings reset failed:', response.data.message);
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('[Auto Setup] Settings reset error:', error);
+        }
+    });
+    
     // 팝업을 열기 전에 현재 선택된 operationMode를 localStorage에 저장
     try {
         var selectedMode = jQuery('input[name="oauth_mode"]:checked').val() || 'chat';
@@ -748,9 +834,25 @@ function copyOAuthCommand() {
 }
 
 jQuery(document).ready(function($) {
+    // ========== 페이지 로드 시 저장된 설정 복원 ==========
+    console.log('[Auto Setup] Page loaded - Checking for saved settings');
+    
+    // 저장된 Operation Mode 복원
+    <?php 
+    $saved_operation_mode = get_option('azure_ai_chatbot_operation_mode', '');
+    if (!empty($saved_operation_mode)): 
+    ?>
+    console.log('[Auto Setup] Restoring saved operation mode: <?php echo esc_js($saved_operation_mode); ?>');
+    operationMode = '<?php echo esc_js($saved_operation_mode); ?>';
+    $('input[name="oauth_mode"][value="<?php echo esc_js($saved_operation_mode); ?>"]').prop('checked', true);
+    <?php endif; ?>
+    
     // 인증 성공 시 자동으로 Subscription 로드
     <?php if ($has_token): ?>
     loadSubscriptions();
+    
+    // 저장된 설정 값 복원 (비동기)
+    loadSavedSettings();
     <?php endif; ?>
     
     // Subscription 변경 시 Resource Group 로드

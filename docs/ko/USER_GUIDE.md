@@ -90,6 +90,52 @@ chmod -R 755 azure-ai-chatbot-wordpress
 
 가장 쉽고 빠른 설정 방법입니다!
 
+### 🔐 OAuth 인증이 필요한 이유
+
+**OAuth 인증의 핵심 역할**:
+
+1. **Azure 리소스 자동 탐지** 🔍
+   - 사용자의 Azure 구독에서 AI Foundry 프로젝트, OpenAI 리소스 자동 검색
+   - 기존에 생성된 Agent 목록 자동 조회
+   - 리소스 그룹, 구독 정보 자동 수집
+
+2. **API Key 안전 조회** 🔑
+   - Azure Management API를 통한 안전한 API Key 조회
+   - 조회된 API Key는 AES-256 암호화로 즉시 암호화
+   - 평문 API Key는 메모리에서 즉시 삭제
+
+3. **Agent 인증 정보 자동 구성** 🤖
+   - Agent 모드 사용 시 필요한 Client ID 자동 설정
+   - Tenant ID 자동 감지 및 저장
+   - Client Secret 암호화 저장
+
+4. **신규 리소스 생성** 📦
+   - Azure 리소스가 없는 경우 직접 생성 가능
+   - Resource Group, AI Resource, Model Deployment 자동 생성
+   - 권한 설정 자동 구성
+
+**자동 설정 프로세스**:
+```
+1. OAuth 인증 (Microsoft 로그인)
+   ↓
+2. Azure 리소스 접근 권한 부여
+   ↓
+3. 구독 → 리소스 그룹 → AI 리소스 검색
+   ↓
+4. 설정값 자동 추출 및 암호화
+   ↓
+5. WordPress DB에 안전하게 저장
+   ↓
+6. ✅ 즉시 사용 가능
+```
+
+**보안 고려사항** 🔒:
+- ✅ OAuth 액세스 토큰은 **일시적**이며 설정 후 자동 삭제
+- ✅ 토큰 만료 시간: 1시간 (설정은 5분 내 완료)
+- ✅ 저장되는 것: **암호화된 API Key**와 **Agent 인증 정보**만
+- ✅ Azure 계정 비밀번호는 **절대 저장되지 않음**
+- ✅ 읽기 전용 권한만 사용 (리소스 수정 불가)
+
 ### 설정 단계
 
 1. **AI Chatbot** 메뉴 클릭

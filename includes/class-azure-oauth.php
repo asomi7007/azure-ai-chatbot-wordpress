@@ -84,6 +84,7 @@ class Azure_Chatbot_OAuth {
         add_action('wp_ajax_save_oauth_settings', array($this, 'ajax_save_oauth_settings'));
         add_action('wp_ajax_azure_oauth_clear_session', array($this, 'ajax_clear_session'));
         add_action('wp_ajax_azure_oauth_reset_config', array($this, 'ajax_reset_config'));
+        add_action('wp_ajax_azure_oauth_reset_all_settings', array($this, 'ajax_reset_all_settings'));
         
         // 리소스 생성 관련 AJAX
         add_action('wp_ajax_azure_oauth_get_available_locations', array($this, 'ajax_get_available_locations'));
@@ -920,6 +921,50 @@ class Azure_Chatbot_OAuth {
         $this->clear_session();
         
         wp_send_json_success(array('message' => 'OAuth ?�정??초기?�되?�습?�다.'));
+    }
+    
+    /**
+     * AJAX: 모든 설정 초기화 (OAuth 자동 설정 시작 시)
+     */
+    public function ajax_reset_all_settings() {
+        check_ajax_referer('azure_oauth_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => '권한이 없습니다.'));
+        }
+        
+        error_log('[Azure OAuth] Resetting all settings before OAuth auto-setup');
+        
+        // 1. Chat/Agent 설정 초기화
+        $settings = get_option('azure_chatbot_settings', array());
+        $settings = array(
+            'endpoint' => '',
+            'api_key_encrypted' => '',
+            'deployment_name' => '',
+            'model_name' => '',
+            'mode' => 'chat',
+            'agent_endpoint' => '',
+            'agent_api_key_encrypted' => '',
+            'agent_id' => '',
+            'agent_name' => '',
+            'subscription_id' => isset($settings['subscription_id']) ? $settings['subscription_id'] : '',
+            'resource_group' => isset($settings['resource_group']) ? $settings['resource_group'] : '',
+            'ai_service_name' => isset($settings['ai_service_name']) ? $settings['ai_service_name'] : '',
+        );
+        update_option('azure_chatbot_settings', $settings);
+        
+        // 2. OAuth 설정은 유지 (Client ID, Tenant ID, Client Secret만 보존)
+        // azure_chatbot_oauth_settings는 초기화하지 않음
+        
+        // 3. Operation Mode 초기화
+        delete_option('azure_ai_chatbot_operation_mode');
+        
+        // 4. 세션 초기화
+        $this->clear_session();
+        
+        error_log('[Azure OAuth] All settings reset complete');
+        
+        wp_send_json_success(array('message' => '모든 설정이 초기화되었습니다.'));
     }
     
     /**

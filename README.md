@@ -24,6 +24,28 @@ A modern WordPress plugin that brings Azure AI Foundry agents and OpenAI-compati
 ✅ **API Key Auto-Retrieval**: Automatically retrieves and encrypts API keys  
 ✅ **Complete Automation**: From OAuth approval to final configuration
 
+### 🔐 Why OAuth Authentication is Required
+
+**OAuth Authentication Roles**:
+- 🔍 **Automatic Azure Resource Discovery**: Automatically finds AI Foundry Projects, OpenAI resources, and Agents in your Azure subscription
+- 🔑 **Secure API Key Retrieval**: Safely retrieves API keys via Azure Management API and stores them with AES-256 encryption
+- 🤖 **Agent Credentials Auto-Fill**: Automatically configures Client ID, Tenant ID, and Client Secret needed for Agent mode
+- 📦 **New Resource Creation**: Can create Azure resources directly if you don't have any
+
+**Auto-Setup Flow**:
+1. **OAuth Authentication**: Login with Microsoft account → Grant Azure resource access
+2. **Resource Discovery**: Subscription → Resource Groups → AI Resources automatically searched
+3. **Auto-Fill Settings**: 
+   - Chat Mode: Endpoint, Deployment Name, API Key
+   - Agent Mode: Project Endpoint, Agent ID, Client ID/Secret/Tenant ID
+4. **Complete**: All settings encrypted and saved to WordPress DB
+
+**Security Considerations**:
+- ✅ OAuth access tokens are **temporary** and automatically deleted after setup
+- ✅ Only **encrypted API Keys** and **Agent credentials** are actually stored
+- ✅ Azure resource queries use **read-only** permissions only
+- ✅ Your Azure account information is **never stored** on the server
+
 ---
 
 ## Why This Plugin?

@@ -93,6 +93,10 @@ msg() {
                 "secret_creation_failed") echo "❌ Client Secret 생성 실패" ;;
                 "permission_timeout") echo "⚠️  API 권한 추가 시간 초과 (20초)."; echo "   Azure Portal에서 수동으로 권한을 추가하세요." ;;
                 "permission_failed") echo "⚠️  API 권한 추가 실패. 계속 진행합니다." ;;
+                "assigning_role") echo "🔐 Cognitive Services User 역할 할당 중..." ;;
+                "role_assigned") echo "✅ Cognitive Services User 역할 할당 완료" ;;
+                "role_assignment_failed") echo "⚠️  역할 할당 실패. Azure Portal에서 수동으로 할당하세요."; echo "   역할: Cognitive Services User"; echo "   범위: Subscription 또는 Resource Group" ;;
+                "role_assignment_note") echo "📌 참고: Agent 모드 사용을 위해 Cognitive Services User 역할이 필요합니다." ;;
                 "invalid_choice") echo "❌ 잘못된 선택입니다." ;;
                 *) echo "$key" ;;
             esac
@@ -154,6 +158,10 @@ msg() {
                 "secret_creation_failed") echo "❌ Failed to create Client Secret" ;;
                 "permission_timeout") echo "⚠️  API permission addition timed out (20 seconds)."; echo "   Please add permissions manually in Azure Portal." ;;
                 "permission_failed") echo "⚠️  Failed to add API permissions. Continuing..." ;;
+                "assigning_role") echo "🔐 Assigning Cognitive Services User role..." ;;
+                "role_assigned") echo "✅ Cognitive Services User role assigned successfully" ;;
+                "role_assignment_failed") echo "⚠️  Role assignment failed. Please assign manually in Azure Portal."; echo "   Role: Cognitive Services User"; echo "   Scope: Subscription or Resource Group" ;;
+                "role_assignment_note") echo "📌 Note: Cognitive Services User role is required for Agent mode." ;;
                 "invalid_choice") echo "❌ Invalid choice." ;;
                 *) echo "$key" ;;
             esac
@@ -524,6 +532,65 @@ fi
 
 msg "permissions_done"
 echo ""
+
+# Service Principal 가져오기 (앱 생성 직후 propagation 대기)
+echo ""
+msg "assigning_role"
+
+# App의 Service Principal 가져오기 (최대 30초 대기)
+SERVICE_PRINCIPAL_ID=""
+for i in {1..6}; do
+    set +e
+    SERVICE_PRINCIPAL_ID=$(timeout 10s az ad sp show --id "$APP_ID" --query id -o tsv 2>/dev/null)
+    EXIT_CODE=$?
+    set -e
+    
+    if [ $EXIT_CODE -eq 0 ] && [ -n "$SERVICE_PRINCIPAL_ID" ]; then
+        break
+    fi
+    
+    if [ $i -lt 6 ]; then
+        if [ "$LANG" = "en" ]; then
+            echo "  - Waiting for Service Principal propagation... (attempt $i/6)"
+        else
+            echo "  - Service Principal 생성 대기 중... (시도 $i/6)"
+        fi
+        sleep 5
+    fi
+done
+
+if [ -z "$SERVICE_PRINCIPAL_ID" ]; then
+    msg "role_assignment_failed"
+    msg "role_assignment_note"
+    echo ""
+else
+    # Cognitive Services User 역할 할당 (Subscription 범위)
+    set +e
+    timeout 20s az role assignment create \
+        --role "Cognitive Services User" \
+        --assignee "$SERVICE_PRINCIPAL_ID" \
+        --scope "/subscriptions/$SUBSCRIPTION_ID" \
+        > /dev/null 2>&1
+    EXIT_CODE=$?
+    set -e
+    
+    if [ $EXIT_CODE -eq 0 ]; then
+        msg "role_assigned"
+        if [ "$LANG" = "en" ]; then
+            echo "  - Role: Cognitive Services User"
+            echo "  - Scope: Subscription ($SUBSCRIPTION_NAME)"
+            echo "  - Assignee: Service Principal ($SERVICE_PRINCIPAL_ID)"
+        else
+            echo "  - 역할: Cognitive Services User"
+            echo "  - 범위: Subscription ($SUBSCRIPTION_NAME)"
+            echo "  - 할당 대상: Service Principal ($SERVICE_PRINCIPAL_ID)"
+        fi
+    else
+        msg "role_assignment_failed"
+        msg "role_assignment_note"
+    fi
+    echo ""
+fi
 
 # Admin Consent URL 생성
 CONSENT_URL="https://login.microsoftonline.com/$TENANT_ID/adminconsent?client_id=$APP_ID"

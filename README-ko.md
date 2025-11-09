@@ -24,6 +24,28 @@ Azure AI Foundry 에이전트와 OpenAI 호환 채팅 모델을 완전한 Assist
 ✅ **API Key 자동 조회**: API Key를 자동으로 조회하고 암호화하여 저장  
 ✅ **완전 자동화**: OAuth 승인부터 최종 설정까지 자동 완료
 
+### 🔐 OAuth 인증이 필요한 이유
+
+**OAuth 인증의 역할**:
+- 🔍 **Azure 리소스 자동 탐지**: 사용자의 Azure 구독에서 AI Foundry 프로젝트, OpenAI 리소스, Agent를 자동으로 찾아줍니다
+- 🔑 **API Key 안전 조회**: Azure Management API를 통해 API Key를 안전하게 조회하고 AES-256 암호화로 저장합니다
+- 🤖 **Agent 인증 정보 자동 채움**: Agent 모드 사용 시 필요한 Client ID, Tenant ID, Client Secret을 자동으로 설정합니다
+- 📦 **신규 리소스 생성**: 리소스가 없는 경우 Azure에 직접 생성할 수 있습니다
+
+**자동 설정 흐름**:
+1. **OAuth 인증**: Microsoft 계정으로 로그인 → Azure 리소스 접근 권한 부여
+2. **리소스 탐지**: 구독 → 리소스 그룹 → AI 리소스 자동 검색
+3. **설정 자동 채움**: 
+   - Chat 모드: Endpoint, Deployment Name, API Key
+   - Agent 모드: Project Endpoint, Agent ID, Client ID/Secret/Tenant ID
+4. **완료**: 모든 설정이 WordPress DB에 암호화되어 저장
+
+**보안 고려사항**:
+- ✅ OAuth 액세스 토큰은 **일시적**이며 설정 완료 후 자동 삭제
+- ✅ 실제 저장되는 것은 **암호화된 API Key**와 **Agent 인증 정보**만
+- ✅ Azure 리소스 조회는 **읽기 전용** 권한만 사용
+- ✅ 사용자의 Azure 계정 정보는 서버에 **저장되지 않음**
+
 ---
 
 ## 왜 이 플러그인인가?
