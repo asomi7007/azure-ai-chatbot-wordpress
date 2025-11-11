@@ -79,8 +79,9 @@ class Azure_AI_Chatbot {
         
         $combined_key = implode('', $key_parts);
         
-        // 키가 비어있다면 기본값 사용 (보안 경고 로그)
-        if (empty($combined_key)) {
+        // [수정] 기본값 감지 강화 - WordPress 초기 설치 시 기본 문구 확인
+        $default_phrase = 'put your unique phrase here';
+        if (empty($combined_key) || strpos($combined_key, $default_phrase) !== false) {
             error_log('Azure AI Chatbot: WordPress 보안 키가 설정되지 않았습니다. wp-config.php에 보안 키를 추가하세요.');
             $combined_key = 'default-insecure-key-' . get_site_url();
         }
@@ -90,9 +91,9 @@ class Azure_AI_Chatbot {
     }
     
     /**
-     * 데이터 암호화
+     * 데이터 암호화 (다른 클래스에서 접근 가능하도록 public으로 변경)
      */
-    private function encrypt($data) {
+    public function encrypt($data) {
         if (empty($data)) {
             return '';
         }
@@ -120,7 +121,7 @@ class Azure_AI_Chatbot {
     }
     
     /**
-     * 데이터 복호화
+     * 데이터 복호화 (다른 클래스에서 접근 가능하도록 public 유지, 로직 개선)
      */
     public function decrypt($data) {
         if (empty($data)) {
@@ -137,14 +138,21 @@ class Azure_AI_Chatbot {
         
         $decoded = base64_decode($data);
         
-        // 데이터 길이 검증
-        if (strlen($decoded) < $iv_length) {
-            error_log('Azure AI Chatbot: 암호화된 데이터 형식이 올바르지 않습니다.');
-            return '';
+        // [수정] 데이터 길이 검증 - 이전 버전 호환성 처리
+        if (strlen($decoded) <= $iv_length) {
+            // 암호화되지 않았거나 형식이 다른 값(이전 버전)과의 호환성
+            error_log('Azure AI Chatbot: 암호화된 데이터 형식이 올바르지 않습니다. 이전 버전 데이터일 수 있습니다.');
+            return base64_decode($data); // 폴백: base64 디코딩 시도
         }
         
         $iv = substr($decoded, 0, $iv_length);
         $encrypted = substr($decoded, $iv_length);
+        
+        // [추가] substr 오류 방지
+        if (empty($encrypted)) {
+            error_log('Azure AI Chatbot: 암호화된 데이터가 비어있습니다.');
+            return '';
+        }
         
         $decrypted = openssl_decrypt(
             $encrypted,
@@ -154,7 +162,13 @@ class Azure_AI_Chatbot {
             $iv
         );
         
-        return $decrypted !== false ? $decrypted : '';
+        // [수정] 복호화 실패 시 빈 값 반환 및 로그
+        if ($decrypted === false) {
+            error_log('Azure AI Chatbot: 데이터 복호화에 실패했습니다. 암호화 키가 변경되었을 수 있습니다.');
+            return '';
+        }
+        
+        return $decrypted;
     }
     
     /**
@@ -578,13 +592,16 @@ class Azure_AI_Chatbot {
         if (!empty($input['client_secret'])) {
             $client_secret = sanitize_text_field($input['client_secret']);
             
-            if (strpos($client_secret, '••••') === false) {
+            // [수정] 마스킹된 값 감지 (• 문자 포함 여부로 판단)
+            if (strpos($client_secret, '•') === false) {
+                // 새 값이면 암호화하여 저장
                 $sanitized['client_secret_encrypted'] = $this->encrypt($client_secret);
             } else {
+                // 마스킹된 값이면 기존 암호화된 값 유지
                 $sanitized['client_secret_encrypted'] = $old_options['client_secret_encrypted'] ?? '';
             }
         } elseif (!empty($input['client_secret_encrypted'])) {
-            // OAuth 자동 설정에서 이미 암호화된 값이 전달된 경우 👈 추가!
+            // OAuth 자동 설정에서 이미 암호화된 값이 전달된 경우
             $sanitized['client_secret_encrypted'] = sanitize_text_field($input['client_secret_encrypted']);
         } else {
             $sanitized['client_secret_encrypted'] = $old_options['client_secret_encrypted'] ?? '';
@@ -599,13 +616,16 @@ class Azure_AI_Chatbot {
         if (!empty($input['api_key'])) {
             $api_key = sanitize_text_field($input['api_key']);
             
-            if (strpos($api_key, '••••') === false) {
+            // [수정] 마스킹된 값 감지 (• 문자 포함 여부로 판단)
+            if (strpos($api_key, '•') === false) {
+                // 새 값이면 암호화하여 저장
                 $sanitized['api_key_encrypted'] = $this->encrypt($api_key);
             } else {
+                // 마스킹된 값이면 기존 암호화된 값 유지
                 $sanitized['api_key_encrypted'] = $old_options['api_key_encrypted'] ?? '';
             }
         } elseif (!empty($input['api_key_encrypted'])) {
-            // OAuth 자동 설정에서 이미 암호화된 값이 전달된 경우 👈 추가!
+            // OAuth 자동 설정에서 이미 암호화된 값이 전달된 경우
             $sanitized['api_key_encrypted'] = sanitize_text_field($input['api_key_encrypted']);
         } else {
             // 기존 값 유지

@@ -623,6 +623,9 @@ class Azure_Chatbot_OAuth {
     /**
      * AJAX: Agent ID 목록 조회 (Agent 모드 전용)
      */
+    /**
+     * [수정] AJAX: Agent ID 목록 조회 (Bearer Token 인증 사용)
+     */
     public function ajax_get_agents() {
         check_ajax_referer('azure_oauth_nonce', 'nonce');
         
@@ -636,66 +639,85 @@ class Azure_Chatbot_OAuth {
             wp_send_json_error(array('message' => 'Resource ID가 필요합니다.'));
         }
         
-        // AI Foundry Project의 Endpoint 조회
+        // 1. 리소스 정보에서 Endpoint 및 프로젝트명 추출
         $resource_info = $this->call_azure_api($resource_id, '2023-05-01');
         
         if (is_wp_error($resource_info)) {
             wp_send_json_error(array('message' => $resource_info->get_error_message()));
         }
         
-        // Discovery URL (Project Endpoint) 추출
-        $discovery_url = isset($resource_info['properties']['discoveryUrl']) 
-            ? $resource_info['properties']['discoveryUrl'] 
+        $project_endpoint_host = isset($resource_info['properties']['endpoint']) 
+            ? $resource_info['properties']['endpoint'] 
             : '';
+        $project_name = isset($resource_info['name']) ? $resource_info['name'] : '';
+        
+        if (empty($project_endpoint_host) || empty($project_name)) {
+            wp_send_json_error(array('message' => 'Project Endpoint 또는 이름을 찾을 수 없습니다.'));
+        }
+        
+        // [수정] 올바른 Agent 엔드포인트 구성
+        $base_endpoint = rtrim($project_endpoint_host, '/') . "/api/projects/{$project_name}";
+        $agents_url = $base_endpoint . '/assistants?api-version=v1';
+        
+        // 2. [수정] OAuth 2.0 Bearer Token 획득
+        $plugin = Azure_AI_Chatbot::get_instance();
+        
+        $oauth_client_id = get_option('azure_chatbot_oauth_client_id', '');
+        $oauth_tenant_id = get_option('azure_chatbot_oauth_tenant_id', '');
+        $oauth_secret_encrypted = get_option('azure_chatbot_oauth_client_secret', '');
+        
+        if (empty($oauth_client_id) || empty($oauth_tenant_id) || empty($oauth_secret_encrypted)) {
+            wp_send_json_error(array('message' => 'OAuth 설정(Client ID, Secret, Tenant ID)이 완료되지 않았습니다.'));
+        }
+        
+        $client_secret = $plugin->decrypt($oauth_secret_encrypted);
+        if (empty($client_secret)) {
+            wp_send_json_error(array('message' => 'Client Secret 복호화에 실패했습니다. OAuth 설정을 다시 저장해주세요.'));
+        }
+        
+        // 토큰 캐시 시도
+        $cache_key = 'azure_chatbot_access_token_' . md5($oauth_client_id . $oauth_tenant_id);
+        $cached_token = get_transient($cache_key);
+        $access_token = '';
+        
+        if ($cached_token && !empty($cached_token['token']) && time() < ($cached_token['expiry'] - 300)) {
+            $access_token = $cached_token['token'];
+            error_log('[Azure OAuth] Using cached access token');
+        } else {
+            // 새 토큰 발급
+            $token_url = "https://login.microsoftonline.com/{$oauth_tenant_id}/oauth2/v2.0/token";
+            $token_response = wp_remote_post($token_url, array(
+                'body' => array(
+                    'grant_type' => 'client_credentials',
+                    'client_id' => $oauth_client_id,
+                    'client_secret' => $client_secret,
+                    'scope' => 'https://ai.azure.com/.default'
+                ),
+                'timeout' => 30
+            ));
             
-        if (empty($discovery_url)) {
-            wp_send_json_error(array('message' => 'Project Endpoint를 찾을 수 없습니다.'));
+            if (is_wp_error($token_response)) {
+                wp_send_json_error(array('message' => '토큰 요청 실패: ' . $token_response->get_error_message()));
+            }
+            
+            $token_body = wp_remote_retrieve_body($token_response);
+            $token_data = json_decode($token_body, true);
+            
+            if (empty($token_data['access_token'])) {
+                $error_desc = isset($token_data['error_description']) ? $token_data['error_description'] : 'Unknown error';
+                wp_send_json_error(array('message' => 'Entra ID 인증 실패: ' . $error_desc));
+            }
+            
+            $access_token = $token_data['access_token'];
+            $expires_in = isset($token_data['expires_in']) ? $token_data['expires_in'] : 3600;
+            set_transient($cache_key, array('token' => $access_token, 'expiry' => time() + $expires_in), $expires_in);
+            error_log('[Azure OAuth] New access token acquired');
         }
         
-        // Resource ID에서 구독 ID와 리소스 그룹 추출
-        // 형식: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/...
-        if (!preg_match('#/subscriptions/([^/]+)/resourceGroups/([^/]+)/#', $resource_id, $matches)) {
-            wp_send_json_error(array('message' => 'Resource ID 형식이 올바르지 않습니다.'));
-        }
-        
-        $subscription_id = $matches[1];
-        $resource_group = $matches[2];
-        
-        // AI Foundry Project의 API Key 가져오기
-        $keys_endpoint = $resource_id . '/listKeys?api-version=2023-05-01';
-        $keys_response = $this->call_azure_api($keys_endpoint, null, 'POST');
-        
-        if (is_wp_error($keys_response)) {
-            wp_send_json_error(array('message' => 'API Key 조회 실패: ' . $keys_response->get_error_message()));
-        }
-        
-        // Primary Key 추출
-        $subscription_key = isset($keys_response['primaryKey']) ? $keys_response['primaryKey'] : '';
-        
-        if (empty($subscription_key)) {
-            wp_send_json_error(array('message' => 'API Key를 찾을 수 없습니다. Project 설정을 확인하세요.'));
-        }
-        
-        // Agent 목록 조회 (OpenAI Assistants API 사용)
-        // 올바른 엔드포인트: https://{endpoint}/openai/assistants?api-version=2024-05-01-preview
-        // discovery_url 형식: https://xxxxx.services.ai.azure.com/discovery/...
-        // 필요한 형식: https://xxxxx.openai.azure.com/openai/assistants
-        
-        // Discovery URL에서 base endpoint 추출
-        $parsed_url = parse_url($discovery_url);
-        $host = isset($parsed_url['host']) ? $parsed_url['host'] : '';
-        
-        if (empty($host)) {
-            wp_send_json_error(array('message' => 'Discovery URL 파싱 실패'));
-        }
-        
-        // services.ai.azure.com을 openai.azure.com으로 변경
-        $openai_host = str_replace('.services.ai.azure.com', '.openai.azure.com', $host);
-        $agents_url = 'https://' . $openai_host . '/openai/assistants?api-version=2024-05-01-preview';
-        
+        // 3. [수정] Bearer Token으로 Agent 목록 조회
         $response = wp_remote_get($agents_url, array(
             'headers' => array(
-                'api-key' => $subscription_key,
+                'Authorization' => 'Bearer ' . $access_token, // [수정] 올바른 인증
                 'Content-Type' => 'application/json'
             ),
             'timeout' => 30
@@ -712,7 +734,7 @@ class Azure_Chatbot_OAuth {
         // 디버그 로그
         error_log('[Azure OAuth] Agent 조회 요청 URL: ' . $agents_url);
         error_log('[Azure OAuth] Agent 조회 응답 코드: ' . $status_code);
-        error_log('[Azure OAuth] Agent 조회 응답 본문: ' . $body);
+        error_log('[Azure OAuth] Agent 조회 응답 본문 (처음 500자): ' . substr($body, 0, 500));
         
         if ($status_code !== 200) {
             $error_msg = 'Agent 목록 조회 실패 (HTTP ' . $status_code . ')';
@@ -722,15 +744,12 @@ class Azure_Chatbot_OAuth {
             wp_send_json_error(array('message' => $error_msg, 'debug' => array(
                 'url' => $agents_url,
                 'status' => $status_code,
-                'response' => $body
+                'response' => substr($body, 0, 500)
             )));
         }
         
         if (!isset($data['data']) || !is_array($data['data'])) {
-            wp_send_json_error(array('message' => 'Agent 목록을 찾을 수 없습니다. Project에 Agent가 생성되어 있는지 확인하세요.', 'debug' => array(
-                'url' => $agents_url,
-                'response' => $body
-            )));
+            wp_send_json_error(array('message' => 'Agent 목록을 찾을 수 없습니다. Project에 Agent가 생성되어 있는지 확인하세요.'));
         }
         
         $agents = array();
@@ -739,7 +758,6 @@ class Azure_Chatbot_OAuth {
                 'id' => $agent['id'],
                 'name' => isset($agent['name']) ? $agent['name'] : $agent['id'],
                 'description' => isset($agent['description']) ? $agent['description'] : '',
-                'created_at' => isset($agent['created_at']) ? $agent['created_at'] : ''
             );
         }
         
@@ -872,16 +890,21 @@ class Azure_Chatbot_OAuth {
             wp_send_json_error(array('message' => '모든 필드를 입력하세요.'));
         }
         
-        // OAuth 설정 저장
+        // [수정] OAuth 설정 저장 - 중앙 암호화 로직 사용
         update_option('azure_chatbot_oauth_client_id', $client_id);
-        update_option('azure_chatbot_oauth_client_secret', $client_secret);
         update_option('azure_chatbot_oauth_tenant_id', $tenant_id);
         
-        // Agent Mode 설정에도 자동으로 저장
+        $plugin = Azure_AI_Chatbot::get_instance();
+        $encrypted_secret = $plugin->encrypt($client_secret);
+        update_option('azure_chatbot_oauth_client_secret', $encrypted_secret);
+        
+        // [수정] Agent Mode 설정에도 암호화된 값으로 저장
         if ($save_to_agent_mode) {
-            update_option('azure_client_id', $client_id);
-            update_option('azure_client_secret', $client_secret);
-            update_option('azure_tenant_id', $tenant_id);
+            $settings = get_option('azure_chatbot_settings', array());
+            $settings['client_id'] = $client_id;
+            $settings['client_secret_encrypted'] = $encrypted_secret;
+            $settings['tenant_id'] = $tenant_id;
+            update_option('azure_chatbot_settings', $settings);
         }
         
         wp_send_json_success(array(
@@ -905,22 +928,30 @@ class Azure_Chatbot_OAuth {
     }
     
     /**
-     * AJAX: OAuth ?�정 초기??
+     * AJAX: OAuth 설정 초기화 (모든 플러그인 설정 삭제)
      */
     public function ajax_reset_config() {
         check_ajax_referer('azure_oauth_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
-            wp_send_json_error(array('message' => '권한???�습?�다.'));
+            wp_send_json_error(array('message' => '권한이 없습니다.'));
         }
         
+        // 1. OAuth App 설정 삭제
         delete_option('azure_chatbot_oauth_client_id');
         delete_option('azure_chatbot_oauth_client_secret');
         delete_option('azure_chatbot_oauth_tenant_id');
         
+        // 2. [추가] 메인 플러그인 설정 (Chat/Agent 모드 정보) 삭제
+        delete_option('azure_chatbot_settings');
+        
+        // 3. [추가] 마지막으로 선택한 모드 정보 삭제
+        delete_option('azure_ai_chatbot_operation_mode');
+        
+        // 4. 세션 토큰 삭제
         $this->clear_session();
         
-        wp_send_json_success(array('message' => 'OAuth ?�정??초기?�되?�습?�다.'));
+        wp_send_json_success(array('message' => '모든 플러그인 설정이 초기화되었습니다. 페이지를 새로고침합니다.'));
     }
     
     /**
@@ -1550,9 +1581,9 @@ class Azure_Chatbot_OAuth {
         $current_mode = isset($settings_data['mode']) ? sanitize_text_field($settings_data['mode']) : 'chat';
         $debug_logs[] = '[PHP] current_mode: ' . $current_mode;
         
-        // ✅ 중요: 사용자가 선택한 mode를 항상 저장 (DB 업데이트)
-        $settings['mode'] = $current_mode;
-        $debug_logs[] = '[PHP] mode 필드 강제 설정: ' . $current_mode;
+        // [삭제] mode 저장 제거 - ajax_set_operation_mode에서만 저장하도록 하여 경합 상태 해결
+        // $settings['mode'] = $current_mode; // 이 라인 삭제!
+        $debug_logs[] = '[PHP] mode 필드는 ajax_set_operation_mode에서만 저장됩니다.';
         
         if ($current_mode === 'chat') {
             $debug_logs[] = '[PHP] Chat 모드 설정 저장 시작';
@@ -1567,12 +1598,13 @@ class Azure_Chatbot_OAuth {
                 $debug_logs[] = '[PHP] deployment_name 설정: ' . $settings['deployment_name'];
             }
             if (isset($settings_data['api_key'])) {
-                // API Key는 암호화하여 저장
+                // [수정] API Key는 중앙 암호화 로직 사용
                 $api_key = sanitize_text_field($settings_data['api_key']);
                 $debug_logs[] = '[PHP] API Key 원본 길이: ' . strlen($api_key);
                 $debug_logs[] = '[PHP] API Key (first 10): ' . substr($api_key, 0, 10) . '...';
                 
-                $encrypted = $this->encrypt_api_key($api_key, $debug_logs);
+                $plugin = Azure_AI_Chatbot::get_instance();
+                $encrypted = $plugin->encrypt($api_key);
                 $debug_logs[] = '[PHP] 암호화 결과: ' . ($encrypted ? 'SUCCESS (' . strlen($encrypted) . ' chars)' : 'FAILED');
                 
                 $settings['api_key_encrypted'] = $encrypted;
@@ -1608,11 +1640,12 @@ class Azure_Chatbot_OAuth {
             }
             
             if (isset($settings_data['client_secret'])) {
-                // Client Secret은 암호화하여 저장
+                // [수정] Client Secret은 중앙 암호화 로직 사용
                 $client_secret = sanitize_text_field($settings_data['client_secret']);
                 $debug_logs[] = '[PHP] Client Secret 길이 (프론트엔드): ' . strlen($client_secret);
                 
-                $settings['client_secret_encrypted'] = $this->encrypt_api_key($client_secret, $debug_logs);
+                $plugin = Azure_AI_Chatbot::get_instance();
+                $settings['client_secret_encrypted'] = $plugin->encrypt($client_secret);
                 $debug_logs[] = '[PHP] client_secret_encrypted 저장: ' . (isset($settings['client_secret_encrypted']) ? 'YES' : 'NO');
             } else if (!empty($this->client_secret)) {
                 // OAuth 설정값 자동 채우기 (이미 암호화되어 있음)
@@ -1667,100 +1700,8 @@ class Azure_Chatbot_OAuth {
         ));
     }
     
-    /**
-     * API Key 암호화 (간단한 base64 인코딩)
-     */
-    private function encrypt_api_key($key, &$debug_logs = null) {
-        if ($debug_logs !== null) {
-            $debug_logs[] = '[PHP] encrypt_api_key() 호출됨';
-            $debug_logs[] = '[PHP]   - Input key empty: ' . (empty($key) ? 'YES' : 'NO');
-            $debug_logs[] = '[PHP]   - Input key length: ' . strlen($key);
-        }
-        
-        if (empty($key)) {
-            if ($debug_logs !== null) {
-                $debug_logs[] = '[PHP]   - Returning empty string (key is empty)';
-            }
-            return '';
-        }
-        
-        // OpenSSL 사용 가능 시 암호화, 아니면 base64만 사용
-        $openssl_available = function_exists('openssl_encrypt');
-        if ($debug_logs !== null) {
-            $debug_logs[] = '[PHP]   - openssl_encrypt available: ' . ($openssl_available ? 'YES' : 'NO');
-        }
-        
-        if ($openssl_available) {
-            $method = 'aes-256-cbc';
-            $encryption_key = $this->get_encryption_key();
-            if ($debug_logs !== null) {
-                $debug_logs[] = '[PHP]   - Encryption method: ' . $method;
-                $debug_logs[] = '[PHP]   - Encryption key length: ' . strlen($encryption_key);
-            }
-            
-            $iv_length = openssl_cipher_iv_length($method);
-            if ($debug_logs !== null) {
-                $debug_logs[] = '[PHP]   - IV length: ' . $iv_length;
-            }
-            
-            $iv = openssl_random_pseudo_bytes($iv_length);
-            if ($debug_logs !== null) {
-                $debug_logs[] = '[PHP]   - IV generated: ' . (strlen($iv) === $iv_length ? 'YES' : 'NO');
-            }
-            
-            $encrypted = openssl_encrypt(
-                $key,
-                $method,
-                $encryption_key,
-                OPENSSL_RAW_DATA,
-                $iv
-            );
-            
-            if ($debug_logs !== null) {
-                $debug_logs[] = '[PHP]   - openssl_encrypt result: ' . ($encrypted !== false ? 'SUCCESS' : 'FAILED');
-                if ($encrypted !== false) {
-                    $debug_logs[] = '[PHP]   - Encrypted data length: ' . strlen($encrypted);
-                }
-            }
-            
-            $result = base64_encode($iv . $encrypted);
-            if ($debug_logs !== null) {
-                $debug_logs[] = '[PHP]   - base64_encode result length: ' . strlen($result);
-                $debug_logs[] = '[PHP]   - Final result (first 30 chars): ' . substr($result, 0, 30) . '...';
-            }
-            
-            return $result;
-        }
-        
-        if ($debug_logs !== null) {
-            $debug_logs[] = '[PHP]   - Using fallback base64_encode';
-        }
-        $result = base64_encode($key);
-        if ($debug_logs !== null) {
-            $debug_logs[] = '[PHP]   - base64_encode result length: ' . strlen($result);
-        }
-        return $result;
-    }
-    
-    /**
-     * 암호화 키 생성
-     */
-    private function get_encryption_key() {
-        $key_parts = [
-            defined('AUTH_KEY') ? AUTH_KEY : '',
-            defined('SECURE_AUTH_KEY') ? SECURE_AUTH_KEY : '',
-            defined('LOGGED_IN_KEY') ? LOGGED_IN_KEY : '',
-            defined('NONCE_KEY') ? NONCE_KEY : ''
-        ];
-        
-        $combined_key = implode('', $key_parts);
-        
-        if (empty($combined_key)) {
-            $combined_key = 'default-insecure-key-' . get_site_url();
-        }
-        
-        return hash('sha256', $combined_key, true);
-    }
+    // [삭제] encrypt_api_key() 및 get_encryption_key() 함수 제거
+    // 이제 Azure_AI_Chatbot::get_instance()->encrypt() 사용
 }
 
 // OAuth ?�들??초기??

@@ -8,26 +8,38 @@ $options = get_option('azure_chatbot_settings', []);
 $oauth_settings = get_option('azure_chatbot_oauth_settings', []);
 $has_oauth = !empty($oauth_settings['client_id']) && !empty($oauth_settings['tenant_id']) && !empty($oauth_settings['client_secret']);
 
-// API Key 마스킹
+// [수정] API Key 마스킹 - 복호화 실패 시 빈 값 처리
 $masked_api_key = '';
+$decrypted_api_key = '';
 if (!empty($options['api_key_encrypted'])) {
-    $decrypted_key = $plugin->decrypt($options['api_key_encrypted']);
-    if ($decrypted_key && strlen($decrypted_key) > 8) {
-        $masked_api_key = substr($decrypted_key, 0, 4) . str_repeat('•', strlen($decrypted_key) - 8) . substr($decrypted_key, -4);
-    } else {
-        $masked_api_key = str_repeat('•', strlen($decrypted_key));
+    $decrypted_api_key = $plugin->decrypt($options['api_key_encrypted']);
+    if (!empty($decrypted_api_key)) {
+        // 복호화 성공 시 마스킹
+        $key_length = strlen($decrypted_api_key);
+        if ($key_length > 8) {
+            $masked_api_key = substr($decrypted_api_key, 0, 4) . str_repeat('•', $key_length - 8) . substr($decrypted_api_key, -4);
+        } else {
+            $masked_api_key = str_repeat('•', $key_length);
+        }
     }
+    // 복호화 실패 시 $masked_api_key는 빈 문자열로 유지
 }
 
-// Client Secret 마스킹
+// [수정] Client Secret 마스킹 - 복호화 실패 시 빈 값 처리
 $masked_client_secret = '';
+$decrypted_client_secret = '';
 if (!empty($options['client_secret_encrypted'])) {
-    $decrypted_secret = $plugin->decrypt($options['client_secret_encrypted']);
-    if ($decrypted_secret && strlen($decrypted_secret) > 8) {
-        $masked_client_secret = substr($decrypted_secret, 0, 4) . str_repeat('•', strlen($decrypted_secret) - 8) . substr($decrypted_secret, -4);
-    } else {
-        $masked_client_secret = str_repeat('•', strlen($decrypted_secret));
+    $decrypted_client_secret = $plugin->decrypt($options['client_secret_encrypted']);
+    if (!empty($decrypted_client_secret)) {
+        // 복호화 성공 시 마스킹
+        $secret_length = strlen($decrypted_client_secret);
+        if ($secret_length > 8) {
+            $masked_client_secret = substr($decrypted_client_secret, 0, 4) . str_repeat('•', $secret_length - 8) . substr($decrypted_client_secret, -4);
+        } else {
+            $masked_client_secret = str_repeat('•', $secret_length);
+        }
     }
+    // 복호화 실패 시 $masked_client_secret는 빈 문자열로 유지
 }
 
 // OAuth에서 Client ID, Tenant ID 가져오기 (Agent 설정용)
@@ -41,13 +53,20 @@ if ($has_oauth) {
     $display_tenant_id = $oauth_settings['tenant_id'];
     $oauth_readonly = true;
     
-    // Client Secret 마스킹 (OAuth 설정)
+    // [수정] Client Secret 마스킹 (OAuth 설정) - 복호화 실패 시 빈 값
     if (!empty($oauth_settings['client_secret'])) {
         $decrypted_oauth_secret = $plugin->decrypt($oauth_settings['client_secret']);
-        if ($decrypted_oauth_secret && strlen($decrypted_oauth_secret) > 8) {
-            $masked_client_secret = substr($decrypted_oauth_secret, 0, 4) . str_repeat('•', strlen($decrypted_oauth_secret) - 8) . substr($decrypted_oauth_secret, -4);
+        if (!empty($decrypted_oauth_secret)) {
+            // 복호화 성공 시 마스킹
+            $oauth_secret_length = strlen($decrypted_oauth_secret);
+            if ($oauth_secret_length > 8) {
+                $masked_client_secret = substr($decrypted_oauth_secret, 0, 4) . str_repeat('•', $oauth_secret_length - 8) . substr($decrypted_oauth_secret, -4);
+            } else {
+                $masked_client_secret = str_repeat('•', $oauth_secret_length);
+            }
         } else {
-            $masked_client_secret = str_repeat('•', strlen($decrypted_oauth_secret));
+            // 복호화 실패 시 빈 값
+            $masked_client_secret = '';
         }
     }
 } else {
@@ -56,8 +75,13 @@ if ($has_oauth) {
     $display_tenant_id = $options['tenant_id'] ?? '';
 }
 
-// 현재 모드
-$mode = $options['mode'] ?? 'chat';
+// [수정] 현재 모드를 DB에서 직접 읽어옴 (가장 정확한 값)
+$current_mode_option = get_option('azure_ai_chatbot_operation_mode');
+if ($current_mode_option) {
+    $mode = $current_mode_option; // 자동 설정에서 저장한 모드
+} else {
+    $mode = $options['mode'] ?? 'chat'; // DB에 저장된 모드 (기본값 chat)
+}
 
 // 엔드포인트에서 trailing slash 제거 (기존 저장된 값 정리)
 if (!empty($options['chat_endpoint'])) {
@@ -206,7 +230,7 @@ if (!empty($options['agent_endpoint'])) {
                                        name="azure_chatbot_settings[api_key]" 
                                        value="<?php echo esc_attr($masked_api_key); ?>" 
                                        class="regular-text"
-                                       placeholder="<?php esc_attr_e('API Key를 입력하세요', 'azure-ai-chatbot'); ?>" />
+                                       placeholder="<?php echo $masked_api_key ? esc_attr__('새 키를 입력하여 변경', 'azure-ai-chatbot') : esc_attr__('API Key를 입력하세요', 'azure-ai-chatbot'); ?>" />
                                 <button type="button" id="toggle-api-key" class="button">
                                     <span class="dashicons dashicons-visibility"></span>
                                 </button>
@@ -303,7 +327,7 @@ if (!empty($options['agent_endpoint'])) {
                                        name="azure_chatbot_settings[client_secret]" 
                                        value="<?php echo esc_attr($masked_client_secret); ?>" 
                                        class="regular-text"
-                                       placeholder="<?php esc_attr_e('Client Secret을 입력하세요', 'azure-ai-chatbot'); ?>"
+                                       placeholder="<?php echo ($masked_client_secret && !$oauth_readonly) ? esc_attr__('새 시크릿을 입력하여 변경', 'azure-ai-chatbot') : esc_attr__('Client Secret을 입력하세요', 'azure-ai-chatbot'); ?>"
                                        <?php echo $oauth_readonly ? 'readonly style="background-color: #f0f0f0; cursor: not-allowed;"' : ''; ?> />
                                 <button type="button" id="toggle-client-secret" class="button"<?php echo $oauth_readonly ? ' disabled style="cursor: not-allowed;"' : ''; ?>>
                                     <span class="dashicons dashicons-visibility"></span>

@@ -2168,9 +2168,10 @@ function checkBothCollected() {
             console.log('[Auto Setup] Settings already saved, redirecting in 2 seconds...');
             alert(successMsg + '\n\n' + detailMsg + '\n\n' + <?php echo json_encode(__('설정 페이지에서 확인하세요.', 'azure-ai-chatbot')); ?>);
             
-            // DB 커밋 시간 보장을 위해 2초 대기 후 리다이렉트
+            // [수정] DB 커밋 시간 보장을 위해 2초 대기 후 리다이렉트
             setTimeout(function() {
                 console.log('[Auto Setup] Redirecting now...');
+                // [수정] 리다이렉트 URL에서 tab 파라미터 제거 (메인 설정 페이지로 이동)
                 window.location.href = '<?php echo admin_url("admin.php?page=azure-ai-chatbot"); ?>';
             }, 2000);
         }).fail(function() {
@@ -2178,6 +2179,7 @@ function checkBothCollected() {
             alert(successMsg + '\n\n' + detailMsg + '\n\n' + <?php echo json_encode(__('설정 페이지에서 확인하세요.', 'azure-ai-chatbot')); ?>);
             
             setTimeout(function() {
+                // [수정] 리다이렉트 URL에서 tab 파라미터 제거
                 window.location.href = '<?php echo admin_url("admin.php?page=azure-ai-chatbot"); ?>';
             }, 2000);
         });
