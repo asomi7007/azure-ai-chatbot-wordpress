@@ -746,11 +746,19 @@ function loadSavedSettings() {
 function openOAuthPopup(url) {
     console.log('[Auto Setup] Starting OAuth auto-setup - Resetting all settings first');
     
-    // 팝업을 열기 전에 모든 설정 초기화 (동기적으로 처리)
+    // 팝업을 열기 전에 현재 선택된 operationMode를 localStorage에 저장
+    try {
+        var selectedMode = jQuery('input[name="oauth_mode"]:checked').val() || 'chat';
+        localStorage.setItem('azure_oauth_operation_mode', selectedMode);
+        console.log('[Auto Setup] Saving operation mode to localStorage before OAuth:', selectedMode);
+    } catch(e) {
+        console.warn('[Auto Setup] Cannot save operationMode to localStorage:', e);
+    }
+    
+    // 팝업을 열기 전에 모든 설정 초기화 (비동기 처리)
     jQuery.ajax({
         url: ajaxurl,
         type: 'POST',
-        async: false, // 동기 처리
         data: {
             action: 'azure_oauth_reset_all_settings',
             nonce: '<?php echo wp_create_nonce('azure_oauth_nonce'); ?>'
@@ -761,21 +769,22 @@ function openOAuthPopup(url) {
             } else {
                 console.error('[Auto Setup] Settings reset failed:', response.data.message);
             }
+            
+            // 설정 초기화 완료 후 팝업 열기
+            openPopupWindow(url);
         },
         error: function(xhr, status, error) {
             console.error('[Auto Setup] Settings reset error:', error);
+            // 에러가 발생해도 팝업은 열기
+            openPopupWindow(url);
         }
     });
     
-    // 팝업을 열기 전에 현재 선택된 operationMode를 localStorage에 저장
-    try {
-        var selectedMode = jQuery('input[name="oauth_mode"]:checked').val() || 'chat';
-        localStorage.setItem('azure_oauth_operation_mode', selectedMode);
-        console.log('[Auto Setup] Saving operation mode to localStorage before OAuth:', selectedMode);
-    } catch(e) {
-        console.warn('[Auto Setup] Cannot save operationMode to localStorage:', e);
-    }
+    return false; // 기본 링크 동작 방지
+}
 
+// 팝업 창 열기 함수 분리
+function openPopupWindow(url) {
     var width = 600;
     var height = 700;
     var left = (screen.width - width) / 2;
@@ -786,8 +795,6 @@ function openOAuthPopup(url) {
         'AzureOAuth',
         'width=' + width + ',height=' + height + ',top=' + top + ',left=' + left + ',toolbar=no,menubar=no,scrollbars=yes,resizable=yes'
     );
-    
-    return false; // 기본 링크 동작 방지
 }
 
 function copyToClipboard(elementId, successMessage) {
