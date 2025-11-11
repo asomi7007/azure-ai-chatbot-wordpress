@@ -98,6 +98,30 @@ msg() {
                 "role_assignment_failed") echo "⚠️  역할 할당 실패. Azure Portal에서 수동으로 할당하세요."; echo "   역할: Cognitive Services User"; echo "   범위: Subscription 또는 Resource Group" ;;
                 "role_assignment_note") echo "📌 참고: Agent 모드 사용을 위해 Cognitive Services User 역할이 필요합니다." ;;
                 "invalid_choice") echo "❌ 잘못된 선택입니다." ;;
+                "validating_config") echo "🔍 OAuth 앱 설정 검증 중..." ;;
+                "checking_sp") echo "1️⃣ Service Principal 확인 중..." ;;
+                "sp_found") echo "   ✅ Service Principal 생성 확인됨: $2" ;;
+                "sp_waiting") echo "   ⏳ Service Principal 생성 대기 중... (시도 $2/10, 5초 대기)" ;;
+                "sp_not_found") echo "   ⚠️  Service Principal이 생성되지 않았습니다."; echo "      이유: Admin Consent가 완료되지 않았거나, Azure AD 전파 지연"; echo "      해결: 잠시 후 다시 스크립트를 실행하거나, Azure Portal에서 수동으로 역할 할당" ;;
+                "checking_permissions") echo "2️⃣ API 권한 상태 확인 중..." ;;
+                "permission_configured") echo "   ✅ $2: 설정됨" ;;
+                "permission_missing") echo "   ❌ $2: 누락" ;;
+                "permissions_missing_warning") echo "   ⚠️  일부 API 권한이 누락되었습니다."; echo "      Azure Portal > App Registration > API permissions에서 수동으로 추가하세요." ;;
+                "permissions_check_failed") echo "   ⚠️  권한 상태 확인 실패 (타임아웃 또는 권한 없음)" ;;
+                "checking_consent") echo "3️⃣ Admin Consent 상태 확인 중..." ;;
+                "consent_granted") echo "   ✅ Admin Consent 부여됨" ;;
+                "consent_unknown") echo "   ⚠️  Admin Consent 부여 확인 불가"; echo "      권한 정보를 가져올 수 없습니다. 잠시 후 Azure Portal에서 확인하세요." ;;
+                "consent_no_sp") echo "   ⚠️  Service Principal이 없어 Admin Consent 상태를 확인할 수 없습니다." ;;
+                "assigning_role_step") echo "4️⃣ Cognitive Services User 역할 할당 중..." ;;
+                "role_assigned_detail") echo "   ✅ 역할 할당 완료"; echo "      - 역할: Cognitive Services User"; echo "      - 범위: Subscription ($2)"; echo "      - 할당 대상: $3" ;;
+                "role_assignment_failed_detail") echo "   ⚠️  역할 할당 실패"; echo "      이유: 이미 할당됨, 권한 없음, 또는 Azure AD 전파 지연"; echo "      해결: Azure Portal > 구독 > IAM > 역할 할당에서 수동으로 확인/추가" ;;
+                "role_assignment_skipped") echo "4️⃣ Cognitive Services User 역할 할당 건너뜀 (Service Principal 없음)" ;;
+                "checking_redirect_uri") echo "5️⃣ Redirect URI 설정 확인 중..." ;;
+                "redirect_uri_ok") echo "   ✅ Redirect URI 설정 확인됨"; echo "      $2" ;;
+                "redirect_uri_missing") echo "   ❌ Redirect URI가 설정되지 않았습니다!"; echo "      예상: $2"; echo "      해결: Azure Portal > App Registration > Authentication에서 수동으로 추가" ;;
+                "redirect_uri_check_failed") echo "   ⚠️  Redirect URI 확인 실패" ;;
+                "validation_complete") echo "✅ 검증 완료" ;;
+                "role_wait_note") echo "⏳ 참고: Cognitive Services User 역할 할당은 관리자 동의 후에 진행합니다."; echo "   (Service Principal이 생성되려면 먼저 Admin Consent가 필요합니다)" ;;
                 *) echo "$key" ;;
             esac
             ;;
@@ -163,6 +187,30 @@ msg() {
                 "role_assignment_failed") echo "⚠️  Role assignment failed. Please assign manually in Azure Portal."; echo "   Role: Cognitive Services User"; echo "   Scope: Subscription or Resource Group" ;;
                 "role_assignment_note") echo "📌 Note: Cognitive Services User role is required for Agent mode." ;;
                 "invalid_choice") echo "❌ Invalid choice." ;;
+                "validating_config") echo "🔍 Validating OAuth app configuration..." ;;
+                "checking_sp") echo "1️⃣ Checking Service Principal..." ;;
+                "sp_found") echo "   ✅ Service Principal found: $2" ;;
+                "sp_waiting") echo "   ⏳ Waiting for Service Principal propagation... (attempt $2/10, waiting 5s)" ;;
+                "sp_not_found") echo "   ⚠️  Service Principal not created."; echo "      Reason: Admin Consent incomplete or Azure AD propagation delay"; echo "      Solution: Retry script later or assign role manually in Azure Portal" ;;
+                "checking_permissions") echo "2️⃣ Checking API permissions status..." ;;
+                "permission_configured") echo "   ✅ $2: Configured" ;;
+                "permission_missing") echo "   ❌ $2: Missing" ;;
+                "permissions_missing_warning") echo "   ⚠️  Some API permissions are missing."; echo "      Please add them manually: Azure Portal > App Registration > API permissions" ;;
+                "permissions_check_failed") echo "   ⚠️  Failed to check permissions (timeout or insufficient access)" ;;
+                "checking_consent") echo "3️⃣ Checking Admin Consent status..." ;;
+                "consent_granted") echo "   ✅ Admin Consent granted" ;;
+                "consent_unknown") echo "   ⚠️  Admin Consent status unknown"; echo "      Cannot retrieve permission info. Check Azure Portal later." ;;
+                "consent_no_sp") echo "   ⚠️  Cannot check Admin Consent status without Service Principal." ;;
+                "assigning_role_step") echo "4️⃣ Assigning Cognitive Services User role..." ;;
+                "role_assigned_detail") echo "   ✅ Role assigned successfully"; echo "      - Role: Cognitive Services User"; echo "      - Scope: Subscription ($2)"; echo "      - Assignee: $3" ;;
+                "role_assignment_failed_detail") echo "   ⚠️  Role assignment failed"; echo "      Reason: Already assigned, insufficient permissions, or propagation delay"; echo "      Solution: Check/add manually in Azure Portal > Subscription > IAM > Role assignments" ;;
+                "role_assignment_skipped") echo "4️⃣ Skipping Cognitive Services User role assignment (No Service Principal)" ;;
+                "checking_redirect_uri") echo "5️⃣ Checking Redirect URI configuration..." ;;
+                "redirect_uri_ok") echo "   ✅ Redirect URI configured correctly"; echo "      $2" ;;
+                "redirect_uri_missing") echo "   ❌ Redirect URI not configured!"; echo "      Expected: $2"; echo "      Solution: Add manually in Azure Portal > App Registration > Authentication" ;;
+                "redirect_uri_check_failed") echo "   ⚠️  Failed to check Redirect URI" ;;
+                "validation_complete") echo "✅ Validation completed" ;;
+                "role_wait_note") echo "⏳ Note: Cognitive Services User role assignment will be done after admin consent."; echo "   (Service Principal creation requires Admin Consent first)" ;;
                 *) echo "$key" ;;
             esac
             ;;
@@ -533,64 +581,10 @@ fi
 msg "permissions_done"
 echo ""
 
-# Service Principal 가져오기 (앱 생성 직후 propagation 대기)
+# Service Principal 대기 안내 (Admin Consent 후 수동 진행)
 echo ""
-msg "assigning_role"
-
-# App의 Service Principal 가져오기 (최대 30초 대기)
-SERVICE_PRINCIPAL_ID=""
-for i in {1..6}; do
-    set +e
-    SERVICE_PRINCIPAL_ID=$(timeout 10s az ad sp show --id "$APP_ID" --query id -o tsv 2>/dev/null)
-    EXIT_CODE=$?
-    set -e
-    
-    if [ $EXIT_CODE -eq 0 ] && [ -n "$SERVICE_PRINCIPAL_ID" ]; then
-        break
-    fi
-    
-    if [ $i -lt 6 ]; then
-        if [ "$LANG" = "en" ]; then
-            echo "  - Waiting for Service Principal propagation... (attempt $i/6)"
-        else
-            echo "  - Service Principal 생성 대기 중... (시도 $i/6)"
-        fi
-        sleep 5
-    fi
-done
-
-if [ -z "$SERVICE_PRINCIPAL_ID" ]; then
-    msg "role_assignment_failed"
-    msg "role_assignment_note"
-    echo ""
-else
-    # Cognitive Services User 역할 할당 (Subscription 범위)
-    set +e
-    timeout 20s az role assignment create \
-        --role "Cognitive Services User" \
-        --assignee "$SERVICE_PRINCIPAL_ID" \
-        --scope "/subscriptions/$SUBSCRIPTION_ID" \
-        > /dev/null 2>&1
-    EXIT_CODE=$?
-    set -e
-    
-    if [ $EXIT_CODE -eq 0 ]; then
-        msg "role_assigned"
-        if [ "$LANG" = "en" ]; then
-            echo "  - Role: Cognitive Services User"
-            echo "  - Scope: Subscription ($SUBSCRIPTION_NAME)"
-            echo "  - Assignee: Service Principal ($SERVICE_PRINCIPAL_ID)"
-        else
-            echo "  - 역할: Cognitive Services User"
-            echo "  - 범위: Subscription ($SUBSCRIPTION_NAME)"
-            echo "  - 할당 대상: Service Principal ($SERVICE_PRINCIPAL_ID)"
-        fi
-    else
-        msg "role_assignment_failed"
-        msg "role_assignment_note"
-    fi
-    echo ""
-fi
+msg "role_wait_note"
+echo ""
 
 # Admin Consent URL 생성
 CONSENT_URL="https://login.microsoftonline.com/$TENANT_ID/adminconsent?client_id=$APP_ID"
@@ -648,12 +642,157 @@ else
 fi
 echo ""
 
-# 결과 출력
+# ========================================
+# Admin Consent 후 앱 설정 검증
+# ========================================
 echo "========================================="
-echo "✅ OAuth App 설정 완료!"
+msg "validating_config"
 echo "========================================="
 echo ""
-echo "📝 WordPress 플러그인에 입력할 값:"
+
+# 1. Service Principal 생성 확인 (Admin Consent 후 생성됨)
+msg "checking_sp"
+
+SERVICE_PRINCIPAL_ID=""
+for i in {1..10}; do
+    set +e
+    SERVICE_PRINCIPAL_ID=$(timeout 10s az ad sp show --id "$APP_ID" --query id -o tsv 2>/dev/null)
+    EXIT_CODE=$?
+    set -e
+    
+    if [ $EXIT_CODE -eq 0 ] && [ -n "$SERVICE_PRINCIPAL_ID" ]; then
+        msg "sp_found" "$SERVICE_PRINCIPAL_ID"
+        break
+    fi
+    
+    if [ $i -lt 10 ]; then
+        msg "sp_waiting" "$i"
+        sleep 5
+    else
+        msg "sp_not_found"
+    fi
+done
+echo ""
+
+# 2. API 권한 상태 확인
+msg "checking_permissions"
+
+set +e
+PERMISSIONS_STATUS=$(timeout 15s az ad app permission list --id "$APP_ID" -o json 2>/dev/null)
+EXIT_CODE=$?
+set -e
+
+if [ $EXIT_CODE -eq 0 ] && [ -n "$PERMISSIONS_STATUS" ]; then
+    # Microsoft Graph User.Read 권한 확인
+    GRAPH_PERMISSION=$(echo "$PERMISSIONS_STATUS" | jq -r '.[] | select(.resourceAppId == "00000003-0000-0000-c000-000000000000") | .resourceAccess[] | select(.id == "e1fe6dd8-ba31-4d61-89e7-88639da4683d") | .id' 2>/dev/null)
+    
+    # Azure Service Management user_impersonation 권한 확인
+    ASM_PERMISSION=$(echo "$PERMISSIONS_STATUS" | jq -r '.[] | select(.resourceAppId == "797f4846-ba00-4fd7-ba43-dac1f8f63013") | .resourceAccess[] | select(.id == "41094075-9dad-400e-a0bd-54e686782033") | .id' 2>/dev/null)
+    
+    if [ -n "$GRAPH_PERMISSION" ]; then
+        msg "permission_configured" "Microsoft Graph - User.Read"
+    else
+        msg "permission_missing" "Microsoft Graph - User.Read"
+    fi
+    
+    if [ -n "$ASM_PERMISSION" ]; then
+        msg "permission_configured" "Azure Service Management - user_impersonation"
+    else
+        msg "permission_missing" "Azure Service Management - user_impersonation"
+    fi
+    
+    # 권한 누락 시 경고
+    if [ -z "$GRAPH_PERMISSION" ] || [ -z "$ASM_PERMISSION" ]; then
+        echo ""
+        msg "permissions_missing_warning"
+    fi
+else
+    msg "permissions_check_failed"
+fi
+echo ""
+
+# 3. Admin Consent 상태 확인
+msg "checking_consent"
+
+if [ -n "$SERVICE_PRINCIPAL_ID" ]; then
+    set +e
+    OAUTH2_GRANTS=$(timeout 15s az ad sp show --id "$APP_ID" --query "oauth2PermissionGrants" -o json 2>/dev/null)
+    EXIT_CODE=$?
+    set -e
+    
+    if [ $EXIT_CODE -eq 0 ] && [ -n "$OAUTH2_GRANTS" ] && [ "$OAUTH2_GRANTS" != "null" ] && [ "$OAUTH2_GRANTS" != "[]" ]; then
+        msg "consent_granted"
+    else
+        msg "consent_unknown"
+    fi
+else
+    msg "consent_no_sp"
+fi
+echo ""
+
+# 4. Cognitive Services User 역할 할당 (Service Principal이 있을 때만)
+if [ -n "$SERVICE_PRINCIPAL_ID" ]; then
+    msg "assigning_role_step"
+    
+    set +e
+    timeout 30s az role assignment create \
+        --role "Cognitive Services User" \
+        --assignee "$SERVICE_PRINCIPAL_ID" \
+        --scope "/subscriptions/$SUBSCRIPTION_ID" \
+        > /dev/null 2>&1
+    EXIT_CODE=$?
+    set -e
+    
+    if [ $EXIT_CODE -eq 0 ]; then
+        msg "role_assigned_detail" "$SUBSCRIPTION_NAME" "$SERVICE_PRINCIPAL_ID"
+    else
+        msg "role_assignment_failed_detail"
+    fi
+    echo ""
+else
+    msg "role_assignment_skipped"
+    echo ""
+fi
+
+# 5. Redirect URI 확인
+msg "checking_redirect_uri"
+
+set +e
+CONFIGURED_URIS=$(timeout 10s az ad app show --id "$APP_ID" --query "web.redirectUris" -o json 2>/dev/null)
+EXIT_CODE=$?
+set -e
+
+if [ $EXIT_CODE -eq 0 ] && [ -n "$CONFIGURED_URIS" ]; then
+    if echo "$CONFIGURED_URIS" | jq -e --arg uri "$REDIRECT_URI" 'map(select(. == $uri)) | length > 0' > /dev/null 2>&1; then
+        msg "redirect_uri_ok" "$REDIRECT_URI"
+    else
+        msg "redirect_uri_missing" "$REDIRECT_URI"
+    fi
+else
+    msg "redirect_uri_check_failed"
+fi
+echo ""
+
+# 검증 완료
+echo "========================================="
+msg "validation_complete"
+echo "========================================="
+echo ""
+
+# 결과 출력
+echo "========================================="
+if [ "$LANG" = "ko" ]; then
+    echo "✅ OAuth App 설정 완료!"
+else
+    echo "✅ OAuth App Setup Complete!"
+fi
+echo "========================================="
+echo ""
+if [ "$LANG" = "ko" ]; then
+    echo "📝 WordPress 플러그인에 입력할 값:"
+else
+    echo "📝 Values to enter in WordPress plugin:"
+fi
 echo ""
 echo "Client ID:"
 echo "$APP_ID"
@@ -669,13 +808,23 @@ echo "$REDIRECT_URI"
 echo ""
 echo "========================================="
 echo ""
-echo "🚀 다음 단계:"
-echo "1. Azure Portal에서 Admin Consent 부여 (위 URL 참고)"
-echo "2. WordPress 관리자 > Azure AI Chatbot > 설정"
-echo "3. 'Azure OAuth 설정' 섹션에 위 값 입력"
-echo "4. 'OAuth 설정 저장' 버튼 클릭"
-echo "5. 'Azure 자동 설정 시작' 버튼 클릭"
-echo ""
-echo "📖 상세 가이드:"
-echo "https://github.com/asomi7007/azure-ai-chatbot-wordpress/blob/main/docs/AZURE_AUTO_SETUP.md"
+if [ "$LANG" = "ko" ]; then
+    echo "🚀 다음 단계:"
+    echo "1. WordPress 관리자 > Azure AI Chatbot > 설정"
+    echo "2. 'Azure OAuth 설정' 섹션에 위 값 입력"
+    echo "3. 'OAuth 설정 저장' 버튼 클릭"
+    echo "4. 'Azure 자동 설정 시작' 버튼 클릭"
+    echo ""
+    echo "📖 상세 가이드:"
+    echo "https://github.com/asomi7007/azure-ai-chatbot-wordpress/blob/main/docs/AZURE_AUTO_SETUP.md"
+else
+    echo "🚀 Next Steps:"
+    echo "1. WordPress Admin > Azure AI Chatbot > Settings"
+    echo "2. Enter values above in 'Azure OAuth Settings' section"
+    echo "3. Click 'Save OAuth Settings' button"
+    echo "4. Click 'Start Azure Auto Setup' button"
+    echo ""
+    echo "📖 Detailed Guide:"
+    echo "https://github.com/asomi7007/azure-ai-chatbot-wordpress/blob/main/docs/AZURE_AUTO_SETUP.md"
+fi
 echo ""
