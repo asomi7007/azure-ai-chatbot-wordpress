@@ -744,7 +744,7 @@ function loadSavedSettings() {
 }
 
 function openOAuthPopup(url) {
-    console.log('[Auto Setup] Starting OAuth auto-setup - Resetting all settings first');
+    console.log('[Auto Setup] Starting OAuth auto-setup (OAuth credentials will be preserved)');
     
     // 팝업을 열기 전에 현재 선택된 operationMode를 localStorage에 저장
     try {
@@ -755,30 +755,8 @@ function openOAuthPopup(url) {
         console.warn('[Auto Setup] Cannot save operationMode to localStorage:', e);
     }
     
-    // 팝업을 열기 전에 모든 설정 초기화 (비동기 처리)
-    jQuery.ajax({
-        url: ajaxurl,
-        type: 'POST',
-        data: {
-            action: 'azure_oauth_reset_all_settings',
-            nonce: '<?php echo wp_create_nonce('azure_oauth_nonce'); ?>'
-        },
-        success: function(response) {
-            if (response.success) {
-                console.log('[Auto Setup] Settings reset complete:', response.data.message);
-            } else {
-                console.error('[Auto Setup] Settings reset failed:', response.data.message);
-            }
-            
-            // 설정 초기화 완료 후 팝업 열기
-            openPopupWindow(url);
-        },
-        error: function(xhr, status, error) {
-            console.error('[Auto Setup] Settings reset error:', error);
-            // 에러가 발생해도 팝업은 열기
-            openPopupWindow(url);
-        }
-    });
+    // OAuth 인증 정보는 유지하고 팝업만 열기 (설정 초기화 X)
+    openPopupWindow(url);
     
     return false; // 기본 링크 동작 방지
 }
