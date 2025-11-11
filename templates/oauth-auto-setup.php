@@ -214,14 +214,28 @@ if (isset($_GET['oauth_error'])) {
                         <label for="oauth_client_secret"><?php esc_html_e('Client Secret', 'azure-ai-chatbot'); ?> *</label>
                     </th>
                     <td>
+                        <?php
+                        // OAuth Client Secret 마스킹 처리
+                        $oauth_secret_encrypted = get_option('azure_chatbot_oauth_client_secret', '');
+                        $oauth_secret_display = '';
+                        $oauth_secret_has_value = !empty($oauth_secret_encrypted);
+                        
+                        if ($oauth_secret_has_value) {
+                            // 저장된 값이 있으면 마스킹 표시
+                            $oauth_secret_display = '••••••••••••••••';
+                        }
+                        ?>
                         <input type="password" 
                                id="oauth_client_secret" 
                                name="azure_chatbot_oauth_client_secret" 
-                               value="<?php echo esc_attr(get_option('azure_chatbot_oauth_client_secret', '')); ?>" 
+                               value="<?php echo esc_attr($oauth_secret_display); ?>" 
                                class="regular-text" 
-                               placeholder="비밀번호는 저장 후 마스킹됩니다" />
+                               placeholder="<?php echo $oauth_secret_has_value ? esc_attr__('새 시크릿을 입력하여 변경', 'azure-ai-chatbot') : esc_attr__('Client Secret을 입력하세요', 'azure-ai-chatbot'); ?>" />
                         <p class="description">
                             <?php esc_html_e('Azure App Registration에서 생성한 Client Secret', 'azure-ai-chatbot'); ?>
+                            <?php if ($oauth_secret_has_value): ?>
+                                <br><strong><?php esc_html_e('※ 저장된 값이 있습니다. 변경하려면 새 값을 입력하세요.', 'azure-ai-chatbot'); ?></strong>
+                            <?php endif; ?>
                         </p>
                     </td>
                 </tr>
@@ -1833,14 +1847,8 @@ function checkAndCreateAgent(resourceId, subscriptionId, rgName, config, existin
             var agents = response.data.agents;
             console.log('[Auto Setup] Agent 목록 조회 성공:', agents.length + '개');
             
-            // OAuth Client ID와 Tenant ID 가져오기
-            var client_id = '<?php echo esc_js(get_option('azure_chatbot_oauth_client_id', '')); ?>';
-            var tenant_id = '<?php echo esc_js(get_option('azure_chatbot_oauth_tenant_id', '')); ?>';
-            var client_secret = '<?php echo esc_js(get_option('azure_chatbot_oauth_client_secret', '')); ?>';
-            
-            console.log('[Auto Setup] OAuth Client ID:', client_id);
-            console.log('[Auto Setup] OAuth Tenant ID:', tenant_id);
-            console.log('[Auto Setup] OAuth Client Secret:', client_secret ? '***' : '(empty)');
+            // OAuth Client ID와 Tenant ID는 서버측에서 자동으로 사용됨 (보안을 위해 JavaScript에 노출하지 않음)
+            console.log('[Auto Setup] OAuth credentials will be handled by server');
             
             // Agent 선택 처리 함수
             function processSelectedAgent(agent) {
@@ -1853,23 +1861,19 @@ function checkAndCreateAgent(resourceId, subscriptionId, rgName, config, existin
                         agent_endpoint: 'https://' + existingResource.name + '.' + existingResource.location + '.services.ai.azure.com/agents/v1.0/projects/' + existingResource.name,
                         project_name: existingResource.name,
                         location: existingResource.location,
-                        client_id: client_id,
-                        tenant_id: tenant_id,
-                        client_secret: client_secret,
                         agent_id: agent.id || agent.name,
                         agent_name: agent.name
+                        // client_id, tenant_id, client_secret는 서버측에서 자동 처리
                     };
                     
                     console.log('[Auto Setup] Agent 모드 설정 구성:', config);
                     
-                    // Agent 모드 설정 저장
+                    // Agent 모드 설정 저장 (OAuth credentials는 서버에서 자동으로 가져옴)
                     var settings = {
                         mode: 'agent',
                         agent_endpoint: config.agent_endpoint,
-                        agent_id: config.agent_id,
-                        client_id: config.client_id,
-                        tenant_id: config.tenant_id,
-                        client_secret: config.client_secret
+                        agent_id: config.agent_id
+                        // client_id, tenant_id, client_secret는 서버측에서 자동으로 추가됨
                     };
                     
                     console.log('[Auto Setup] Agent 모드 설정 저장 요청:', settings);
@@ -1927,18 +1931,14 @@ function checkAndCreateAgent(resourceId, subscriptionId, rgName, config, existin
                     console.log('[Auto Setup] 새 리소스에 Agent 정보 추가');
                     config.agent_id = agent.id || agent.name;
                     config.agent_name = agent.name;
-                    config.client_id = client_id;
-                    config.tenant_id = tenant_id;
-                    config.client_secret = client_secret;
+                    // client_id, tenant_id, client_secret는 서버측에서 자동 처리
                     
-                    // Agent 모드 설정 저장
+                    // Agent 모드 설정 저장 (OAuth credentials는 서버에서 자동으로 가져옴)
                     var settings = {
                         mode: 'agent',
                         agent_endpoint: config.agent_endpoint || config.endpoint,
-                        agent_id: config.agent_id,
-                        client_id: config.client_id,
-                        tenant_id: config.tenant_id,
-                        client_secret: config.client_secret
+                        agent_id: config.agent_id
+                        // client_id, tenant_id, client_secret는 서버측에서 자동으로 추가됨
                     };
                     
                     jQuery.post(ajaxurl, {
@@ -2324,9 +2324,8 @@ function checkAndCreateAgentForBoth(resourceId, subscriptionId, rgName, config, 
             var agents = response.data.agents;
             console.log('[Auto Setup] [Agent] Agent 목록 조회 성공:', agents.length + '개');
             
-            var client_id = '<?php echo esc_js(get_option('azure_chatbot_oauth_client_id', '')); ?>';
-            var tenant_id = '<?php echo esc_js(get_option('azure_chatbot_oauth_tenant_id', '')); ?>';
-            var client_secret = '<?php echo esc_js(get_option('azure_chatbot_oauth_client_secret', '')); ?>';
+            // OAuth credentials는 서버측에서 자동으로 사용됨 (보안을 위해 JavaScript에 노출하지 않음)
+            console.log('[Auto Setup] [Agent] OAuth credentials will be handled by server');
             
             // Agent 처리 함수
             function processAgent(agent) {
@@ -2339,11 +2338,9 @@ function checkAndCreateAgentForBoth(resourceId, subscriptionId, rgName, config, 
                         agent_endpoint: 'https://' + existingResource.name + '.' + existingResource.location + '.services.ai.azure.com/agents/v1.0/projects/' + existingResource.name,
                         project_name: existingResource.name,
                         location: existingResource.location,
-                        client_id: client_id,
-                        tenant_id: tenant_id,
-                        client_secret: client_secret,
                         agent_id: agent.id || agent.name,
                         agent_name: agent.name
+                        // client_id, tenant_id, client_secret는 서버측에서 자동 처리
                     };
                     
                     console.log('[Auto Setup] [Agent] Agent 모드 설정 구성:', config);
@@ -2351,10 +2348,8 @@ function checkAndCreateAgentForBoth(resourceId, subscriptionId, rgName, config, 
                     var settings = {
                         mode: 'agent',
                         agent_endpoint: config.agent_endpoint,
-                        agent_id: config.agent_id,
-                        client_id: config.client_id,
-                        tenant_id: config.tenant_id,
-                        client_secret: config.client_secret
+                        agent_id: config.agent_id
+                        // client_id, tenant_id, client_secret는 서버측에서 자동으로 추가됨
                     };
                     
                     console.log('[Auto Setup] [Agent] 설정 저장 요청:', settings);

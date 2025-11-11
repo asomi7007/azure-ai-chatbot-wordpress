@@ -671,8 +671,21 @@ class Azure_Chatbot_OAuth {
         }
         
         $client_secret = $plugin->decrypt($oauth_secret_encrypted);
+        
+        // 디버깅 로그 추가
+        error_log('[Azure OAuth] ajax_get_agents - Client Secret 복호화 시도');
+        error_log('[Azure OAuth] 암호화된 값 길이: ' . strlen($oauth_secret_encrypted));
+        error_log('[Azure OAuth] 복호화 결과: ' . ($client_secret ? 'SUCCESS (길이: ' . strlen($client_secret) . ')' : 'FAILED (empty)'));
+        
         if (empty($client_secret)) {
-            wp_send_json_error(array('message' => 'Client Secret 복호화에 실패했습니다. OAuth 설정을 다시 저장해주세요.'));
+            error_log('[Azure OAuth] Client Secret 복호화 실패 - OAuth 설정을 다시 저장 필요');
+            wp_send_json_error(array(
+                'message' => 'Client Secret 복호화에 실패했습니다. OAuth 설정을 다시 저장해주세요.',
+                'debug' => array(
+                    'encrypted_length' => strlen($oauth_secret_encrypted),
+                    'decrypted' => empty($client_secret) ? 'EMPTY' : 'NOT EMPTY'
+                )
+            ));
         }
         
         // 토큰 캐시 시도
@@ -686,6 +699,15 @@ class Azure_Chatbot_OAuth {
         } else {
             // 새 토큰 발급
             $token_url = "https://login.microsoftonline.com/{$oauth_tenant_id}/oauth2/v2.0/token";
+            
+            error_log('[Azure OAuth] Bearer Token 요청 시작');
+            error_log('[Azure OAuth] Token URL: ' . $token_url);
+            error_log('[Azure OAuth] Client ID: ' . $oauth_client_id);
+            error_log('[Azure OAuth] Client Secret 길이: ' . strlen($client_secret));
+            error_log('[Azure OAuth] Client Secret (첫 4자): ' . substr($client_secret, 0, 4) . '...');
+            error_log('[Azure OAuth] Tenant ID: ' . $oauth_tenant_id);
+            error_log('[Azure OAuth] Scope: https://ai.azure.com/.default');
+            
             $token_response = wp_remote_post($token_url, array(
                 'body' => array(
                     'grant_type' => 'client_credentials',
@@ -703,9 +725,25 @@ class Azure_Chatbot_OAuth {
             $token_body = wp_remote_retrieve_body($token_response);
             $token_data = json_decode($token_body, true);
             
+            error_log('[Azure OAuth] Token 응답 수신');
+            error_log('[Azure OAuth] Response Body: ' . $token_body);
+            
             if (empty($token_data['access_token'])) {
                 $error_desc = isset($token_data['error_description']) ? $token_data['error_description'] : 'Unknown error';
-                wp_send_json_error(array('message' => 'Entra ID 인증 실패: ' . $error_desc));
+                $error_code = isset($token_data['error']) ? $token_data['error'] : 'unknown';
+                
+                error_log('[Azure OAuth] Token 발급 실패 - Error Code: ' . $error_code);
+                error_log('[Azure OAuth] Token 발급 실패 - Error Description: ' . $error_desc);
+                
+                wp_send_json_error(array(
+                    'message' => 'Entra ID 인증 실패: ' . $error_desc,
+                    'error_code' => $error_code,
+                    'debug' => array(
+                        'client_id_length' => strlen($oauth_client_id),
+                        'client_secret_length' => strlen($client_secret),
+                        'tenant_id_length' => strlen($oauth_tenant_id)
+                    )
+                ));
             }
             
             $access_token = $token_data['access_token'];
