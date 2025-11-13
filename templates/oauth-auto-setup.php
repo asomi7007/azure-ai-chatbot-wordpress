@@ -23,10 +23,11 @@ if (isset($_GET['oauth_success'])) {
         echo '<div class="notice notice-success is-dismissible"><p>';
         esc_html_e('Azure 인증에 성공했습니다! 자동으로 리소스를 생성합니다...', 'azure-ai-chatbot');
         echo '</p></div>';
-        
-        // Operation Mode 확인
-        $operation_mode = get_option('azure_ai_chatbot_operation_mode', 'chat');
-        
+
+        // ✅ Operation Mode 확인 (단일 소스: azure_chatbot_settings['mode'])
+        $settings = get_option('azure_chatbot_settings', array());
+        $operation_mode = isset($settings['mode']) ? $settings['mode'] : 'chat';
+
         // 자동으로 리소스 생성 프로세스 시작
         echo '<script>
         jQuery(document).ready(function($) {
@@ -2418,7 +2419,15 @@ function checkAndCreateAgentForBoth(resourceId, subscriptionId, rgName, config, 
                 });
             }
         } else {
-            console.log('[Auto Setup] [Agent] Agent 없음, 빈 설정으로 진행');
+            // ✅ PHP에서 보낸 메시지 확인 및 표시
+            var message = response.data && response.data.message ? response.data.message : 'Agent 없음';
+            console.log('[Auto Setup] [Agent] ' + message);
+
+            // ✅ 사용자에게 명확한 메시지 표시
+            if (response.data && response.data.message) {
+                alert('ℹ️ Agent 정보: ' + response.data.message);
+            }
+
             callback({});
         }
     }).fail(function(xhr, status, error) {

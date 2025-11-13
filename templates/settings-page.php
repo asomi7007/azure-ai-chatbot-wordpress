@@ -75,13 +75,8 @@ if ($has_oauth) {
     $display_tenant_id = $options['tenant_id'] ?? '';
 }
 
-// [수정] 현재 모드를 DB에서 직접 읽어옴 (가장 정확한 값)
-$current_mode_option = get_option('azure_ai_chatbot_operation_mode');
-if ($current_mode_option) {
-    $mode = $current_mode_option; // 자동 설정에서 저장한 모드
-} else {
-    $mode = $options['mode'] ?? 'chat'; // DB에 저장된 모드 (기본값 chat)
-}
+// ✅ 현재 모드를 단일 소스(azure_chatbot_settings['mode'])에서 읽음
+$mode = $options['mode'] ?? 'chat'; // DB에 저장된 모드 (기본값 chat)
 
 // 엔드포인트에서 trailing slash 제거 (기존 저장된 값 정리)
 if (!empty($options['chat_endpoint'])) {

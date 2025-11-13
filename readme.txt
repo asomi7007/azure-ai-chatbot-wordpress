@@ -251,12 +251,14 @@ Agent 모드: 고급 기능 지원 (Function Calling, RAG, 파일 업로드 등,
 * 개선: 향후 계획 현실화
 * 추가: 각 버전별 다운로드 링크 제공
 
-= 3.0.50 - 2025-01-14 =
-* 수정: OAuth 자동 설정 중 operationMode가 항상 'chat'로 변경되는 버그 수정
-* 개선: localStorage 우선순위 개선 (OAuth 자동 설정 중 localStorage 값 우선)
-* 개선: localStorage 삭제 시점 조정 (자동 설정 완료 시까지 유지)
+= 3.0.50 - 2025-11-14 =
+* 수정: [Critical] OAuth 콜백 페이지에서 삭제된 azure_ai_chatbot_operation_mode 옵션 참조 버그 완전 수정
+* 수정: [Critical] 설정 페이지에서 삭제된 옵션 확인 로직 제거
+* 개선: Agent 조회 실패 시 PHP 메시지를 사용자에게 alert로 표시
+* 개선: azure_chatbot_settings['mode'] 단일 소스 완전 통일
+* 수정: OAuth 인증 후 Mode 유지 버그 완전 해결
+* 수정: localStorage 우선순위 개선 및 삭제 시점 조정
 * 개선: 페이지 로드 시 operationMode에 따른 UI 자동 초기화
-* 수정: Agent 모드 선택 후 OAuth 인증해도 모드가 'agent'로 유지됨
 
 = 3.0.49 - 2025-01-13 =
 * 수정: Agent API 엔드포인트를 Microsoft Learn 문서 기준으로 수정 (/agents/v1.0/projects/{name}/agents)
