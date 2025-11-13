@@ -3,7 +3,7 @@ Contributors: eldensolution
 Tags: azure, ai, chatbot, chat, ai-assistant
 Requires at least: 6.0
 Tested up to: 6.8
-Stable tag: 3.0.48
+Stable tag: 3.0.49
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -250,6 +250,12 @@ Agent 모드: 고급 기능 지원 (Function Calling, RAG, 파일 업로드 등,
 * 개선: FAQ 섹션 대폭 강화 (AI 서비스, 모드 차이, 보안 등)
 * 개선: 향후 계획 현실화
 * 추가: 각 버전별 다운로드 링크 제공
+
+= 3.0.49 - 2025-11-13 =
+* 수정: Agent API 엔드포인트를 Microsoft Learn 문서 기준으로 수정 (/agents/v1.0/projects/{name}/agents)
+* 개선: Agent 응답 데이터 파싱 로직 개선 (value/data/직접배열 형식 모두 지원)
+* 추가: Agent API URL 상세 로깅 추가
+* 개선: 빈 Agent 목록에 대한 사용자 친화적 메시지 제공
 
 = 3.0.48 - 2025-11-13 =
 * 수정: [Critical] OAuth Client Secret 복호화 누락 버그 (AADSTS7000215 오류 완전 해결)

@@ -1,5 +1,70 @@
 # 변경 이력
 
+## [3.0.49] - 2025-11-13
+
+### 🔧 **Agent API 엔드포인트 수정 및 응답 파싱 개선**
+
+#### 주요 수정사항
+1. **✅ Agent API 엔드포인트를 Microsoft Learn 문서 기준으로 수정** ([class-azure-oauth.php:772-776](class-azure-oauth.php#L772-L776))
+   - **기존**: `/api/projects/{projectName}/assistants?api-version=v1` (잘못된 엔드포인트)
+   - **수정**: `/agents/v1.0/projects/{projectName}/agents` (Microsoft Learn 문서 기준)
+   - 참고: [Get Agent API Documentation](https://learn.microsoft.com/en-us/rest/api/aifoundry/aiagents/get-agent/get-agent)
+
+2. **✅ Agent 응답 데이터 파싱 로직 개선** ([class-azure-oauth.php:949-983](class-azure-oauth.php#L949-L983))
+   - 다양한 응답 형식 지원: `{ value: [...] }`, `{ data: [...] }`, 직접 배열
+   - 빈 Agent 목록에 대한 명확한 메시지 제공
+   - 상세한 파싱 로그 추가
+
+3. **✅ Agent 목록이 여러 개일 때 선택 가능**
+   - JavaScript에서 이미 구현되어 있음 (1개: 자동 선택, 2개 이상: 모달 선택)
+
+#### 코드 변경 상세
+
+##### Agent API URL 수정
+```php
+// ❌ 이전 (잘못된 엔드포인트)
+$base_endpoint = rtrim($project_endpoint_host, '/') . "/api/projects/{$project_name}";
+$agents_url = $base_endpoint . '/assistants?api-version=v1';
+
+// ✅ 수정 (Microsoft Learn 문서 기준)
+$agents_url = rtrim($project_endpoint_host, '/') . "/agents/v1.0/projects/{$project_name}/agents";
+```
+
+##### 응답 파싱 개선
+```php
+// ✅ 유연한 응답 형식 처리
+$agent_list = array();
+if (isset($data['value']) && is_array($data['value'])) {
+    $agent_list = $data['value'];  // Azure 표준 형식
+} elseif (isset($data['data']) && is_array($data['data'])) {
+    $agent_list = $data['data'];   // 대체 형식
+} elseif (is_array($data) && !isset($data['error'])) {
+    $agent_list = $data;           // 직접 배열
+}
+
+if (empty($agent_list)) {
+    wp_send_json_success(array(
+        'agents' => array(),
+        'message' => 'AI Foundry Project에 생성된 Agent가 없습니다.'
+    ));
+}
+```
+
+#### 디버깅 개선
+- Agent API URL 로깅 추가
+- 응답 파싱 방식 로깅 (value/data/직접배열)
+- Agent 개수 로깅
+
+#### 버전 정보
+- Plugin Version: `3.0.49`
+- Updated Files:
+  - [azure-ai-chatbot.php](azure-ai-chatbot.php#L6): Version 3.0.49
+  - [class-azure-oauth.php](includes/class-azure-oauth.php): Agent API 수정
+  - [README-ko.md](README-ko.md#L7): Version badge 3.0.49
+  - [README.md](README.md#L3): Version badge 3.0.49
+
+---
+
 ## [3.0.48] - 2025-11-13
 
 ### 🐛 **Critical Bug Fixes: OAuth 및 Mode 관리 버그 수정**

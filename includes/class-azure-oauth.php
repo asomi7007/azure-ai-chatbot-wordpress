@@ -769,9 +769,11 @@ class Azure_Chatbot_OAuth {
             wp_send_json_error(array('message' => 'Project Endpoint 또는 이름을 찾을 수 없습니다.'));
         }
 
-        // [수정] 올바른 Agent 엔드포인트 구성
-        $base_endpoint = rtrim($project_endpoint_host, '/') . "/api/projects/{$project_name}";
-        $agents_url = $base_endpoint . '/assistants?api-version=v1';
+        // ✅ Microsoft Learn 문서 기준 Agent API 엔드포인트
+        // https://learn.microsoft.com/en-us/rest/api/aifoundry/aiagents/get-agent/get-agent
+        $agents_url = rtrim($project_endpoint_host, '/') . "/agents/v1.0/projects/{$project_name}/agents";
+
+        error_log('[Azure OAuth] ajax_get_agents - Agent API URL: ' . $agents_url);
         
         // 2. [수정] OAuth 2.0 Bearer Token 획득
         $plugin = Azure_AI_Chatbot::get_instance();
@@ -936,26 +938,48 @@ class Azure_Chatbot_OAuth {
             if (isset($data['error']['message'])) {
                 $error_msg .= ': ' . $data['error']['message'];
             }
+            error_log('[Azure OAuth] Agent 조회 실패: ' . $error_msg);
             wp_send_json_error(array('message' => $error_msg, 'debug' => array(
                 'url' => $agents_url,
                 'status' => $status_code,
                 'response' => substr($body, 0, 500)
             )));
         }
-        
-        if (!isset($data['data']) || !is_array($data['data'])) {
-            wp_send_json_error(array('message' => 'Agent 목록을 찾을 수 없습니다. Project에 Agent가 생성되어 있는지 확인하세요.'));
+
+        // ✅ AI Foundry Agent API 응답 형식 처리
+        // Microsoft Learn: 응답은 { value: [...] } 또는 { data: [...] } 형식
+        $agent_list = array();
+        if (isset($data['value']) && is_array($data['value'])) {
+            $agent_list = $data['value'];
+            error_log('[Azure OAuth] Agent 목록 파싱: value 키 사용 (' . count($agent_list) . '개)');
+        } elseif (isset($data['data']) && is_array($data['data'])) {
+            $agent_list = $data['data'];
+            error_log('[Azure OAuth] Agent 목록 파싱: data 키 사용 (' . count($agent_list) . '개)');
+        } elseif (is_array($data) && !isset($data['error'])) {
+            // 직접 배열인 경우
+            $agent_list = $data;
+            error_log('[Azure OAuth] Agent 목록 파싱: 직접 배열 사용 (' . count($agent_list) . '개)');
         }
-        
+
+        if (empty($agent_list)) {
+            error_log('[Azure OAuth] Agent 목록이 비어 있습니다.');
+            wp_send_json_success(array(
+                'agents' => array(),
+                'message' => 'AI Foundry Project에 생성된 Agent가 없습니다. Azure AI Foundry에서 Agent를 생성하세요.'
+            ));
+            return;
+        }
+
         $agents = array();
-        foreach ($data['data'] as $agent) {
+        foreach ($agent_list as $agent) {
             $agents[] = array(
-                'id' => $agent['id'],
-                'name' => isset($agent['name']) ? $agent['name'] : $agent['id'],
+                'id' => isset($agent['id']) ? $agent['id'] : (isset($agent['name']) ? $agent['name'] : ''),
+                'name' => isset($agent['name']) ? $agent['name'] : (isset($agent['id']) ? $agent['id'] : 'Unknown Agent'),
                 'description' => isset($agent['description']) ? $agent['description'] : '',
             );
         }
-        
+
+        error_log('[Azure OAuth] Agent 목록 반환: ' . count($agents) . '개');
         wp_send_json_success(array('agents' => $agents));
     }
 
