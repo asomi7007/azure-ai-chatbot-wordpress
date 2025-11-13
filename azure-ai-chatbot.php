@@ -3,7 +3,7 @@
  * Plugin Name: Azure AI Chatbot
  * Plugin URI: https://github.com/asomi7007/azure-ai-chatbot-wordpress
  * Description: Integrate Azure AI Foundry agents and OpenAI-compatible chat models into WordPress with a modern chat widget
- * Version: 3.0.45
+ * Version: 3.0.47
  * Author: Elden Solution
  * Author URI: https://www.eldensolution.kr
  * License: GPL-2.0+
@@ -17,12 +17,14 @@ if (!defined('ABSPATH')) {
 }
 
 // 플러그인 상수 정의
-define('AZURE_CHATBOT_VERSION', '3.0.45');
+define('AZURE_CHATBOT_VERSION', '3.0.47');
 define('AZURE_CHATBOT_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('AZURE_CHATBOT_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('AZURE_CHATBOT_PLUGIN_BASENAME', plugin_basename(__FILE__));
 
-// OAuth 클래스 로드
+// 클래스 로드
+require_once AZURE_CHATBOT_PLUGIN_DIR . 'includes/class-encryption-manager.php';
+require_once AZURE_CHATBOT_PLUGIN_DIR . 'includes/class-encryption-validator.php';
 require_once AZURE_CHATBOT_PLUGIN_DIR . 'includes/class-azure-oauth.php';
 
 /**
@@ -41,9 +43,9 @@ class Azure_AI_Chatbot {
     private $options;
     
     /**
-     * 암호화 키 (WordPress 보안 키 기반)
+     * 암호화 매니저 인스턴스
      */
-    private $encryption_key;
+    private $encryption_manager;
     
     /**
      * 싱글톤 패턴
@@ -59,134 +61,84 @@ class Azure_AI_Chatbot {
      * 생성자
      */
     private function __construct() {
-        $this->init_encryption_key();
+        // 암호화 매니저 초기화
+        $this->encryption_manager = Azure_AI_Chatbot_Encryption_Manager::get_instance();
+        
         $this->load_options();
         $this->init_hooks();
     }
     
     /**
-     * 암호화 키 초기화
-     * WordPress의 보안 상수를 조합하여 생성
-     */
-    private function init_encryption_key() {
-        // WordPress 보안 상수들을 조합하여 암호화 키 생성
-        $key_parts = [
-            defined('AUTH_KEY') ? AUTH_KEY : '',
-            defined('SECURE_AUTH_KEY') ? SECURE_AUTH_KEY : '',
-            defined('LOGGED_IN_KEY') ? LOGGED_IN_KEY : '',
-            defined('NONCE_KEY') ? NONCE_KEY : ''
-        ];
-        
-        $combined_key = implode('', $key_parts);
-        
-        // [수정] 기본값 감지 강화 - WordPress 초기 설치 시 기본 문구 확인
-        $default_phrase = 'put your unique phrase here';
-        if (empty($combined_key) || strpos($combined_key, $default_phrase) !== false) {
-            error_log('Azure AI Chatbot: WordPress 보안 키가 설정되지 않았습니다. wp-config.php에 보안 키를 추가하세요.');
-            $combined_key = 'default-insecure-key-' . get_site_url();
-        }
-        
-        // SHA-256으로 고정 길이 키 생성 (32바이트)
-        $this->encryption_key = hash('sha256', $combined_key, true);
-    }
-    
-    /**
-     * 데이터 암호화 (다른 클래스에서 접근 가능하도록 public으로 변경)
+     * 데이터 암호화 (외부 접근용 - 암호화 매니저로 위임)
+     * 
+     * @param string $data 암호화할 데이터
+     * @return string 암호화된 데이터
      */
     public function encrypt($data) {
-        if (empty($data)) {
-            return '';
-        }
-        
-        // OpenSSL 사용 가능 여부 확인
-        if (!function_exists('openssl_encrypt')) {
-            error_log('Azure AI Chatbot: OpenSSL이 설치되지 않았습니다. API 키가 암호화되지 않고 저장됩니다.');
-            return base64_encode($data); // 폴백: base64만 사용 (경고)
-        }
-        
-        $method = 'aes-256-cbc';
-        $iv_length = openssl_cipher_iv_length($method);
-        $iv = openssl_random_pseudo_bytes($iv_length);
-        
-        $encrypted = openssl_encrypt(
-            $data,
-            $method,
-            $this->encryption_key,
-            OPENSSL_RAW_DATA,
-            $iv
-        );
-        
-        // IV와 암호화된 데이터를 함께 저장
-        return base64_encode($iv . $encrypted);
+        return $this->encryption_manager->encrypt($data);
     }
     
     /**
-     * 데이터 복호화 (다른 클래스에서 접근 가능하도록 public 유지, 로직 개선)
+     * 데이터 복호화 (외부 접근용 - 암호화 매니저로 위임)
+     * 
+     * @param string $data 복호화할 데이터
+     * @return string 복호화된 데이터
      */
     public function decrypt($data) {
-        if (empty($data)) {
-            return '';
-        }
-        
-        // OpenSSL 사용 불가능한 경우
-        if (!function_exists('openssl_decrypt')) {
-            return base64_decode($data); // 폴백: base64 디코딩만
-        }
-        
-        $method = 'aes-256-cbc';
-        $iv_length = openssl_cipher_iv_length($method);
-        
-        $decoded = base64_decode($data);
-        
-        // [수정] 데이터 길이 검증 - 이전 버전 호환성 처리
-        if (strlen($decoded) <= $iv_length) {
-            // 암호화되지 않았거나 형식이 다른 값(이전 버전)과의 호환성
-            error_log('Azure AI Chatbot: 암호화된 데이터 형식이 올바르지 않습니다. 이전 버전 데이터일 수 있습니다.');
-            return base64_decode($data); // 폴백: base64 디코딩 시도
-        }
-        
-        $iv = substr($decoded, 0, $iv_length);
-        $encrypted = substr($decoded, $iv_length);
-        
-        // [추가] substr 오류 방지
-        if (empty($encrypted)) {
-            error_log('Azure AI Chatbot: 암호화된 데이터가 비어있습니다.');
-            return '';
-        }
-        
-        $decrypted = openssl_decrypt(
-            $encrypted,
-            $method,
-            $this->encryption_key,
-            OPENSSL_RAW_DATA,
-            $iv
-        );
-        
-        // [수정] 복호화 실패 시 빈 값 반환 및 로그
-        if ($decrypted === false) {
-            error_log('Azure AI Chatbot: 데이터 복호화에 실패했습니다. 암호화 키가 변경되었을 수 있습니다.');
-            return '';
-        }
-        
-        return $decrypted;
+        return $this->encryption_manager->decrypt($data);
     }
     
     /**
-     * 옵션 로드
+     * 옵션 로드 (마이그레이션 포함)
      */
     private function load_options() {
         $stored_options = get_option('azure_chatbot_settings', []);
+        $needs_update = false;
         
-        // API Key 복호화
+        // API Key 복호화 (마이그레이션 지원)
         $api_key = '';
         if (!empty($stored_options['api_key_encrypted'])) {
-            $api_key = $this->decrypt($stored_options['api_key_encrypted']);
+            $api_key = $this->encryption_manager->decrypt($stored_options['api_key_encrypted']);
+            
+            // 복호화 실패 시 마이그레이션 시도
+            if (empty($api_key)) {
+                error_log('[Azure AI Chatbot] API Key decryption failed, attempting migration');
+                $migrated = $this->encryption_manager->migrate_encrypted_value($stored_options['api_key_encrypted']);
+                if (!empty($migrated)) {
+                    $api_key = $this->encryption_manager->decrypt($migrated);
+                    if (!empty($api_key)) {
+                        $stored_options['api_key_encrypted'] = $migrated;
+                        $needs_update = true;
+                        error_log('[Azure AI Chatbot] API Key migration successful');
+                    }
+                }
+            }
         }
         
-        // Client Secret 복호화
+        // Client Secret 복호화 (마이그레이션 지원)
         $client_secret = '';
         if (!empty($stored_options['client_secret_encrypted'])) {
-            $client_secret = $this->decrypt($stored_options['client_secret_encrypted']);
+            $client_secret = $this->encryption_manager->decrypt($stored_options['client_secret_encrypted']);
+            
+            // 복호화 실패 시 마이그레이션 시도
+            if (empty($client_secret)) {
+                error_log('[Azure AI Chatbot] Client Secret decryption failed, attempting migration');
+                $migrated = $this->encryption_manager->migrate_encrypted_value($stored_options['client_secret_encrypted']);
+                if (!empty($migrated)) {
+                    $client_secret = $this->encryption_manager->decrypt($migrated);
+                    if (!empty($client_secret)) {
+                        $stored_options['client_secret_encrypted'] = $migrated;
+                        $needs_update = true;
+                        error_log('[Azure AI Chatbot] Client Secret migration successful');
+                    }
+                }
+            }
+        }
+        
+        // 마이그레이션된 값 저장
+        if ($needs_update) {
+            update_option('azure_chatbot_settings', $stored_options);
+            error_log('[Azure AI Chatbot] Settings updated with migrated encryption format');
         }
         
         $this->options = [
@@ -592,13 +544,25 @@ class Azure_AI_Chatbot {
         if (!empty($input['client_secret'])) {
             $client_secret = sanitize_text_field($input['client_secret']);
             
-            // [수정] 마스킹된 값 감지 (• 문자 포함 여부로 판단)
-            if (strpos($client_secret, '•') === false) {
-                // 새 값이면 암호화하여 저장
-                $sanitized['client_secret_encrypted'] = $this->encrypt($client_secret);
-            } else {
+            // 마스킹된 값 감지 (• 문자 포함 여부로 판단)
+            if (strpos($client_secret, '•') !== false) {
                 // 마스킹된 값이면 기존 암호화된 값 유지
                 $sanitized['client_secret_encrypted'] = $old_options['client_secret_encrypted'] ?? '';
+                error_log('[Azure AI Chatbot] Masked client secret detected, keeping existing value');
+            } elseif (!empty($client_secret)) {
+                // 새 값 암호화
+                $encrypted = $this->encryption_manager->encrypt($client_secret);
+                if (!empty($encrypted)) {
+                    $sanitized['client_secret_encrypted'] = $encrypted;
+                    error_log('[Azure AI Chatbot] Client secret encrypted successfully');
+                } else {
+                    error_log('[Azure AI Chatbot] Failed to encrypt client secret');
+                    add_settings_error('azure_chatbot_settings', 'encryption_error', 
+                        'Client Secret 암호화에 실패했습니다.', 'error');
+                    $sanitized['client_secret_encrypted'] = '';
+                }
+            } else {
+                $sanitized['client_secret_encrypted'] = '';
             }
         } elseif (!empty($input['client_secret_encrypted'])) {
             // OAuth 자동 설정에서 이미 암호화된 값이 전달된 경우
@@ -616,13 +580,25 @@ class Azure_AI_Chatbot {
         if (!empty($input['api_key'])) {
             $api_key = sanitize_text_field($input['api_key']);
             
-            // [수정] 마스킹된 값 감지 (• 문자 포함 여부로 판단)
-            if (strpos($api_key, '•') === false) {
-                // 새 값이면 암호화하여 저장
-                $sanitized['api_key_encrypted'] = $this->encrypt($api_key);
-            } else {
+            // 마스킹된 값 감지 (• 문자 포함 여부로 판단)
+            if (strpos($api_key, '•') !== false) {
                 // 마스킹된 값이면 기존 암호화된 값 유지
                 $sanitized['api_key_encrypted'] = $old_options['api_key_encrypted'] ?? '';
+                error_log('[Azure AI Chatbot] Masked API key detected, keeping existing value');
+            } elseif (!empty($api_key)) {
+                // 새 값 암호화
+                $encrypted = $this->encryption_manager->encrypt($api_key);
+                if (!empty($encrypted)) {
+                    $sanitized['api_key_encrypted'] = $encrypted;
+                    error_log('[Azure AI Chatbot] API key encrypted successfully');
+                } else {
+                    error_log('[Azure AI Chatbot] Failed to encrypt API key');
+                    add_settings_error('azure_chatbot_settings', 'encryption_error', 
+                        'API Key 암호화에 실패했습니다.', 'error');
+                    $sanitized['api_key_encrypted'] = '';
+                }
+            } else {
+                $sanitized['api_key_encrypted'] = '';
             }
         } elseif (!empty($input['api_key_encrypted'])) {
             // OAuth 자동 설정에서 이미 암호화된 값이 전달된 경우
@@ -645,41 +621,38 @@ class Azure_AI_Chatbot {
     }
     
     /**
+     * 민감한 값 마스킹 헬퍼 함수 (통합)
+     *
+     * @param string $value 마스킹할 값
+     * @return string 마스킹된 값
+     */
+    private function mask_sensitive_value($value) {
+        if (empty($value)) {
+            return '';
+        }
+
+        $length = strlen($value);
+
+        if ($length <= 8) {
+            return str_repeat('•', $length);
+        }
+
+        // 앞 4자리와 뒤 4자리만 표시, 나머지는 마스킹
+        return substr($value, 0, 4) . str_repeat('•', $length - 8) . substr($value, -4);
+    }
+
+    /**
      * 설정 페이지용 API Key 마스킹
      */
     public function get_masked_api_key() {
-        if (empty($this->options['api_key'])) {
-            return '';
-        }
-        
-        $key = $this->options['api_key'];
-        $key_length = strlen($key);
-        
-        if ($key_length <= 8) {
-            return str_repeat('•', $key_length);
-        }
-        
-        // 앞 4자리와 뒤 4자리만 표시, 나머지는 마스킹
-        return substr($key, 0, 4) . str_repeat('•', $key_length - 8) . substr($key, -4);
+        return $this->mask_sensitive_value($this->options['api_key'] ?? '');
     }
-    
+
     /**
      * 설정 페이지용 Client Secret 마스킹
      */
     public function get_masked_client_secret() {
-        if (empty($this->options['client_secret'])) {
-            return '';
-        }
-        
-        $secret = $this->options['client_secret'];
-        $secret_length = strlen($secret);
-        
-        if ($secret_length <= 8) {
-            return str_repeat('•', $secret_length);
-        }
-        
-        // 앞 4자리와 뒤 4자리만 표시, 나머지는 마스킹
-        return substr($secret, 0, 4) . str_repeat('•', $secret_length - 8) . substr($secret, -4);
+        return $this->mask_sensitive_value($this->options['client_secret'] ?? '');
     }
     
     /**

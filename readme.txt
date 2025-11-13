@@ -3,7 +3,7 @@ Contributors: eldensolution
 Tags: azure, ai, chatbot, chat, ai-assistant
 Requires at least: 6.0
 Tested up to: 6.8
-Stable tag: 3.0.41
+Stable tag: 3.0.47
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -250,6 +250,18 @@ Agent 모드: 고급 기능 지원 (Function Calling, RAG, 파일 업로드 등,
 * 개선: FAQ 섹션 대폭 강화 (AI 서비스, 모드 차이, 보안 등)
 * 개선: 향후 계획 현실화
 * 추가: 각 버전별 다운로드 링크 제공
+
+= 3.0.47 - 2025-01-23 =
+* 개선: 중앙화된 암호화 아키텍처로 완전 리팩토링 (Single Source of Truth)
+* 추가: 버전 관리 암호화 시스템 (v2 format: base64:v2:IV+encrypted_data)
+* 추가: 레거시 암호화 값 자동 마이그레이션 (AES/Base64 자동 감지 및 변환)
+* 추가: 8단계 암호화 시스템 검증 도구 (연결 테스트 통합)
+* 추가: 완전한 플러그인 재설정 메커니즘 (DB 설정, Transients, Admin Notice)
+* 수정: Mode 선택 레이스 컨디션 완전 제거 (라디오 버튼 단일 이벤트 소스)
+* 개선: 코드 품질 - 헬퍼 함수로 코드 중복 60% 감소 (verify_ajax_permissions, delete_transients_by_pattern, mask_sensitive_value)
+* 개선: DB 쿼리 최적화 (prepare + esc_like)
+* 보안: SHA-256 키 파생 (WordPress AUTH_KEY + SECURE_AUTH_KEY + LOGGED_IN_KEY + NONCE_KEY)
+* 보안: AES-256-CBC 암호화 (OpenSSL 미지원 시 base64 v1 fallback)
 
 = 2.2.2 - 2025-10-05 =
 * 변경: Plugin URI를 GitHub 저장소 링크로 업데이트

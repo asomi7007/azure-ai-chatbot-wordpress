@@ -1,5 +1,102 @@
 # 변경 이력
 
+## [3.0.47] - 2025-11-13
+
+### 🔥 **코드 품질 개선 및 리팩토링 (Code Quality & Refactoring)**
+
+#### 핵심 개선사항
+1. **✅ Mode 저장 경합 상태 완전 제거**
+   - `azure_chatbot_settings['mode']` 단일 소스로 통일
+   - `azure_ai_chatbot_operation_mode` 옵션 제거
+   - 경합 상태(race condition) 해결
+
+2. **✅ 완전한 초기화 기능 구현**
+   - 모든 DB 옵션 삭제
+   - 모든 Transient 캐시 삭제 (Access Token, OAuth State 등)
+   - 세션 토큰 삭제
+
+3. **✅ 중복 코드 제거 및 헬퍼 함수 추가**
+   - `verify_ajax_permissions()`: AJAX 권한 검증 통합
+   - `delete_transients_by_pattern()`: Transient 캐시 일괄 삭제
+   - `mask_sensitive_value()`: API Key/Secret 마스킹 통합
+
+4. **✅ DB 쿼리 최적화**
+   - 중복 DELETE 쿼리 제거
+   - `$wpdb->prepare()` 및 `$wpdb->esc_like()` 사용으로 보안 강화
+
+### 주요 변경사항
+
+#### 📦 `includes/class-azure-oauth.php`
+- **새 헬퍼 함수 추가**:
+  - `verify_ajax_permissions()`: AJAX 요청 권한 검증 (라인 75-84)
+  - `delete_transients_by_pattern()`: Transient 패턴 기반 일괄 삭제 (라인 92-106)
+
+- **Mode 저장 경합 상태 해결**:
+  - `ajax_set_operation_mode()`: 단일 소스로 통일 (라인 836-856)
+  - 이전 버전 호환 옵션 자동 삭제
+
+- **완전한 초기화 기능**:
+  - `ajax_reset_config()`: 모든 옵션 및 캐시 삭제 (라인 1013-1057)
+  - `ajax_reset_all_settings()`: OAuth 인증 정보 보존하고 리소스 설정만 초기화 (라인 1064-1111)
+
+#### 📦 `azure-ai-chatbot.php`
+- **마스킹 함수 통합**:
+  - `mask_sensitive_value()`: 중복 코드 제거 (라인 629-642)
+  - `get_masked_api_key()` 및 `get_masked_client_secret()` 리팩토링
+
+#### 📦 `includes/class-encryption-manager.php`
+- **중앙 암호화 관리 시스템**:
+  - 싱글톤 패턴으로 단일 키 기반 암호화
+  - 버전 관리 (v2: AES-256-CBC, v1: base64 fallback)
+  - 마이그레이션 지원
+
+### 기술 세부사항
+
+**문제 1: Mode 저장 경합 상태**
+```php
+// ❌ 이전 코드 (두 곳에 저장)
+update_option('azure_ai_chatbot_operation_mode', $mode);
+$settings['mode'] = $mode;
+update_option('azure_chatbot_settings', $settings);
+
+// ✅ 수정 후 (단일 소스)
+$settings = get_option('azure_chatbot_settings', array());
+$settings['mode'] = $mode;
+update_option('azure_chatbot_settings', $settings);
+```
+
+**문제 2: 불완전한 초기화**
+```php
+// ❌ 이전 코드 (일부만 삭제)
+delete_option('azure_chatbot_oauth_client_id');
+delete_option('azure_chatbot_settings');
+
+// ✅ 수정 후 (모든 옵션 + 캐시 삭제)
+delete_option('azure_chatbot_oauth_settings');
+$this->delete_transients_by_pattern('azure_chatbot_access_token_');
+delete_transient('azure_oauth_state');
+delete_transient('azure_oauth_error');
+```
+
+**문제 3: 중복 마스킹 함수**
+```php
+// ❌ 이전 코드 (2개 함수, 동일 로직)
+public function get_masked_api_key() { /* 34줄 */ }
+public function get_masked_client_secret() { /* 34줄 */ }
+
+// ✅ 수정 후 (헬퍼 함수 + 2개 래퍼)
+private function mask_sensitive_value($value) { /* 14줄 */ }
+public function get_masked_api_key() { return $this->mask_sensitive_value(...); }
+public function get_masked_client_secret() { return $this->mask_sensitive_value(...); }
+```
+
+### 성능 개선
+- AJAX 권한 검증 코드 15곳 → 1개 헬퍼 함수로 통합
+- 중복 DB 쿼리 2개 → 1개 헬퍼 함수로 통합
+- 마스킹 함수 68줄 → 28줄로 감소 (60% 코드 감소)
+
+---
+
 ## [3.0.41] - 2025-11-08
 
 ### � **치명적 버그 수정 (Critical Bug Fixes)**
