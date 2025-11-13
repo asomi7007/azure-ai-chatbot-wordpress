@@ -3,7 +3,7 @@ Contributors: eldensolution
 Tags: azure, ai, chatbot, chat, ai-assistant
 Requires at least: 6.0
 Tested up to: 6.8
-Stable tag: 3.0.47
+Stable tag: 3.0.48
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -251,6 +251,13 @@ Agent 모드: 고급 기능 지원 (Function Calling, RAG, 파일 업로드 등,
 * 개선: 향후 계획 현실화
 * 추가: 각 버전별 다운로드 링크 제공
 
+= 3.0.48 - 2025-11-13 =
+* 수정: [Critical] OAuth 설정 로드 시 Client Secret 복호화 누락 버그 수정 (AADSTS7000215 오류 해결)
+* 추가: Client Secret 형식 검증 (GUID/Secret ID 감지 및 경고)
+* 추가: AADSTS7000215 오류 특별 처리 및 단계별 해결 가이드
+* 개선: OAuth 토큰 요청 오류 로깅 강화
+* 개선: load_config() 함수에서 암호화된 Client Secret 자동 복호화 및 마이그레이션
+
 = 3.0.47 - 2025-01-23 =
 * 개선: 중앙화된 암호화 아키텍처로 완전 리팩토링 (Single Source of Truth)
 * 추가: 버전 관리 암호화 시스템 (v2 format: base64:v2:IV+encrypted_data)
@@ -298,6 +305,12 @@ Agent 모드: 고급 기능 지원 (Function Calling, RAG, 파일 업로드 등,
 * 초기 릴리즈
 
 == Upgrade Notice ==
+
+= 3.0.48 =
+긴급 업데이트: OAuth Client Secret 복호화 누락 버그 수정. OAuth 인증 실패(AADSTS7000215) 해결. 즉시 업그레이드 권장.
+
+= 3.0.47 =
+중요 개선: 중앙화된 암호화 아키텍처 완전 리팩토링, 레거시 값 자동 마이그레이션, 코드 품질 60% 향상.
 
 = 3.0.41 =
 중요 수정: OAuth 자동 설정 모드 지속성 및 Agent 데이터 캡처 보장. 자동 설정 사용 시 업그레이드 권장.

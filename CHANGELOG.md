@@ -1,5 +1,114 @@
 # 변경 이력
 
+## [3.0.48] - 2025-11-13
+
+### 🐛 **Critical Bug Fix: OAuth Client Secret 복호화 누락**
+
+#### ⚠️ 긴급 버그 수정
+**문제**: OAuth 설정 로드 시 저장된 암호화된 Client Secret을 복호화하지 않고 그대로 사용하여 모든 OAuth 인증이 실패하는 치명적 버그
+
+**증상**: "Azure 자동 설정 시작" 버튼 클릭 시 다음 에러 발생
+```
+AADSTS7000215: Invalid client secret provided.
+Ensure the secret being sent in the request is the client secret value,
+not the client secret ID
+```
+
+**원인**: `load_config()` 함수에서 `get_option('azure_chatbot_oauth_client_secret')`로 암호화된 값을 가져왔지만, **복호화 과정 없이** 그대로 `$this->client_secret`에 저장하여 암호화된 문자열이 Azure API에 전송됨
+
+#### 핵심 수정사항
+1. **✅ [Critical] OAuth 설정 로드 시 Client Secret 복호화 추가** ([class-azure-oauth.php:48-100](class-azure-oauth.php#L48-L100))
+   - `load_config()` 함수에서 암호화된 값을 Encryption Manager로 복호화
+   - 복호화 실패 시 자동 마이그레이션 시도
+   - 상세한 복호화 상태 로깅 추가
+   - **이 수정으로 OAuth 인증 완전 정상화**
+
+2. **✅ Client Secret 형식 검증 추가** ([class-azure-oauth.php:1006-1037](class-azure-oauth.php#L1006-L1037))
+   - GUID 형식(Secret ID) 감지 및 경고
+   - 최소 길이 검증 (20자 이상)
+   - 특수문자 포함 여부 경고
+
+3. **✅ AADSTS7000215 에러 특별 처리**
+   - "Invalid client secret provided" 에러 감지
+   - 사용자 친화적 에러 메시지 제공
+   - 단계별 해결 가이드 포함
+
+4. **✅ OAuth 토큰 요청 에러 로깅 강화**
+   - 상세한 에러 코드 및 설명 로깅
+   - 네트워크 오류 vs 인증 오류 구분
+   - 디버깅 정보 제공
+
+### 주요 변경사항
+
+#### 📦 `includes/class-azure-oauth.php`
+- **[Critical] load_config() 함수 수정** (라인 48-100):
+  ```php
+  // ❌ 이전 코드 (버그)
+  $this->client_secret = get_option('azure_chatbot_oauth_client_secret', '');
+
+  // ✅ 수정된 코드
+  $encrypted_secret = get_option('azure_chatbot_oauth_client_secret', '');
+  $encryption_manager = Azure_AI_Chatbot_Encryption_Manager::get_instance();
+  $this->client_secret = $encryption_manager->decrypt($encrypted_secret);
+  ```
+  - 암호화된 값을 복호화하여 실제 Client Secret 사용
+  - 복호화 실패 시 마이그레이션 자동 시도
+  - 복호화 성공/실패 상세 로깅
+
+- **새 검증 함수 추가**:
+  - `validate_client_secret()`: Client Secret 형식 검증 (라인 1006-1037)
+    - GUID 패턴 감지 (Secret ID 입력 방지)
+    - 길이 검증 (최소 20자)
+    - 특수문자 포함 여부 경고
+
+- **OAuth 설정 저장 개선**:
+  - `ajax_save_oauth_settings()`: 저장 전 형식 검증 (라인 1025-1030)
+  - 잘못된 형식 감지 시 명확한 에러 메시지 반환
+
+- **토큰 요청 에러 처리 강화**:
+  - `request_access_token()`: AADSTS7000215 특별 처리 (라인 364-373)
+  - `ajax_get_agents()`: Bearer Token 요청 실패 시 해결 가이드 제공 (라인 820-837)
+  - 상태 코드 및 상세 에러 로깅 추가
+
+### 에러 메시지 예시
+
+#### ❌ Secret ID 입력 시
+```
+❌ Client Secret ID를 입력하셨습니다.
+Azure Portal의 "Certificates & secrets"에서
+Secret의 "Value" 값을 복사하여 입력하세요.
+(Secret ID가 아닙니다)
+```
+
+#### ❌ AADSTS7000215 에러 발생 시
+```
+❌ Client Secret 오류:
+Azure Portal의 "Certificates & secrets"에서
+Secret의 "Value" 값을 복사하여 다시 저장하세요.
+(Secret ID가 아닌 Value를 입력해야 합니다)
+
+해결 가이드:
+1. Azure Portal → App registrations → 앱 선택
+2. Certificates & secrets 메뉴 클릭
+3. Client secrets 섹션에서 "+ New client secret" 클릭
+4. Description 입력 후 Add 클릭
+5. 생성된 Secret의 "Value" 컬럼 값을 즉시 복사
+6. WordPress OAuth 설정에 Value 붙여넣기 후 저장
+```
+
+### 기술 세부사항
+- **정규식 패턴**: `/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i`
+- **에러 감지**: `AADSTS7000215` 및 `Invalid client secret` 문자열 검색
+- **로깅 개선**: 토큰 요청 시작/응답 상태/에러 상세 정보
+
+### 업그레이드 가이드
+1. 플러그인 업데이트
+2. 기존 OAuth 설정 확인
+3. Secret ID를 입력한 경우 Value로 교체 필요
+4. "Azure 자동 설정 시작" 버튼으로 재인증
+
+---
+
 ## [3.0.47] - 2025-11-13
 
 ### 🔥 **코드 품질 개선 및 리팩토링 (Code Quality & Refactoring)**

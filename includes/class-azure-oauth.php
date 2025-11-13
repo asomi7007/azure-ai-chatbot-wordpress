@@ -47,21 +47,53 @@ class Azure_Chatbot_OAuth {
      */
     private function load_config() {
         // wp-config.php?�서 ?�수�??�의??�??�선 ?�용
-        $this->client_id = defined('AZURE_CHATBOT_OAUTH_CLIENT_ID') 
-            ? AZURE_CHATBOT_OAUTH_CLIENT_ID 
+        $this->client_id = defined('AZURE_CHATBOT_OAUTH_CLIENT_ID')
+            ? AZURE_CHATBOT_OAUTH_CLIENT_ID
             : get_option('azure_chatbot_oauth_client_id', '');
-            
-        $this->client_secret = defined('AZURE_CHATBOT_OAUTH_CLIENT_SECRET') 
-            ? AZURE_CHATBOT_OAUTH_CLIENT_SECRET 
+
+        // ✅ Client Secret 복호화
+        $encrypted_secret = defined('AZURE_CHATBOT_OAUTH_CLIENT_SECRET')
+            ? AZURE_CHATBOT_OAUTH_CLIENT_SECRET
             : get_option('azure_chatbot_oauth_client_secret', '');
-            
-        $this->tenant_id = defined('AZURE_CHATBOT_OAUTH_TENANT_ID') 
-            ? AZURE_CHATBOT_OAUTH_TENANT_ID 
+
+        if (!empty($encrypted_secret)) {
+            require_once plugin_dir_path(__FILE__) . 'class-encryption-manager.php';
+            $encryption_manager = Azure_AI_Chatbot_Encryption_Manager::get_instance();
+
+            // 복호화 시도
+            $this->client_secret = $encryption_manager->decrypt($encrypted_secret);
+
+            // 복호화 실패 시 마이그레이션 시도
+            if (empty($this->client_secret)) {
+                error_log('[Azure OAuth] load_config - Client Secret 복호화 실패, 마이그레이션 시도');
+                $migrated = $encryption_manager->migrate_encrypted_value($encrypted_secret);
+                if (!empty($migrated)) {
+                    $this->client_secret = $encryption_manager->decrypt($migrated);
+                    if (!empty($this->client_secret)) {
+                        // 마이그레이션 성공, 새 형식으로 저장
+                        update_option('azure_chatbot_oauth_client_secret', $migrated);
+                        error_log('[Azure OAuth] load_config - Client Secret 마이그레이션 성공');
+                    }
+                }
+            }
+
+            if (!empty($this->client_secret)) {
+                error_log('[Azure OAuth] load_config - Client Secret 복호화 성공 (길이: ' . strlen($this->client_secret) . ')');
+            } else {
+                error_log('[Azure OAuth] load_config - Client Secret 복호화 완전 실패');
+            }
+        } else {
+            $this->client_secret = '';
+            error_log('[Azure OAuth] load_config - Client Secret이 설정되지 않음');
+        }
+
+        $this->tenant_id = defined('AZURE_CHATBOT_OAUTH_TENANT_ID')
+            ? AZURE_CHATBOT_OAUTH_TENANT_ID
             : get_option('azure_chatbot_oauth_tenant_id', '');
-        
+
         // Redirect URI: WordPress 관리자 ?�정 ?�이지
         $this->redirect_uri = admin_url('admin.php?page=azure-ai-chatbot&azure_callback=1');
-        
+
         // Azure OAuth Endpoints
         $this->authority_url = "https://login.microsoftonline.com/{$this->tenant_id}/oauth2/v2.0/authorize";
         $this->token_url = "https://login.microsoftonline.com/{$this->tenant_id}/oauth2/v2.0/token";
@@ -332,7 +364,9 @@ class Azure_Chatbot_OAuth {
             'grant_type' => 'authorization_code',
             'scope' => 'https://management.azure.com/user_impersonation'
         );
-        
+
+        error_log('[Azure OAuth] Token 요청 시작 - Client ID: ' . substr($this->client_id, 0, 8) . '...');
+
         $response = wp_remote_post($this->token_url, array(
             'body' => $params,
             'headers' => array(
@@ -340,21 +374,43 @@ class Azure_Chatbot_OAuth {
             ),
             'timeout' => 30
         ));
-        
+
         if (is_wp_error($response)) {
+            error_log('[Azure OAuth] Token 요청 실패 (네트워크 오류): ' . $response->get_error_message());
             return $response;
         }
-        
+
+        $status_code = wp_remote_retrieve_response_code($response);
         $body = wp_remote_retrieve_body($response);
         $data = json_decode($body, true);
-        
+
+        error_log('[Azure OAuth] Token 응답 상태: ' . $status_code);
+
         if (isset($data['error'])) {
+            $error_code = $data['error'];
+            $error_description = isset($data['error_description']) ? $data['error_description'] : $error_code;
+
+            error_log('[Azure OAuth] Token 요청 실패 - Error: ' . $error_code);
+            error_log('[Azure OAuth] Error Description: ' . $error_description);
+
+            // ✅ AADSTS7000215 에러 특별 처리 (Client Secret ID 오류)
+            if (strpos($error_description, 'AADSTS7000215') !== false ||
+                strpos($error_description, 'Invalid client secret') !== false) {
+                return new WP_Error(
+                    'invalid_client_secret',
+                    '❌ Client Secret 오류: Azure Portal의 "Certificates & secrets"에서 Secret의 "Value" 값을 복사하여 다시 저장하세요. (Secret ID가 아닌 Value를 입력해야 합니다)
+
+상세 오류: ' . $error_description
+                );
+            }
+
             return new WP_Error(
                 'token_error',
-                isset($data['error_description']) ? $data['error_description'] : $data['error']
+                $error_description
             );
         }
-        
+
+        error_log('[Azure OAuth] Token 발급 성공');
         return $data;
     }
     
@@ -789,10 +845,29 @@ class Azure_Chatbot_OAuth {
             if (empty($token_data['access_token'])) {
                 $error_desc = isset($token_data['error_description']) ? $token_data['error_description'] : 'Unknown error';
                 $error_code = isset($token_data['error']) ? $token_data['error'] : 'unknown';
-                
+
                 error_log('[Azure OAuth] Token 발급 실패 - Error Code: ' . $error_code);
                 error_log('[Azure OAuth] Token 발급 실패 - Error Description: ' . $error_desc);
-                
+
+                // ✅ AADSTS7000215 에러 특별 처리 (Client Secret ID 오류)
+                if (strpos($error_desc, 'AADSTS7000215') !== false ||
+                    strpos($error_desc, 'Invalid client secret') !== false) {
+                    wp_send_json_error(array(
+                        'message' => '❌ Client Secret 오류: Azure Portal의 "Certificates & secrets"에서 Secret의 "Value" 값을 복사하여 다시 저장하세요. (Secret ID가 아닌 Value를 입력해야 합니다)
+
+상세 오류: ' . $error_desc,
+                        'error_code' => $error_code,
+                        'fix_guide' => [
+                            '1. Azure Portal → App registrations → 앱 선택',
+                            '2. Certificates & secrets 메뉴 클릭',
+                            '3. Client secrets 섹션에서 "+ New client secret" 클릭',
+                            '4. Description 입력 후 Add 클릭',
+                            '5. 생성된 Secret의 "Value" 컬럼 값을 즉시 복사 (한 번만 표시됨)',
+                            '6. WordPress OAuth 설정에 Value 붙여넣기 후 저장'
+                        ]
+                    ));
+                }
+
                 wp_send_json_error(array(
                     'message' => 'Entra ID 인증 실패: ' . $error_desc,
                     'error_code' => $error_code,
@@ -971,30 +1046,70 @@ class Azure_Chatbot_OAuth {
     }
     
     /**
+     * Client Secret 형식 검증
+     *
+     * @param string $client_secret 검증할 Client Secret
+     * @return array 검증 결과 ['valid' => bool, 'message' => string]
+     */
+    private function validate_client_secret($client_secret) {
+        // 1. GUID 형식 감지 (Secret ID 오류 방지)
+        $guid_pattern = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i';
+
+        if (preg_match($guid_pattern, $client_secret)) {
+            return [
+                'valid' => false,
+                'message' => '❌ Client Secret ID를 입력하셨습니다. Azure Portal의 "Certificates & secrets"에서 Secret의 "Value" 값을 복사하여 입력하세요. (Secret ID가 아닙니다)'
+            ];
+        }
+
+        // 2. 길이 검증 (Azure Client Secret은 일반적으로 40자 이상)
+        if (strlen($client_secret) < 20) {
+            return [
+                'valid' => false,
+                'message' => '❌ Client Secret이 너무 짧습니다. Azure Portal에서 생성된 Secret Value는 최소 20자 이상입니다.'
+            ];
+        }
+
+        // 3. 특수문자 포함 여부 (Azure Secret Value는 ~, _, - 등 포함)
+        if (!preg_match('/[~._-]/', $client_secret)) {
+            error_log('[Azure OAuth] Warning: Client Secret에 특수문자가 없습니다. Secret ID일 가능성이 있습니다.');
+        }
+
+        return ['valid' => true, 'message' => ''];
+    }
+
+    /**
      * AJAX: OAuth ?�정 ?�??
      */
     public function ajax_save_oauth_settings() {
         check_ajax_referer('azure_oauth_save', 'nonce');
-        
+
         if (!current_user_can('manage_options')) {
             wp_send_json_error(array('message' => '권한이 없습니다.'));
         }
-        
+
         $client_id = isset($_POST['client_id']) ? sanitize_text_field($_POST['client_id']) : '';
         $client_secret = isset($_POST['client_secret']) ? sanitize_text_field($_POST['client_secret']) : '';
         $tenant_id = isset($_POST['tenant_id']) ? sanitize_text_field($_POST['tenant_id']) : '';
         $save_to_agent_mode = isset($_POST['save_to_agent_mode']) && $_POST['save_to_agent_mode'];
-        
+
         if (empty($client_id) || empty($client_secret) || empty($tenant_id)) {
             wp_send_json_error(array('message' => '모든 필드를 입력하세요.'));
         }
-        
+
+        // ✅ Client Secret 형식 검증
+        $validation = $this->validate_client_secret($client_secret);
+        if (!$validation['valid']) {
+            error_log('[Azure OAuth] Client Secret 형식 검증 실패: ' . $validation['message']);
+            wp_send_json_error(array('message' => $validation['message']));
+        }
+
         // OAuth 설정 저장 - 암호화 매니저 사용
         require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-encryption-manager.php';
         $encryption_manager = Azure_AI_Chatbot_Encryption_Manager::get_instance();
-        
+
         $encrypted_secret = $encryption_manager->encrypt($client_secret);
-        
+
         if (empty($encrypted_secret)) {
             error_log('[Azure OAuth] Client Secret 암호화 실패');
             wp_send_json_error(array('message' => 'Client Secret 암호화에 실패했습니다.'));
