@@ -731,20 +731,44 @@ class Azure_Chatbot_OAuth {
         
         // 1. 리소스 정보에서 Endpoint 및 프로젝트명 추출
         $resource_info = $this->call_azure_api($resource_id, '2023-05-01');
-        
+
         if (is_wp_error($resource_info)) {
             wp_send_json_error(array('message' => $resource_info->get_error_message()));
         }
-        
-        $project_endpoint_host = isset($resource_info['properties']['endpoint']) 
-            ? $resource_info['properties']['endpoint'] 
+
+        // ✅ 리소스 타입 확인 (Agent는 AI Foundry Project에만 존재)
+        $resource_type = isset($resource_info['type']) ? $resource_info['type'] : '';
+        error_log('[Azure OAuth] ajax_get_agents - Resource Type: ' . $resource_type);
+
+        // Cognitive Services (Azure OpenAI)는 Agent를 지원하지 않음
+        if (strpos($resource_type, 'Microsoft.CognitiveServices') !== false) {
+            error_log('[Azure OAuth] ajax_get_agents - Cognitive Services 리소스는 Agent를 지원하지 않습니다.');
+            wp_send_json_success(array(
+                'agents' => array(),
+                'message' => 'Azure OpenAI 리소스는 Agent를 지원하지 않습니다. AI Foundry Project를 생성하세요.'
+            ));
+            return;
+        }
+
+        // AI Foundry Project (MachineLearningServices) 확인
+        if (strpos($resource_type, 'Microsoft.MachineLearningServices') === false) {
+            error_log('[Azure OAuth] ajax_get_agents - AI Foundry Project가 아닙니다: ' . $resource_type);
+            wp_send_json_success(array(
+                'agents' => array(),
+                'message' => 'Agent는 AI Foundry Project에서만 사용할 수 있습니다.'
+            ));
+            return;
+        }
+
+        $project_endpoint_host = isset($resource_info['properties']['endpoint'])
+            ? $resource_info['properties']['endpoint']
             : '';
         $project_name = isset($resource_info['name']) ? $resource_info['name'] : '';
-        
+
         if (empty($project_endpoint_host) || empty($project_name)) {
             wp_send_json_error(array('message' => 'Project Endpoint 또는 이름을 찾을 수 없습니다.'));
         }
-        
+
         // [수정] 올바른 Agent 엔드포인트 구성
         $base_endpoint = rtrim($project_endpoint_host, '/') . "/api/projects/{$project_name}";
         $agents_url = $base_endpoint . '/assistants?api-version=v1';

@@ -252,11 +252,13 @@ Agent 모드: 고급 기능 지원 (Function Calling, RAG, 파일 업로드 등,
 * 추가: 각 버전별 다운로드 링크 제공
 
 = 3.0.48 - 2025-11-13 =
-* 수정: [Critical] OAuth 설정 로드 시 Client Secret 복호화 누락 버그 수정 (AADSTS7000215 오류 해결)
-* 추가: Client Secret 형식 검증 (GUID/Secret ID 감지 및 경고)
-* 추가: AADSTS7000215 오류 특별 처리 및 단계별 해결 가이드
-* 개선: OAuth 토큰 요청 오류 로깅 강화
-* 개선: load_config() 함수에서 암호화된 Client Secret 자동 복호화 및 마이그레이션
+* 수정: [Critical] OAuth Client Secret 복호화 누락 버그 (AADSTS7000215 오류 완전 해결)
+* 수정: [Critical] OAuth 인증 후 Agent 모드가 Chat 모드로 변경되는 버그 수정
+* 수정: [Critical] Azure OpenAI 리소스에서 Agent 조회 시도하여 빈 결과 반환하는 버그 수정
+* 추가: Client Secret 형식 검증 (GUID/Secret ID 자동 감지 및 경고)
+* 추가: 리소스 타입 검증 (AI Foundry Project만 Agent 조회)
+* 개선: Operation Mode 단일 소스 통일 (azure_chatbot_settings['mode'])
+* 개선: OAuth 토큰 요청 에러 로깅 강화 및 단계별 해결 가이드
 
 = 3.0.47 - 2025-01-23 =
 * 개선: 중앙화된 암호화 아키텍처로 완전 리팩토링 (Single Source of Truth)

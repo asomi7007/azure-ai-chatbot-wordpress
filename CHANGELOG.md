@@ -2,9 +2,11 @@
 
 ## [3.0.48] - 2025-11-13
 
-### 🐛 **Critical Bug Fix: OAuth Client Secret 복호화 누락**
+### 🐛 **Critical Bug Fixes: OAuth 및 Mode 관리 버그 수정**
 
-#### ⚠️ 긴급 버그 수정
+#### ⚠️ 긴급 버그 수정 (3건)
+
+##### 버그 1: OAuth Client Secret 복호화 누락
 **문제**: OAuth 설정 로드 시 저장된 암호화된 Client Secret을 복호화하지 않고 그대로 사용하여 모든 OAuth 인증이 실패하는 치명적 버그
 
 **증상**: "Azure 자동 설정 시작" 버튼 클릭 시 다음 에러 발생
@@ -16,6 +18,24 @@ not the client secret ID
 
 **원인**: `load_config()` 함수에서 `get_option('azure_chatbot_oauth_client_secret')`로 암호화된 값을 가져왔지만, **복호화 과정 없이** 그대로 `$this->client_secret`에 저장하여 암호화된 문자열이 Azure API에 전송됨
 
+##### 버그 2: OAuth 인증 후 Agent 모드가 Chat 모드로 변경
+**문제**: OAuth 인증 완료 후 페이지 리디렉션 시 Agent 모드로 설정했던 것이 Chat 모드로 변경됨
+
+**원인**: `oauth-auto-setup.php` 691번 라인에서 v3.0.47에서 삭제된 `azure_ai_chatbot_operation_mode` 옵션을 참조하여 항상 기본값 'chat'을 반환함
+
+**증상**:
+- 로그: `[Auto Setup] Operation mode loaded from localStorage: chat`
+- 사용자가 Agent 모드 선택 → OAuth 인증 → 자동으로 Chat 모드로 변경
+
+##### 버그 3: Azure OpenAI 리소스에서 Agent 조회 시도
+**문제**: Azure OpenAI (Cognitive Services) 리소스에 대해 Agent 조회를 시도하여 항상 빈 결과 반환
+
+**원인**: `ajax_get_agents()` 함수에서 리소스 타입을 확인하지 않고 모든 리소스에 대해 Agent API 호출 시도
+
+**증상**:
+- 로그: `[Auto Setup] [Agent] Agent 없음, 빈 설정으로 진행`
+- Agent는 AI Foundry Project (Microsoft.MachineLearningServices)에만 존재하지만, Azure OpenAI (Microsoft.CognitiveServices)에서도 조회 시도
+
 #### 핵심 수정사항
 1. **✅ [Critical] OAuth 설정 로드 시 Client Secret 복호화 추가** ([class-azure-oauth.php:48-100](class-azure-oauth.php#L48-L100))
    - `load_config()` 함수에서 암호화된 값을 Encryption Manager로 복호화
@@ -23,17 +43,28 @@ not the client secret ID
    - 상세한 복호화 상태 로깅 추가
    - **이 수정으로 OAuth 인증 완전 정상화**
 
-2. **✅ Client Secret 형식 검증 추가** ([class-azure-oauth.php:1006-1037](class-azure-oauth.php#L1006-L1037))
+2. **✅ [Critical] Operation Mode 로드 소스 수정** ([oauth-auto-setup.php:691-695](oauth-auto-setup.php#L691-L695))
+   - 삭제된 `azure_ai_chatbot_operation_mode` 옵션 참조 제거
+   - `azure_chatbot_settings['mode']` 단일 소스로 통일
+   - **Agent 모드가 Chat 모드로 변경되는 버그 수정**
+
+3. **✅ [Critical] Agent 조회 시 리소스 타입 검증 추가** ([class-azure-oauth.php:739-761](class-azure-oauth.php#L739-L761))
+   - Azure OpenAI (Microsoft.CognitiveServices) 리소스 필터링
+   - AI Foundry Project (Microsoft.MachineLearningServices)만 Agent 조회
+   - 사용자 친화적 메시지 제공
+   - **불필요한 API 호출 방지 및 명확한 피드백**
+
+4. **✅ Client Secret 형식 검증 추가** ([class-azure-oauth.php:1006-1037](class-azure-oauth.php#L1006-L1037))
    - GUID 형식(Secret ID) 감지 및 경고
    - 최소 길이 검증 (20자 이상)
    - 특수문자 포함 여부 경고
 
-3. **✅ AADSTS7000215 에러 특별 처리**
+5. **✅ AADSTS7000215 에러 특별 처리**
    - "Invalid client secret provided" 에러 감지
    - 사용자 친화적 에러 메시지 제공
    - 단계별 해결 가이드 포함
 
-4. **✅ OAuth 토큰 요청 에러 로깅 강화**
+6. **✅ OAuth 토큰 요청 에러 로깅 강화**
    - 상세한 에러 코드 및 설명 로깅
    - 네트워크 오류 vs 인증 오류 구분
    - 디버깅 정보 제공
@@ -61,6 +92,30 @@ not the client secret ID
     - 길이 검증 (최소 20자)
     - 특수문자 포함 여부 경고
 
+- **[Critical] Agent 조회 리소스 타입 검증 추가** (라인 739-761):
+  ```php
+  // ✅ 리소스 타입 확인
+  $resource_type = $resource_info['type'];
+
+  // Cognitive Services (Azure OpenAI)는 Agent 미지원
+  if (strpos($resource_type, 'Microsoft.CognitiveServices') !== false) {
+      wp_send_json_success(array(
+          'agents' => array(),
+          'message' => 'Azure OpenAI 리소스는 Agent를 지원하지 않습니다.'
+      ));
+      return;
+  }
+
+  // AI Foundry Project만 Agent 조회
+  if (strpos($resource_type, 'Microsoft.MachineLearningServices') === false) {
+      wp_send_json_success(array(
+          'agents' => array(),
+          'message' => 'Agent는 AI Foundry Project에서만 사용할 수 있습니다.'
+      ));
+      return;
+  }
+  ```
+
 - **OAuth 설정 저장 개선**:
   - `ajax_save_oauth_settings()`: 저장 전 형식 검증 (라인 1025-1030)
   - 잘못된 형식 감지 시 명확한 에러 메시지 반환
@@ -69,6 +124,21 @@ not the client secret ID
   - `request_access_token()`: AADSTS7000215 특별 처리 (라인 364-373)
   - `ajax_get_agents()`: Bearer Token 요청 실패 시 해결 가이드 제공 (라인 820-837)
   - 상태 코드 및 상세 에러 로깅 추가
+
+#### 📦 `templates/oauth-auto-setup.php`
+- **[Critical] Operation Mode 로드 소스 수정** (라인 691-695):
+  ```php
+  // ❌ 이전 코드 (버그)
+  var operationMode = '<?php echo esc_js(get_option('azure_ai_chatbot_operation_mode', 'chat')); ?>';
+
+  // ✅ 수정된 코드
+  var operationMode = '<?php
+      $settings = get_option('azure_chatbot_settings', array());
+      echo esc_js(isset($settings['mode']) ? $settings['mode'] : 'chat');
+  ?>';
+  ```
+  - v3.0.47에서 삭제된 옵션 참조 제거
+  - 단일 소스 (azure_chatbot_settings['mode']) 사용
 
 ### 에러 메시지 예시
 

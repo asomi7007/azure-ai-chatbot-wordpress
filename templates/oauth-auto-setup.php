@@ -688,7 +688,11 @@ if (!autoSetupMode && hasTokenFromStorage && window.location.search.indexOf('oau
     autoSetupMode = true;
 }
 
-var operationMode = '<?php echo esc_js(get_option('azure_ai_chatbot_operation_mode', 'chat')); ?>';
+// ✅ Mode를 azure_chatbot_settings['mode']에서 읽음 (단일 소스)
+var operationMode = '<?php
+    $settings = get_option('azure_chatbot_settings', array());
+    echo esc_js(isset($settings['mode']) ? $settings['mode'] : 'chat');
+?>';
 
 // OAuth 리디렉션 후 localStorage에서 operationMode를 읽어옴
 try {
