@@ -755,19 +755,29 @@ function loadSavedSettings() {
 
 function openOAuthPopup(url) {
     console.log('[Auto Setup] Starting OAuth auto-setup (OAuth credentials will be preserved)');
-    
+
     // 팝업을 열기 전에 현재 선택된 operationMode를 localStorage에 저장
     try {
+        // ✅ DEBUG: 모든 라디오 버튼 상태 확인
+        var allRadios = jQuery('input[name="oauth_mode"]');
+        console.log('[DEBUG] Total radio buttons found:', allRadios.length);
+        allRadios.each(function(index) {
+            console.log('[DEBUG] Radio', index, '- value:', jQuery(this).val(), '- checked:', jQuery(this).prop('checked'));
+        });
+
         var selectedMode = jQuery('input[name="oauth_mode"]:checked').val() || 'chat';
+        console.log('[DEBUG] Selected mode from :checked selector:', selectedMode);
+        console.log('[DEBUG] Global operationMode variable:', operationMode);
+
         localStorage.setItem('azure_oauth_operation_mode', selectedMode);
-        console.log('[Auto Setup] Saving operation mode to localStorage before OAuth:', selectedMode);
+        console.log('[Auto Setup] ✅ Saving operation mode to localStorage before OAuth:', selectedMode);
     } catch(e) {
         console.warn('[Auto Setup] Cannot save operationMode to localStorage:', e);
     }
-    
+
     // OAuth 인증 정보는 유지하고 팝업만 열기 (설정 초기화 X)
     openPopupWindow(url);
-    
+
     return false; // 기본 링크 동작 방지
 }
 
@@ -845,10 +855,14 @@ function copyOAuthCommand() {
 jQuery(document).ready(function($) {
     // ========== 페이지 로드 시 저장된 설정 복원 ==========
     console.log('[Auto Setup] Page loaded - Checking for saved settings');
-    
+
     // ✅ 페이지 로드 시 operationMode에 따라 UI 초기화
     console.log('[Auto Setup] Initializing UI with mode:', operationMode);
+    console.log('[DEBUG] DB mode value:', dbMode);
+    console.log('[DEBUG] localStorage value:', localStorage.getItem('azure_oauth_operation_mode'));
+
     $('input[name="oauth_mode"][value="' + operationMode + '"]').prop('checked', true);
+    console.log('[DEBUG] Radio button set - verifying:', $('input[name="oauth_mode"]:checked').val());
     
     // Agent 모드면 Agent 선택 행 표시
     if (operationMode === 'agent') {
@@ -927,6 +941,9 @@ jQuery(document).ready(function($) {
     $('input[name="oauth_mode"]').on('change', function() {
         var mode = $(this).val();
         var previousMode = operationMode;
+
+        console.log('[DEBUG] Radio button changed - from:', previousMode, 'to:', mode);
+        console.log('[DEBUG] Radio button that triggered change:', this.value, 'checked:', this.checked);
 
         // 전역 모드 값 갱신 및 서버에 저장
         operationMode = mode;
