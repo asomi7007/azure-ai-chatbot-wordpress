@@ -3,7 +3,7 @@ Contributors: eldensolution
 Tags: azure, ai, chatbot, chat, ai-assistant
 Requires at least: 6.0
 Tested up to: 6.8
-Stable tag: 3.0.49
+Stable tag: 3.0.50
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -251,13 +251,20 @@ Agent 모드: 고급 기능 지원 (Function Calling, RAG, 파일 업로드 등,
 * 개선: 향후 계획 현실화
 * 추가: 각 버전별 다운로드 링크 제공
 
-= 3.0.49 - 2025-11-13 =
+= 3.0.50 - 2025-01-14 =
+* 수정: OAuth 자동 설정 중 operationMode가 항상 'chat'로 변경되는 버그 수정
+* 개선: localStorage 우선순위 개선 (OAuth 자동 설정 중 localStorage 값 우선)
+* 개선: localStorage 삭제 시점 조정 (자동 설정 완료 시까지 유지)
+* 개선: 페이지 로드 시 operationMode에 따른 UI 자동 초기화
+* 수정: Agent 모드 선택 후 OAuth 인증해도 모드가 'agent'로 유지됨
+
+= 3.0.49 - 2025-01-13 =
 * 수정: Agent API 엔드포인트를 Microsoft Learn 문서 기준으로 수정 (/agents/v1.0/projects/{name}/agents)
 * 개선: Agent 응답 데이터 파싱 로직 개선 (value/data/직접배열 형식 모두 지원)
 * 추가: Agent API URL 상세 로깅 추가
 * 개선: 빈 Agent 목록에 대한 사용자 친화적 메시지 제공
 
-= 3.0.48 - 2025-11-13 =
+= 3.0.48 - 2025-01-12 =
 * 수정: [Critical] OAuth Client Secret 복호화 누락 버그 (AADSTS7000215 오류 완전 해결)
 * 수정: [Critical] OAuth 인증 후 Agent 모드가 Chat 모드로 변경되는 버그 수정
 * 수정: [Critical] Azure OpenAI 리소스에서 Agent 조회 시도하여 빈 결과 반환하는 버그 수정

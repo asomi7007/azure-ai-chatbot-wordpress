@@ -1,6 +1,90 @@
 # 변경 이력
 
-## [3.0.49] - 2025-11-13
+## [3.0.50] - 2025-01-14
+
+### 🐛 **OAuth 자동 설정 중 operationMode 버그 수정**
+
+#### 주요 수정사항
+1. **✅ Agent 모드 선택이 OAuth 리디렉션 후에도 유지되도록 수정** ([oauth-auto-setup.php:691-707](templates/oauth-auto-setup.php#L691-L707))
+   - **기존 문제**: Agent 모드 선택 → OAuth 인증 → 리디렉션 후 Chat 모드로 변경됨
+   - **원인**: localStorage에서 operationMode를 읽은 직후 삭제하여, 이후 DB의 'chat' 값으로 되돌아감
+   - **수정**: localStorage 값을 자동 설정 완료 시까지 유지하고, 최종 저장 후 삭제
+
+2. **✅ operationMode 우선순위 개선**
+   - **기존**: DB 값 우선 → localStorage 값 나중에 확인 → 즉시 삭제
+   - **수정**: localStorage 값 우선 (OAuth 자동 설정 중) → 없으면 DB 값 사용
+
+3. **✅ 페이지 로드 시 UI 초기화 개선** ([oauth-auto-setup.php:850-863](templates/oauth-auto-setup.php#L850-L863))
+   - operationMode 값에 따라 라디오 버튼 및 Agent 선택 UI 자동 초기화
+   - Agent 모드 선택 시 Agent 선택 행 표시
+
+#### 코드 변경 상세
+
+##### operationMode 초기화 로직 개선
+```javascript
+// ❌ 이전 (DB 우선 + localStorage 즉시 삭제)
+var operationMode = '<?php echo azure_chatbot_settings["mode"]; ?>';
+if (localStorage.getItem('azure_oauth_operation_mode')) {
+    operationMode = localStorage.getItem('azure_oauth_operation_mode');
+    localStorage.removeItem('azure_oauth_operation_mode'); // ❌ 즉시 삭제
+}
+
+// ✅ 수정 (localStorage 우선 + 자동 설정 완료까지 유지)
+var operationMode = 'chat';
+var dbMode = '<?php echo azure_chatbot_settings["mode"]; ?>';
+try {
+    var savedMode = localStorage.getItem('azure_oauth_operation_mode');
+    if (savedMode && (savedMode === 'chat' || savedMode === 'agent')) {
+        operationMode = savedMode; // ✅ localStorage 우선
+        // ⚠️ 자동 설정 완료 전까지 유지 (삭제하지 않음)
+    } else {
+        operationMode = dbMode;
+    }
+} catch(e) {
+    operationMode = dbMode;
+}
+```
+
+##### localStorage 삭제 시점 조정
+```javascript
+// ✅ completeSetup() 및 checkBothCollected() 함수에서 최종 저장 후 삭제
+try {
+    localStorage.removeItem('azure_oauth_token_saved');
+    localStorage.removeItem('azure_oauth_token_saved_time');
+    localStorage.removeItem('azure_oauth_operation_mode'); // ✅ 자동 설정 완료 시 삭제
+} catch(e) {
+    console.warn('[Auto Setup] Cannot clear localStorage:', e);
+}
+```
+
+##### 페이지 로드 시 UI 초기화
+```javascript
+// ✅ operationMode에 따라 UI 초기화
+console.log('[Auto Setup] Initializing UI with mode:', operationMode);
+$('input[name="oauth_mode"][value="' + operationMode + '"]').prop('checked', true);
+
+if (operationMode === 'agent') {
+    $('#agent_selection_row').show();
+} else {
+    $('#agent_selection_row').hide();
+    $('#oauth_agent').val('').prop('disabled', true);
+}
+```
+
+#### 파일 변경 내역
+- `templates/oauth-auto-setup.php`: operationMode 초기화 로직 개선 (라인 691-707)
+- `templates/oauth-auto-setup.php`: localStorage 삭제 시점 조정 (라인 2057, 2148)
+- `templates/oauth-auto-setup.php`: 페이지 로드 시 UI 초기화 (라인 850-863)
+
+#### 테스트 완료
+- ✅ Agent 모드 선택 → OAuth 인증 → 모드가 'agent'로 유지
+- ✅ Chat 모드 선택 → OAuth 인증 → 모드가 'chat'로 유지
+- ✅ localStorage 값이 자동 설정 완료까지 유지
+- ✅ 최종 저장 후 localStorage 정리
+
+---
+
+## [3.0.49] - 2025-01-13
 
 ### 🔧 **Agent API 엔드포인트 수정 및 응답 파싱 개선**
 

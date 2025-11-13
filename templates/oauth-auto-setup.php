@@ -688,23 +688,28 @@ if (!autoSetupMode && hasTokenFromStorage && window.location.search.indexOf('oau
     autoSetupMode = true;
 }
 
-// ✅ Mode를 azure_chatbot_settings['mode']에서 읽음 (단일 소스)
-var operationMode = '<?php
+// ✅ OAuth 자동 설정 중에는 localStorage를 최우선으로 사용
+var operationMode = 'chat'; // 기본값
+var dbMode = '<?php
     $settings = get_option('azure_chatbot_settings', array());
     echo esc_js(isset($settings['mode']) ? $settings['mode'] : 'chat');
 ?>';
 
-// OAuth 리디렉션 후 localStorage에서 operationMode를 읽어옴
+// OAuth 리디렉션 후 localStorage에서 operationMode를 읽어옴 (자동 설정 중 최우선)
 try {
     var savedMode = localStorage.getItem('azure_oauth_operation_mode');
     if (savedMode && (savedMode === 'chat' || savedMode === 'agent')) {
         operationMode = savedMode;
-        console.log('[Auto Setup] Operation mode loaded from localStorage:', operationMode);
-        // 사용 후 삭제
-        localStorage.removeItem('azure_oauth_operation_mode');
+        console.log('[Auto Setup] ✅ Operation mode loaded from localStorage:', operationMode);
+        // ⚠️ 자동 설정 완료 전까지 localStorage 유지 (삭제하지 않음)
+    } else {
+        // localStorage에 값이 없으면 DB 값 사용
+        operationMode = dbMode;
+        console.log('[Auto Setup] Operation mode loaded from DB:', operationMode);
     }
 } catch(e) {
-    console.warn('[Auto Setup] Cannot access localStorage for operationMode:', e);
+    console.warn('[Auto Setup] Cannot access localStorage for operationMode, using DB value:', e);
+    operationMode = dbMode;
 }
 
 console.log('[Auto Setup] Auto mode:', autoSetupMode);
@@ -840,15 +845,19 @@ jQuery(document).ready(function($) {
     // ========== 페이지 로드 시 저장된 설정 복원 ==========
     console.log('[Auto Setup] Page loaded - Checking for saved settings');
     
-    // 저장된 Operation Mode 복원
-    <?php 
-    $saved_operation_mode = get_option('azure_ai_chatbot_operation_mode', '');
-    if (!empty($saved_operation_mode)): 
-    ?>
-    console.log('[Auto Setup] Restoring saved operation mode: <?php echo esc_js($saved_operation_mode); ?>');
-    operationMode = '<?php echo esc_js($saved_operation_mode); ?>';
-    $('input[name="oauth_mode"][value="<?php echo esc_js($saved_operation_mode); ?>"]').prop('checked', true);
-    <?php endif; ?>
+    // ✅ 페이지 로드 시 operationMode에 따라 UI 초기화
+    console.log('[Auto Setup] Initializing UI with mode:', operationMode);
+    $('input[name="oauth_mode"][value="' + operationMode + '"]').prop('checked', true);
+    
+    // Agent 모드면 Agent 선택 행 표시
+    if (operationMode === 'agent') {
+        $('#agent_selection_row').show();
+        console.log('[Auto Setup] Agent mode UI initialized');
+    } else {
+        $('#agent_selection_row').hide();
+        $('#oauth_agent').val('').prop('disabled', true);
+        console.log('[Auto Setup] Chat mode UI initialized');
+    }
     
     // 인증 성공 시 자동으로 Subscription 로드
     <?php if ($has_token): ?>
@@ -2051,11 +2060,12 @@ function completeSetup(mode, config) {
     console.log('[Auto Setup] Config:', config);
     console.log('[Auto Setup] Current operationMode variable:', operationMode);
     
-    // localStorage 토큰 플래그 제거
+    // localStorage 토큰 플래그 및 operation mode 제거
     try {
         localStorage.removeItem('azure_oauth_token_saved');
         localStorage.removeItem('azure_oauth_token_saved_time');
-        console.log('[Auto Setup] localStorage token flags cleared');
+        localStorage.removeItem('azure_oauth_operation_mode'); // ✅ 자동 설정 완료 시 삭제
+        console.log('[Auto Setup] localStorage token flags and operation mode cleared');
     } catch(e) {
         console.warn('[Auto Setup] Cannot clear localStorage:', e);
     }
@@ -2136,11 +2146,12 @@ function checkBothCollected() {
         var successMsg = <?php echo json_encode(__('자동 설정이 완료되었습니다!', 'azure-ai-chatbot')); ?>;
         var detailMsg = <?php echo json_encode(__('Chat 모드와 Agent 모드 설정이 모두 저장되었습니다.\n\n• Chat 모드: Endpoint, Deployment, API Key\n• Agent 모드: Project, Agent, Client ID/Secret', 'azure-ai-chatbot')); ?>;
         
-        // localStorage 토큰 플래그 제거
+        // localStorage 토큰 플래그 및 operation mode 제거
         try {
             localStorage.removeItem('azure_oauth_token_saved');
             localStorage.removeItem('azure_oauth_token_saved_time');
-            console.log('[Auto Setup] localStorage token flags cleared');
+            localStorage.removeItem('azure_oauth_operation_mode'); // ✅ 자동 설정 완료 시 삭제
+            console.log('[Auto Setup] localStorage token flags and operation mode cleared');
         } catch(e) {
             console.warn('[Auto Setup] Cannot clear localStorage:', e);
         }
