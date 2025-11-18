@@ -1,5 +1,104 @@
 # 변경 이력
 
+## [3.0.56] - 2025-11-18
+
+### 🎯 **UX 개선 + AI Foundry 리소스 감지 강화**
+
+#### 주요 개선사항
+
+##### 1. 🔒 **Auto Setup 페이지 모드 선택 비활성화**
+
+**변경 이유:**
+- Auto Setup 페이지에서 모드를 변경하면 이미 저장된 리소스 설정과 불일치 발생
+- 사용자 혼란 방지 및 일관된 설정 유지
+
+**변경 내용:** [templates/oauth-auto-setup.php:86-108](templates/oauth-auto-setup.php#L86-L108)
+```php
+// ✅ 라디오 버튼을 disabled 상태로 변경
+<input type="radio" name="oauth_mode" value="chat" <?php checked($operation_mode, 'chat'); ?> disabled />
+<input type="radio" name="oauth_mode" value="agent" <?php checked($operation_mode, 'agent'); ?> disabled />
+
+// ✅ 회색 스타일 + 비활성화 커서
+style="color: #999; cursor: not-allowed;"
+
+// ✅ 안내 메시지 추가
+💡 모드는 Manual Settings에서만 변경 가능합니다.
+```
+
+**개선 효과:**
+- Auto Setup: 리소스 선택에만 집중 (모드는 읽기 전용)
+- Manual Settings: 모드 변경 + 수동 설정 가능
+- 명확한 역할 분리 → 사용자 혼란 제거
+
+---
+
+##### 2. 🔍 **AI Foundry 리소스 감지 로직 강화**
+
+**문제 상황:**
+- Azure OpenAI 리소스가 Agent 모드 리소스 목록에 표시됨
+- `.openai.azure.com` endpoint를 가진 리소스가 AI Foundry로 오인됨
+
+**해결 방법:** [includes/class-azure-oauth.php:709-741](includes/class-azure-oauth.php#L709-L741)
+```php
+// ✅ 3단계 검증 로직
+$has_foundry_endpoint = (strpos($endpoint_url, '.services.ai.azure.com') !== false);
+$is_openai = (strpos($endpoint_url, '.openai.azure.com') !== false);
+$is_ai_foundry = ($kind === 'aiservices' || $has_foundry_endpoint) && !$is_openai;
+
+// ✅ Azure OpenAI 명시적 제외
+if (!$is_openai) {
+    // AI Foundry 리소스로 추가
+}
+```
+
+**검증 기준:**
+1. ✅ `kind === 'aiservices'` OR endpoint에 `.services.ai.azure.com` 포함
+2. ❌ endpoint에 `.openai.azure.com` 포함 (Azure OpenAI 제외)
+3. ✅ 조건 1 충족 AND 조건 2 불충족 → AI Foundry 리소스
+
+**개선 효과:**
+```
+[이전]
+✅ AI Foundry Hub (정상)
+❌ Azure OpenAI (잘못 표시)  ← 문제!
+
+[개선]
+✅ AI Foundry Hub
+✅ MachineLearningServices Workspace
+❌ Azure OpenAI (올바르게 제외)  ← 해결!
+```
+
+---
+
+##### 3. 📊 **Agent 리소스 조회 로깅 강화**
+
+**추가된 로그:** [includes/class-azure-oauth.php:686-742](includes/class-azure-oauth.php#L686-L742)
+```php
+error_log('[Azure OAuth] Agent 리소스 조회 시작 - RG: ' . $resource_group);
+error_log('[Azure OAuth] MachineLearningServices 조회 성공: ' . count($ml_result['value']) . '개');
+error_log('[Azure OAuth] ML Workspace 발견: ' . $resource['name']);
+error_log('[Azure OAuth] CognitiveServices 리소스: ' . $resource['name'] . ' | Kind: ' . $kind . ' | Is OpenAI: ' . ($is_openai ? 'YES' : 'NO'));
+error_log('[Azure OAuth] ✅ Agent 리소스로 추가: ' . $resource['name']);
+error_log('[Azure OAuth] ❌ Azure OpenAI 제외: ' . $resource['name']);
+```
+
+**트러블슈팅 개선:**
+- 리소스 조회 과정 가시화
+- OpenAI vs AI Foundry 판별 과정 추적
+- 문제 발생 시 빠른 원인 파악
+
+---
+
+#### 요약
+
+| 항목 | 개선 내용 |
+|------|-----------|
+| **UX** | Auto Setup 모드 선택 비활성화 → 역할 명확화 |
+| **로직** | AI Foundry 감지 강화 → Azure OpenAI 제외 |
+| **디버깅** | 상세 로그 추가 → 트러블슈팅 용이 |
+
+---
+
 ## [3.0.55] - 2025-11-18
 
 ### 🔧 **Critical Bug Fix: 라디오 버튼 가시성 문제 완전 해결**

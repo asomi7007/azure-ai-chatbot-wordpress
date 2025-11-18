@@ -3,7 +3,7 @@ Contributors: eldensolution
 Tags: azure, ai, chatbot, chat, ai-assistant
 Requires at least: 6.0
 Tested up to: 6.8
-Stable tag: 3.0.55
+Stable tag: 3.0.56
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -160,6 +160,12 @@ Agent 모드: 고급 기능 지원 (Function Calling, RAG, 파일 업로드 등,
 4. 사용 가이드 - 편집 가능한 마크다운 가이드
 
 == Changelog ==
+
+= 3.0.56 - 2025-11-18 =
+* 개선: Auto Setup 페이지 모드 선택 비활성화 - 리소스 설정과 불일치 방지를 위해 읽기 전용으로 변경 (Manual Settings에서만 변경 가능)
+* 개선: AI Foundry 리소스 감지 로직 강화 - Azure OpenAI 리소스를 Agent 모드 목록에서 명시적으로 제외
+* 추가: Agent 리소스 조회 로깅 강화 - MachineLearningServices 및 CognitiveServices 조회 과정 상세 로그 추가
+* 개선: 리소스 감지 3단계 검증 로직 - kind, endpoint, OpenAI 여부를 종합적으로 판단하여 정확한 리소스 필터링
 
 = 3.0.55 - 2025-11-18 =
 * 수정: 라디오 버튼 가시성 문제 완전 해결 - 모드 선택 박스를 조건문 밖으로 이동하여 항상 표시되도록 수정

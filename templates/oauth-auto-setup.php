@@ -86,20 +86,20 @@ if (isset($_GET['oauth_error'])) {
         $settings = get_option('azure_chatbot_settings', array());
         $operation_mode = isset($settings['mode']) ? $settings['mode'] : 'chat';
         ?>
-        <div class="notice notice-info inline" style="margin: 20px 0; padding: 15px; background: #e7f3ff; border-left: 4px solid #0073aa;">
-            <h3 style="margin-top: 0;"><?php esc_html_e('🎯 모드 선택', 'azure-ai-chatbot'); ?></h3>
+        <div class="notice notice-info inline" style="margin: 20px 0; padding: 15px; background: #f5f5f5; border-left: 4px solid #999;">
+            <h3 style="margin-top: 0; color: #666;"><?php esc_html_e('📍 선택된 모드', 'azure-ai-chatbot'); ?></h3>
             <p style="margin: 10px 0;">
-                <label style="margin-right: 20px; font-size: 14px;">
-                    <input type="radio" name="oauth_mode" value="chat" <?php checked($operation_mode, 'chat'); ?> style="margin-right: 5px;" />
-                    <strong><?php esc_html_e('Chat 모드', 'azure-ai-chatbot'); ?></strong> - Azure OpenAI (GPT-4, GPT-3.5 등)
+                <label style="margin-right: 20px; font-size: 14px; color: #999; cursor: not-allowed;">
+                    <input type="radio" name="oauth_mode" value="chat" <?php checked($operation_mode, 'chat'); ?> disabled style="margin-right: 5px; cursor: not-allowed;" />
+                    <strong style="color: #999;"><?php esc_html_e('Chat 모드', 'azure-ai-chatbot'); ?></strong> <span style="color: #aaa;">- Azure OpenAI (GPT-4, GPT-3.5 등)</span>
                 </label>
-                <label style="font-size: 14px;">
-                    <input type="radio" name="oauth_mode" value="agent" <?php checked($operation_mode, 'agent'); ?> style="margin-right: 5px;" />
-                    <strong><?php esc_html_e('Agent 모드', 'azure-ai-chatbot'); ?></strong> - AI Foundry Agent (Assistants API)
+                <label style="font-size: 14px; color: #999; cursor: not-allowed;">
+                    <input type="radio" name="oauth_mode" value="agent" <?php checked($operation_mode, 'agent'); ?> disabled style="margin-right: 5px; cursor: not-allowed;" />
+                    <strong style="color: #999;"><?php esc_html_e('Agent 모드', 'azure-ai-chatbot'); ?></strong> <span style="color: #aaa;">- AI Foundry Agent (Assistants API)</span>
                 </label>
             </p>
-            <p class="description" style="margin: 5px 0 0 0;">
-                💡 <?php esc_html_e('Chat 모드: Azure OpenAI 리소스 사용 | Agent 모드: AI Foundry Hub 리소스 필요', 'azure-ai-chatbot'); ?>
+            <p class="description" style="margin: 5px 0 0 0; color: #666;">
+                ℹ️ <?php esc_html_e('모드는 Manual Settings 탭에서 변경할 수 있습니다.', 'azure-ai-chatbot'); ?>
             </p>
         </div>
 

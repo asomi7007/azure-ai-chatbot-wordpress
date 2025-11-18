@@ -683,12 +683,16 @@ class Azure_Chatbot_OAuth {
         $resources = array();
 
         if ($mode === 'agent') {
+            error_log('[Azure OAuth] Agent 리소스 조회 시작 - RG: ' . $resource_group);
+
             // 1) MachineLearningServices 워크스페이스(기존 AI Foundry)
             $ml_endpoint = "/subscriptions/{$subscription_id}/resourceGroups/{$resource_group}/providers/Microsoft.MachineLearningServices/workspaces";
             $ml_result = $this->call_azure_api($ml_endpoint, '2023-04-01');
 
             if (!is_wp_error($ml_result) && isset($ml_result['value'])) {
+                error_log('[Azure OAuth] MachineLearningServices 조회 성공: ' . count($ml_result['value']) . '개');
                 foreach ($ml_result['value'] as $resource) {
+                    error_log('[Azure OAuth] ML Workspace 발견: ' . $resource['name'] . ' (Type: ' . $resource['type'] . ')');
                     $resources[] = array(
                         'name' => $resource['name'],
                         'id' => $resource['id'],
@@ -696,6 +700,8 @@ class Azure_Chatbot_OAuth {
                         'type' => $resource['type']
                     );
                 }
+            } else {
+                error_log('[Azure OAuth] MachineLearningServices 조회 실패 또는 결과 없음');
             }
 
             // 2) Azure AI Services (AIServices) 리소스 - 신규 Azure AI Foundry 프로젝트
@@ -703,20 +709,38 @@ class Azure_Chatbot_OAuth {
             $cog_result = $this->call_azure_api($cog_endpoint, '2023-05-01');
 
             if (!is_wp_error($cog_result) && isset($cog_result['value'])) {
+                error_log('[Azure OAuth] CognitiveServices 조회 성공: ' . count($cog_result['value']) . '개');
                 foreach ($cog_result['value'] as $resource) {
                     $kind = isset($resource['kind']) ? strtolower($resource['kind']) : '';
                     $endpoint_url = isset($resource['properties']['endpoint']) ? $resource['properties']['endpoint'] : '';
-                    $is_ai_foundry = ($kind === 'aiservices') || (strpos($endpoint_url, '.services.ai.azure.com') !== false);
 
-                    if ($is_ai_foundry) {
+                    // ✅ AI Foundry 감지 로직 개선
+                    // 1. kind가 'aiservices'
+                    // 2. endpoint에 '.services.ai.azure.com' 포함
+                    // 3. endpoint에 '.openai.azure.com' 포함하지 않음 (Azure OpenAI 제외)
+                    $has_foundry_endpoint = (strpos($endpoint_url, '.services.ai.azure.com') !== false);
+                    $is_openai = (strpos($endpoint_url, '.openai.azure.com') !== false);
+                    $is_ai_foundry = ($kind === 'aiservices' || $has_foundry_endpoint) && !$is_openai;
+
+                    error_log('[Azure OAuth] CognitiveServices 리소스: ' . $resource['name'] . ' | Kind: ' . $kind . ' | Endpoint: ' . $endpoint_url . ' | Is OpenAI: ' . ($is_openai ? 'YES' : 'NO') . ' | Is AI Foundry: ' . ($is_ai_foundry ? 'YES' : 'NO'));
+
+                    // ✅ Agent 모드: OpenAI가 아닌 모든 리소스 포함
+                    if (!$is_openai) {
                         $resources[] = array(
                             'name' => $resource['name'],
                             'id' => $resource['id'],
                             'location' => $resource['location'],
-                            'type' => $resource['type']
+                            'type' => $resource['type'],
+                            'kind' => $kind,
+                            'endpoint' => $endpoint_url
                         );
+                        error_log('[Azure OAuth] ✅ Agent 리소스로 추가: ' . $resource['name']);
+                    } else {
+                        error_log('[Azure OAuth] ❌ Azure OpenAI 제외: ' . $resource['name']);
                     }
                 }
+            } else {
+                error_log('[Azure OAuth] CognitiveServices 조회 실패 또는 결과 없음');
             }
 
             if (empty($resources)) {
