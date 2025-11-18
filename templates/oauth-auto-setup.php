@@ -756,23 +756,14 @@ function loadSavedSettings() {
 function openOAuthPopup(url) {
     console.log('[Auto Setup] Starting OAuth auto-setup (OAuth credentials will be preserved)');
 
-    // 팝업을 열기 전에 현재 선택된 operationMode를 localStorage에 저장
+    // 팝업을 열기 전에 현재 선택된 operationMode를 storage에 저장
     try {
-        // ✅ DEBUG: 모든 라디오 버튼 상태 확인
-        var allRadios = jQuery('input[name="oauth_mode"]');
-        console.log('[DEBUG] Total radio buttons found:', allRadios.length);
-        allRadios.each(function(index) {
-            console.log('[DEBUG] Radio', index, '- value:', jQuery(this).val(), '- checked:', jQuery(this).prop('checked'));
-        });
-
-        var selectedMode = jQuery('input[name="oauth_mode"]:checked').val() || 'chat';
-        console.log('[DEBUG] Selected mode from :checked selector:', selectedMode);
-        console.log('[DEBUG] Global operationMode variable:', operationMode);
-
+        var selectedMode = operationMode || jQuery('input[name="oauth_mode"]:checked').val() || 'chat';
         localStorage.setItem('azure_oauth_operation_mode', selectedMode);
-        console.log('[Auto Setup] ✅ Saving operation mode to localStorage before OAuth:', selectedMode);
+        sessionStorage.setItem('azure_oauth_operation_mode', selectedMode);
+        console.log('[Auto Setup] ✅ Saving operation mode to storage before OAuth:', selectedMode);
     } catch(e) {
-        console.warn('[Auto Setup] Cannot save operationMode to localStorage:', e);
+        console.warn('[Auto Setup] Cannot save operationMode to storage:', e);
     }
 
     // OAuth 인증 정보는 유지하고 팝업만 열기 (설정 초기화 X)
@@ -947,6 +938,13 @@ jQuery(document).ready(function($) {
 
         // 전역 모드 값 갱신 및 서버에 저장
         operationMode = mode;
+        try {
+            localStorage.setItem('azure_oauth_operation_mode', operationMode);
+            sessionStorage.setItem('azure_oauth_operation_mode', operationMode);
+            console.log('[Auto Setup] Operation mode persisted to storage:', operationMode);
+        } catch (storageError) {
+            console.warn('[Auto Setup] Failed to persist operation mode:', storageError);
+        }
         if (previousMode !== mode) {
             $.post(ajaxurl, {
                 action: 'azure_oauth_set_operation_mode',
@@ -1131,7 +1129,7 @@ function loadResourceGroups() {
 function loadResources() {
     var subscriptionId = jQuery('#oauth_subscription').val();
     var resourceGroup = jQuery('#oauth_resource_group').val();
-    var mode = jQuery('input[name="oauth_mode"]:checked').val();
+    var mode = operationMode || jQuery('input[name="oauth_mode"]:checked').val();
     
     if (!subscriptionId || !resourceGroup) return;
     

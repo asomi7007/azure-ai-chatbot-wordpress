@@ -399,7 +399,17 @@ define('WP_DEBUG_DISPLAY', false);
 
 ## 버전 히스토리
 
-### 최신 릴리즈: v3.0.41 (2025-11-08)
+### 최신 릴리즈: v3.0.51 (2025-11-14)
+
+**🔁 Agent 모드 유지 & AI Foundry 탐지 강화:**
+- ✅ **안정적인 모드 선택**: OAuth 자동 설정을 시작할 때마다 선택한 모드를 localStorage와 sessionStorage에 동시에 기록해, 새로고침이나 팝업 리다이렉트 후에도 Agent 모드가 Chat으로 바뀌지 않습니다.
+- 🔄 **일관된 UI 상태**: 모드 라디오 버튼 변경 시 항상 저장소에 반영하고 `loadResources()`가 전역 `operationMode` 값을 사용하도록 바꿔 리소스 목록을 다시 불러도 UI와 내부 상태가 어긋나지 않습니다.
+- 🤖 **확장된 프로젝트 탐지**: Agent 모드일 때는 `Microsoft.MachineLearningServices` 워크스페이스뿐 아니라 Azure AI Services(AIServices) 계정도 함께 수집해 최신 AI Foundry 포털에서 만든 프로젝트도 자동으로 나타납니다.
+- 🔌 **AIServices Agent 지원**: Agent 조회 로직이 AIServices 엔드포인트/Kind를 감지해 메타데이터를 정규화하므로, AI Foundry 프로젝트가 어떤 포털에서 생성되었든 동일한 방식으로 Agent ID와 엔드포인트를 받아올 수 있습니다.
+
+[v3.0.51 다운로드](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/tag/v3.0.51)
+
+### v3.0.41 (2025-11-08)
 
 **🔄 자동 설정 안정성 개선:**
 - ✅ **모드 지속성 수정**: OAuth 자동 설정 마법사가 선택한 모드를 유지하여 설정 완료 후에도 Chat 또는 Agent 모드가 활성 상태로 유지됩니다.

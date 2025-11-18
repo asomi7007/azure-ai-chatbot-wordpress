@@ -680,30 +680,67 @@ class Azure_Chatbot_OAuth {
             wp_send_json_error(array('message' => 'Subscription ID?� Resource Group???�요?�니??'));
         }
         
-        // 모드???�라 ?�른 리소???�??조회
-        if ($mode === 'agent') {
-            // AI Foundry Project
-            $resource_type = 'Microsoft.MachineLearningServices/workspaces';
-        } else {
-            // Azure OpenAI / AI Services
-            $resource_type = 'Microsoft.CognitiveServices/accounts';
-        }
-        
-        $endpoint = "/subscriptions/{$subscription_id}/resourceGroups/{$resource_group}/providers/{$resource_type}";
-        $result = $this->call_azure_api($endpoint, '2023-05-01');
-        
-        if (is_wp_error($result)) {
-            wp_send_json_error(array('message' => $result->get_error_message()));
-        }
-        
         $resources = array();
-        if (isset($result['value'])) {
-            foreach ($result['value'] as $resource) {
-                $resources[] = array(
-                    'name' => $resource['name'],
-                    'id' => $resource['id'],
-                    'location' => $resource['location']
-                );
+
+        if ($mode === 'agent') {
+            // 1) MachineLearningServices 워크스페이스(기존 AI Foundry)
+            $ml_endpoint = "/subscriptions/{$subscription_id}/resourceGroups/{$resource_group}/providers/Microsoft.MachineLearningServices/workspaces";
+            $ml_result = $this->call_azure_api($ml_endpoint, '2023-04-01');
+
+            if (!is_wp_error($ml_result) && isset($ml_result['value'])) {
+                foreach ($ml_result['value'] as $resource) {
+                    $resources[] = array(
+                        'name' => $resource['name'],
+                        'id' => $resource['id'],
+                        'location' => $resource['location'],
+                        'type' => $resource['type']
+                    );
+                }
+            }
+
+            // 2) Azure AI Services (AIServices) 리소스 - 신규 Azure AI Foundry 프로젝트
+            $cog_endpoint = "/subscriptions/{$subscription_id}/resourceGroups/{$resource_group}/providers/Microsoft.CognitiveServices/accounts";
+            $cog_result = $this->call_azure_api($cog_endpoint, '2023-05-01');
+
+            if (!is_wp_error($cog_result) && isset($cog_result['value'])) {
+                foreach ($cog_result['value'] as $resource) {
+                    $kind = isset($resource['kind']) ? strtolower($resource['kind']) : '';
+                    $endpoint_url = isset($resource['properties']['endpoint']) ? $resource['properties']['endpoint'] : '';
+                    $is_ai_foundry = ($kind === 'aiservices') || (strpos($endpoint_url, '.services.ai.azure.com') !== false);
+
+                    if ($is_ai_foundry) {
+                        $resources[] = array(
+                            'name' => $resource['name'],
+                            'id' => $resource['id'],
+                            'location' => $resource['location'],
+                            'type' => $resource['type']
+                        );
+                    }
+                }
+            }
+
+            if (empty($resources)) {
+                $error_message = is_wp_error($ml_result) ? $ml_result->get_error_message() : (is_wp_error($cog_result) ? $cog_result->get_error_message() : __('Agent용 리소스를 찾지 못했습니다.', 'azure-ai-chatbot'));
+                wp_send_json_error(array('message' => $error_message));
+            }
+        } else {
+            // Chat 모드: Azure OpenAI / AI Services
+            $endpoint = "/subscriptions/{$subscription_id}/resourceGroups/{$resource_group}/providers/Microsoft.CognitiveServices/accounts";
+            $result = $this->call_azure_api($endpoint, '2023-05-01');
+
+            if (is_wp_error($result)) {
+                wp_send_json_error(array('message' => $result->get_error_message()));
+            }
+
+            if (isset($result['value'])) {
+                foreach ($result['value'] as $resource) {
+                    $resources[] = array(
+                        'name' => $resource['name'],
+                        'id' => $resource['id'],
+                        'location' => $resource['location'],
+                        'type' => $resource['type']
+                    );
+                }
             }
         }
         
@@ -736,34 +773,39 @@ class Azure_Chatbot_OAuth {
             wp_send_json_error(array('message' => $resource_info->get_error_message()));
         }
 
-        // ✅ 리소스 타입 확인 (Agent는 AI Foundry Project에만 존재)
+        // ✅ 리소스 타입 및 엔드포인트 확인 (AI Foundry 프로젝트 식별)
         $resource_type = isset($resource_info['type']) ? $resource_info['type'] : '';
-        error_log('[Azure OAuth] ajax_get_agents - Resource Type: ' . $resource_type);
-
-        // Cognitive Services (Azure OpenAI)는 Agent를 지원하지 않음
-        if (strpos($resource_type, 'Microsoft.CognitiveServices') !== false) {
-            error_log('[Azure OAuth] ajax_get_agents - Cognitive Services 리소스는 Agent를 지원하지 않습니다.');
-            wp_send_json_success(array(
-                'agents' => array(),
-                'message' => 'Azure OpenAI 리소스는 Agent를 지원하지 않습니다. AI Foundry Project를 생성하세요.'
-            ));
-            return;
-        }
-
-        // AI Foundry Project (MachineLearningServices) 확인
-        if (strpos($resource_type, 'Microsoft.MachineLearningServices') === false) {
-            error_log('[Azure OAuth] ajax_get_agents - AI Foundry Project가 아닙니다: ' . $resource_type);
-            wp_send_json_success(array(
-                'agents' => array(),
-                'message' => 'Agent는 AI Foundry Project에서만 사용할 수 있습니다.'
-            ));
-            return;
-        }
-
+        $resource_kind = isset($resource_info['kind']) ? strtolower($resource_info['kind']) : '';
         $project_endpoint_host = isset($resource_info['properties']['endpoint'])
             ? $resource_info['properties']['endpoint']
             : '';
-        $project_name = isset($resource_info['name']) ? $resource_info['name'] : '';
+
+        error_log('[Azure OAuth] ajax_get_agents - Resource Type: ' . $resource_type . ' / Kind: ' . $resource_kind);
+
+        $is_ai_foundry = (
+            strpos($resource_type, 'Microsoft.MachineLearningServices') !== false ||
+            $resource_kind === 'aiservices' ||
+            (strpos($project_endpoint_host, '.services.ai.azure.com') !== false)
+        );
+
+        if (!$is_ai_foundry) {
+            error_log('[Azure OAuth] ajax_get_agents - Agent 미지원 리소스, endpoint=' . $project_endpoint_host);
+            wp_send_json_success(array(
+                'agents' => array(),
+                'message' => 'Agent는 Azure AI Foundry 프로젝트에서만 사용할 수 있습니다. AI Foundry 프로젝트를 선택하세요.'
+            ));
+            return;
+        }
+
+        $project_name = '';
+        if (isset($resource_info['properties']['projectId']) && !empty($resource_info['properties']['projectId'])) {
+            $project_name = $resource_info['properties']['projectId'];
+        } elseif (isset($resource_info['name'])) {
+            $project_name = $resource_info['name'];
+        }
+
+        error_log('[Azure OAuth] ajax_get_agents - Project endpoint: ' . $project_endpoint_host);
+        error_log('[Azure OAuth] ajax_get_agents - Project name: ' . $project_name);
 
         if (empty($project_endpoint_host) || empty($project_name)) {
             wp_send_json_error(array('message' => 'Project Endpoint 또는 이름을 찾을 수 없습니다.'));

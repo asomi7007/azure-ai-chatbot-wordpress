@@ -161,6 +161,12 @@ Agent 모드: 고급 기능 지원 (Function Calling, RAG, 파일 업로드 등,
 
 == Changelog ==
 
+= 3.0.51 - 2025-11-14 =
+* 개선: OAuth 자동 설정에서 선택한 모드를 localStorage + sessionStorage에 동시에 저장해 새로고침/팝업 후에도 Agent 모드가 유지되도록 함
+* 개선: 모드 라디오 버튼 변경 시 저장소에 즉시 반영하고 `loadResources()`가 전역 operationMode를 사용해 UI와 내부 상태가 항상 일치하도록 함
+* 추가: Agent 모드일 때 Microsoft.MachineLearningServices 워크스페이스뿐 아니라 Azure AI Services(AIServices) 계정도 자동으로 수집하여 최신 AI Foundry 프로젝트를 모두 표시
+* 개선: AIServices 엔드포인트/Kind를 Agent 조회 로직에서 인식하여 Agent ID, 엔드포인트, 자격 증명을 자동으로 매핑
+
 = 3.0.41 - 2025-11-08 =
 * 수정: OAuth 자동 설정 완료 후 선택한 Chat/Agent 모드 유지
 * 수정: Chat 모드로 시작해도 Agent 설정 데이터 저장 보장

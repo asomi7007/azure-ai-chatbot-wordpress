@@ -457,12 +457,22 @@ Log location: `/wp-content/debug.log`
 
 ## Version History
 
-### Latest Release: v3.0.41 (2025-11-08)
+### Latest Release: v3.0.51 (2025-11-14)
 
-**� Auto-Setup Reliability Improvements:**
+**🔁 Agent Mode Persistence & AI Foundry Discovery:**
+- ✅ **Stable Mode Selection**: The OAuth auto-setup wizard now writes the selected mode to both localStorage and sessionStorage before every popup, so Agent mode never silently flips back to Chat after refresh.
+- 🔄 **Consistent UI State**: Mode toggle handlers persist the latest selection and `loadResources()` respects the shared global `operationMode`, keeping the UI in sync even when reloading resource lists.
+- 🤖 **Expanded Project Discovery**: When Agent mode is active, Azure resources API calls now collect both `Microsoft.MachineLearningServices` workspaces and the newer Azure AI Services (AIServices) accounts, making AI Foundry projects discoverable regardless of portal flavor.
+- 🔌 **AIServices Agent Support**: Agent lookups detect AIServices endpoints/kinds and normalize their metadata so the auto-setup flow can pull agent IDs, endpoints, and credentials without manual fixes.
+
+[Download v3.0.51](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/tag/v3.0.51)
+
+### v3.0.41 (2025-11-08)
+
+**🔄 Auto-Setup Reliability Improvements:**
 - ✅ **Mode Persistence Fix**: The OAuth auto-setup wizard now respects the mode you selected, keeping Chat or Agent mode active after configuration completes.
 - 🤖 **Agent Data Capture**: Agent mode settings are saved even when you initiated setup from Chat mode, preventing missing agent credentials.
-- �️ **UI Feedback Polish**: Clearer success and warning messages when switching modes post-setup.
+- 🛡️ **UI Feedback Polish**: Clearer success and warning messages when switching modes post-setup.
 
 [Download v3.0.41](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/tag/v3.0.41)
 
