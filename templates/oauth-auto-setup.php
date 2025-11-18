@@ -12,7 +12,14 @@ $is_configured = $oauth->is_configured();
 if (!session_id() && !headers_sent()) {
     session_start();
 }
-$has_token = isset($_SESSION['azure_access_token']) && !empty($_SESSION['azure_access_token']);
+
+// ✅ 토큰 확인: 세션 또는 URL 파라미터 (localStorage에서 전달된 경우)
+$session_has_token = isset($_SESSION['azure_access_token']) && !empty($_SESSION['azure_access_token']);
+$url_has_token = isset($_GET['has_token']) && $_GET['has_token'] === '1';
+$has_token = $session_has_token || $url_has_token;
+
+// 디버그 로그 (개발 중)
+error_log('[OAuth Auto Setup] Token check - Session: ' . ($session_has_token ? 'YES' : 'NO') . ', URL: ' . ($url_has_token ? 'YES' : 'NO') . ', Final: ' . ($has_token ? 'YES' : 'NO'));
 
 // OAuth 성공/실패 메시지 표시
 if (isset($_GET['oauth_success'])) {
