@@ -1,5 +1,82 @@
 # 변경 이력
 
+## [3.0.55] - 2025-11-18
+
+### 🔧 **Critical Bug Fix: 라디오 버튼 가시성 문제 완전 해결**
+
+#### 문제 상황
+v3.0.54에서 라디오 버튼을 페이지 맨 위로 이동했지만, 여전히 `visible: false` 문제 발생:
+```javascript
+[DEBUG] Radio 0: {value: 'chat', checked: false, visible: false}  ← visible: false!
+[DEBUG] Radio 1: {value: 'agent', checked: true, visible: false}
+```
+
+#### 근본 원인
+- 모드 선택 박스가 `<?php if (!$is_configured): ?>` 조건 안에 있었음
+- `is_configured()`는 `azure_chatbot_oauth_*` 옵션을 체크
+- 자동 설정은 `azure_chatbot_settings`에 저장
+- 옵션 이름이 달라서 `$is_configured`가 false → 모드 선택 박스가 렌더링되지 않음
+
+#### 해결 방법
+
+**1. 모드 선택 박스를 항상 표시** ([templates/oauth-auto-setup.php:84-104](templates/oauth-auto-setup.php#L84-L104))
+```php
+<div class="inside">
+    <!-- ✅ 모드 선택 박스를 맨 앞으로 이동 (항상 표시) -->
+    <div class="notice notice-info inline" style="...">
+        <h3>🎯 모드 선택</h3>
+        <p>
+            <input type="radio" name="oauth_mode" value="chat" ... />
+            <input type="radio" name="oauth_mode" value="agent" ... />
+        </p>
+    </div>
+
+    <?php if (!$is_configured): ?>
+        <!-- Client ID/Secret/Tenant 입력 폼 -->
+    <?php else: ?>
+        <!-- Step 2 리소스 선택 -->
+    <?php endif; ?>
+</div>
+```
+
+**2. 중복된 모드 선택 박스 제거** ([templates/oauth-auto-setup.php:292-294](templates/oauth-auto-setup.php#L292-L294))
+```php
+<?php else: ?>
+    <!-- ✅ 모드 선택 박스는 위로 이동했으므로 여기서는 제거 -->
+
+    <?php if (!$has_token): ?>
+```
+
+**3. Agent 404 에러 메시지 개선** ([includes/class-azure-oauth.php:978-996](includes/class-azure-oauth.php#L978-L996))
+```php
+if ($status_code !== 200) {
+    // ✅ 404는 CognitiveServices 리소스일 때 정상적인 응답 (Agent 미지원)
+    if ($status_code === 404) {
+        $error_msg = 'ℹ️ 이 리소스는 Azure OpenAI (CognitiveServices)입니다. Agent를 사용하려면 AI Foundry Hub 리소스를 선택하세요.';
+        error_log('[Azure OAuth] Agent 404: CognitiveServices 리소스 (Agent 미지원)');
+    } else {
+        $error_msg = 'Agent 목록 조회 실패 (HTTP ' . $status_code . ')';
+        ...
+    }
+}
+```
+
+#### 결과
+
+**이전:**
+```javascript
+[DEBUG] Radio 0: {visible: false}  ← 보이지 않음!
+[Auto Setup] [Agent] Agent 목록 조회 실패 (HTTP 404): Resource not found  ← 불명확
+```
+
+**개선:**
+```javascript
+[DEBUG] Radio 0: {visible: true}  ← ✅ 이제 보임!
+ℹ️ 이 리소스는 Azure OpenAI (CognitiveServices)입니다. Agent를 사용하려면 AI Foundry Hub 리소스를 선택하세요.  ← ✅ 명확한 안내
+```
+
+---
+
 ## [3.0.54] - 2025-11-18
 
 ### 🎉 **Major UI/UX Overhaul + Dual-Mode Intelligence**

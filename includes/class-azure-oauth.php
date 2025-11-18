@@ -974,13 +974,20 @@ class Azure_Chatbot_OAuth {
         error_log('[Azure OAuth] Agent 조회 요청 URL: ' . $agents_url);
         error_log('[Azure OAuth] Agent 조회 응답 코드: ' . $status_code);
         error_log('[Azure OAuth] Agent 조회 응답 본문 (처음 500자): ' . substr($body, 0, 500));
-        
+
         if ($status_code !== 200) {
-            $error_msg = 'Agent 목록 조회 실패 (HTTP ' . $status_code . ')';
-            if (isset($data['error']['message'])) {
-                $error_msg .= ': ' . $data['error']['message'];
+            // ✅ 404는 CognitiveServices 리소스일 때 정상적인 응답 (Agent 미지원)
+            if ($status_code === 404) {
+                $error_msg = 'ℹ️ 이 리소스는 Azure OpenAI (CognitiveServices)입니다. Agent를 사용하려면 AI Foundry Hub 리소스를 선택하세요.';
+                error_log('[Azure OAuth] Agent 404: CognitiveServices 리소스 (Agent 미지원)');
+            } else {
+                $error_msg = 'Agent 목록 조회 실패 (HTTP ' . $status_code . ')';
+                if (isset($data['error']['message'])) {
+                    $error_msg .= ': ' . $data['error']['message'];
+                }
+                error_log('[Azure OAuth] Agent 조회 실패: ' . $error_msg);
             }
-            error_log('[Azure OAuth] Agent 조회 실패: ' . $error_msg);
+
             wp_send_json_error(array('message' => $error_msg, 'debug' => array(
                 'url' => $agents_url,
                 'status' => $status_code,

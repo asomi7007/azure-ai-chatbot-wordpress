@@ -3,7 +3,7 @@ Contributors: eldensolution
 Tags: azure, ai, chatbot, chat, ai-assistant
 Requires at least: 6.0
 Tested up to: 6.8
-Stable tag: 3.0.54
+Stable tag: 3.0.55
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -160,6 +160,11 @@ Agent 모드: 고급 기능 지원 (Function Calling, RAG, 파일 업로드 등,
 4. 사용 가이드 - 편집 가능한 마크다운 가이드
 
 == Changelog ==
+
+= 3.0.55 - 2025-11-18 =
+* 수정: 라디오 버튼 가시성 문제 완전 해결 - 모드 선택 박스를 조건문 밖으로 이동하여 항상 표시되도록 수정
+* 개선: Agent 404 에러 메시지 개선 - CognitiveServices 리소스 선택 시 명확한 안내 메시지 제공
+* 수정: 중복된 모드 선택 박스 제거 - 페이지 구조 단순화
 
 = 3.0.54 - 2025-11-18 =
 * 개선: 라디오 버튼 가시성 완전 해결 - 모드 선택을 페이지 맨 위로 이동하고 파란색 박스로 강조

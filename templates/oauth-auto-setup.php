@@ -81,6 +81,28 @@ if (isset($_GET['oauth_error'])) {
         <?php esc_html_e('Azure 자동 설정 (OAuth)', 'azure-ai-chatbot'); ?>
     </h2>
     <div class="inside">
+        <!-- ✅ 모드 선택을 맨 위로 이동 (항상 표시) -->
+        <?php
+        $settings = get_option('azure_chatbot_settings', array());
+        $operation_mode = isset($settings['mode']) ? $settings['mode'] : 'chat';
+        ?>
+        <div class="notice notice-info inline" style="margin: 20px 0; padding: 15px; background: #e7f3ff; border-left: 4px solid #0073aa;">
+            <h3 style="margin-top: 0;"><?php esc_html_e('🎯 모드 선택', 'azure-ai-chatbot'); ?></h3>
+            <p style="margin: 10px 0;">
+                <label style="margin-right: 20px; font-size: 14px;">
+                    <input type="radio" name="oauth_mode" value="chat" <?php checked($operation_mode, 'chat'); ?> style="margin-right: 5px;" />
+                    <strong><?php esc_html_e('Chat 모드', 'azure-ai-chatbot'); ?></strong> - Azure OpenAI (GPT-4, GPT-3.5 등)
+                </label>
+                <label style="font-size: 14px;">
+                    <input type="radio" name="oauth_mode" value="agent" <?php checked($operation_mode, 'agent'); ?> style="margin-right: 5px;" />
+                    <strong><?php esc_html_e('Agent 모드', 'azure-ai-chatbot'); ?></strong> - AI Foundry Agent (Assistants API)
+                </label>
+            </p>
+            <p class="description" style="margin: 5px 0 0 0;">
+                💡 <?php esc_html_e('Chat 모드: Azure OpenAI 리소스 사용 | Agent 모드: AI Foundry Hub 리소스 필요', 'azure-ai-chatbot'); ?>
+            </p>
+        </div>
+
         <?php if (!$is_configured): ?>
             <div class="notice notice-warning inline">
                 <p>
@@ -268,24 +290,7 @@ if (isset($_GET['oauth_error'])) {
             </p>
             
         <?php else: ?>
-
-            <!-- ✅ 모드 선택을 맨 위로 이동 (항상 표시) -->
-            <div class="notice notice-info inline" style="margin: 20px 0; padding: 15px; background: #e7f3ff; border-left: 4px solid #0073aa;">
-                <h3 style="margin-top: 0;"><?php esc_html_e('🎯 모드 선택', 'azure-ai-chatbot'); ?></h3>
-                <p style="margin: 10px 0;">
-                    <label style="margin-right: 20px; font-size: 14px;">
-                        <input type="radio" name="oauth_mode" value="chat" <?php checked($operation_mode, 'chat'); ?> style="margin-right: 5px;" />
-                        <strong><?php esc_html_e('Chat 모드', 'azure-ai-chatbot'); ?></strong> - Azure OpenAI (GPT-4, GPT-3.5 등)
-                    </label>
-                    <label style="font-size: 14px;">
-                        <input type="radio" name="oauth_mode" value="agent" <?php checked($operation_mode, 'agent'); ?> style="margin-right: 5px;" />
-                        <strong><?php esc_html_e('Agent 모드', 'azure-ai-chatbot'); ?></strong> - AI Foundry Agent (Assistants API)
-                    </label>
-                </p>
-                <p class="description" style="margin: 5px 0 0 0;">
-                    💡 <?php esc_html_e('Chat 모드: Azure OpenAI 리소스 사용 | Agent 모드: AI Foundry Hub 리소스 필요', 'azure-ai-chatbot'); ?>
-                </p>
-            </div>
+            <!-- ✅ 모드 선택 박스는 위로 이동했으므로 여기서는 제거 -->
 
             <?php if (!$has_token): ?>
                 <!-- Step 1: Azure 인증 -->
