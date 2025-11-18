@@ -4,7 +4,7 @@
 
 Azure AI Foundry 에이전트와 OpenAI 호환 채팅 모델을 완전한 Assistants API 통합과 OAuth 2.0 자동 설정으로 WordPress 웹사이트에 제공하는 현대적인 플러그인입니다.
 
-[![Version](https://img.shields.io/badge/version-3.0.52-blue.svg)](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/latest)
+[![Version](https://img.shields.io/badge/version-3.0.54-blue.svg)](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/latest)
 [![WordPress](https://img.shields.io/badge/wordpress-6.0%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/php-7.4%2B-purple.svg)](https://www.php.net/)
 [![License](https://img.shields.io/badge/license-GPL--2.0%2B-green.svg)](LICENSE)
@@ -399,7 +399,7 @@ define('WP_DEBUG_DISPLAY', false);
 
 ## 버전 히스토리
 
-### 최신 릴리즈: v3.0.52 (2025-11-14)
+### 최신 릴리즈: v3.0.54 (2025-11-14)
 
 **🔁 Agent 모드 유지 & AI Foundry 탐지 강화:**
 - ✅ **안정적인 모드 선택**: OAuth 자동 설정을 시작할 때마다 선택한 모드를 localStorage와 sessionStorage에 동시에 기록해, 새로고침이나 팝업 리다이렉트 후에도 Agent 모드가 Chat으로 바뀌지 않습니다.
@@ -407,7 +407,7 @@ define('WP_DEBUG_DISPLAY', false);
 - 🤖 **확장된 프로젝트 탐지**: Agent 모드일 때는 `Microsoft.MachineLearningServices` 워크스페이스뿐 아니라 Azure AI Services(AIServices) 계정도 함께 수집해 최신 AI Foundry 포털에서 만든 프로젝트도 자동으로 나타납니다.
 - 🔌 **AIServices Agent 지원**: Agent 조회 로직이 AIServices 엔드포인트/Kind를 감지해 메타데이터를 정규화하므로, AI Foundry 프로젝트가 어떤 포털에서 생성되었든 동일한 방식으로 Agent ID와 엔드포인트를 받아올 수 있습니다.
 
-[v3.0.52 다운로드](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/tag/v3.0.52)
+[v3.0.54 다운로드](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/tag/v3.0.54)
 
 ### v3.0.41 (2025-11-08)
 

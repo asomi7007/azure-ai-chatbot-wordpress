@@ -35,35 +35,31 @@ if (isset($_GET['oauth_success'])) {
         $settings = get_option('azure_chatbot_settings', array());
         $operation_mode = isset($settings['mode']) ? $settings['mode'] : 'chat';
 
-        // 자동으로 리소스 생성 프로세스 시작
+        // ✅ 자동 팝업 제거: 사용자가 직접 리소스를 선택하도록 함
         echo '<script>
         jQuery(document).ready(function($) {
-            // 성공 메시지 표시 후 자동으로 리소스 생성 시작
+            console.log("[Auto Setup] OAuth 인증 완료");
+            console.log("[Auto Setup] Operation Mode: ' . esc_js($operation_mode) . '");
+            console.log("[Auto Setup] 모드를 선택하고 리소스를 선택하세요");
+
+            // 모드 선택 박스로 부드럽게 스크롤
             setTimeout(function() {
-                console.log("[Auto Setup] OAuth 인증 완료, 자동 설정 시작");
-                console.log("[Auto Setup] Operation Mode: ' . esc_js($operation_mode) . '");
-                
-                // 리소스 선택 섹션으로 스크롤 (요소가 있는 경우에만)
-                var $oauthStep2 = $(".oauth-step-2");
-                if ($oauthStep2.length > 0) {
-                    console.log("[Auto Setup] Scrolling to oauth-step-2");
+                var $modeBox = $(".notice-info").first();
+                if ($modeBox.length > 0) {
                     $("html, body").animate({
-                        scrollTop: $oauthStep2.offset().top - 100
-                    }, 500);
-                } else {
-                    console.warn("[Auto Setup] .oauth-step-2 element not found, skipping scroll");
+                        scrollTop: $modeBox.offset().top - 50
+                    }, 400);
+
+                    // 모드 선택 박스 강조 효과
+                    $modeBox.css({
+                        "box-shadow": "0 0 10px rgba(0, 115, 170, 0.5)",
+                        "transition": "box-shadow 0.3s ease"
+                    });
+                    setTimeout(function() {
+                        $modeBox.css("box-shadow", "none");
+                    }, 2000);
                 }
-                
-                // 1초 후 자동으로 Subscription 로드
-                setTimeout(function() {
-                    console.log("[Auto Setup] Subscription 로드 시작");
-                    if (typeof loadSubscriptions === "function") {
-                        loadSubscriptions();
-                    } else {
-                        console.error("[Auto Setup] loadSubscriptions function not found!");
-                    }
-                }, 1000);
-            }, 500);
+            }, 300);
         });
         </script>';
     }
@@ -272,7 +268,25 @@ if (isset($_GET['oauth_error'])) {
             </p>
             
         <?php else: ?>
-            
+
+            <!-- ✅ 모드 선택을 맨 위로 이동 (항상 표시) -->
+            <div class="notice notice-info inline" style="margin: 20px 0; padding: 15px; background: #e7f3ff; border-left: 4px solid #0073aa;">
+                <h3 style="margin-top: 0;"><?php esc_html_e('🎯 모드 선택', 'azure-ai-chatbot'); ?></h3>
+                <p style="margin: 10px 0;">
+                    <label style="margin-right: 20px; font-size: 14px;">
+                        <input type="radio" name="oauth_mode" value="chat" <?php checked($operation_mode, 'chat'); ?> style="margin-right: 5px;" />
+                        <strong><?php esc_html_e('Chat 모드', 'azure-ai-chatbot'); ?></strong> - Azure OpenAI (GPT-4, GPT-3.5 등)
+                    </label>
+                    <label style="font-size: 14px;">
+                        <input type="radio" name="oauth_mode" value="agent" <?php checked($operation_mode, 'agent'); ?> style="margin-right: 5px;" />
+                        <strong><?php esc_html_e('Agent 모드', 'azure-ai-chatbot'); ?></strong> - AI Foundry Agent (Assistants API)
+                    </label>
+                </p>
+                <p class="description" style="margin: 5px 0 0 0;">
+                    💡 <?php esc_html_e('Chat 모드: Azure OpenAI 리소스 사용 | Agent 모드: AI Foundry Hub 리소스 필요', 'azure-ai-chatbot'); ?>
+                </p>
+            </div>
+
             <?php if (!$has_token): ?>
                 <!-- Step 1: Azure 인증 -->
                 <div class="oauth-step oauth-step-1">
@@ -418,22 +432,7 @@ if (isset($_GET['oauth_error'])) {
                                 </div>
                             </td>
                         </tr>
-                        <tr>
-                            <th scope="row">
-                                <label><?php esc_html_e('모드', 'azure-ai-chatbot'); ?></label>
-                            </th>
-                            <td>
-                                <label>
-                                    <input type="radio" name="oauth_mode" value="chat" <?php checked($operation_mode, 'chat'); ?> />
-                                    <?php esc_html_e('Chat 모드 (Azure OpenAI)', 'azure-ai-chatbot'); ?>
-                                </label>
-                                <br>
-                                <label>
-                                    <input type="radio" name="oauth_mode" value="agent" <?php checked($operation_mode, 'agent'); ?> />
-                                    <?php esc_html_e('Agent 모드 (AI Foundry)', 'azure-ai-chatbot'); ?>
-                                </label>
-                            </td>
-                        </tr>
+                        <!-- ✅ 모드 선택은 위로 이동했으므로 이 행 제거 -->
                         <tr>
                             <th scope="row">
                                 <label for="oauth_resource"><?php esc_html_e('AI 리소스', 'azure-ai-chatbot'); ?> *</label>
@@ -695,6 +694,15 @@ if (!autoSetupMode && hasTokenFromStorage && window.location.search.indexOf('oau
     console.log('[Auto Setup] Activating auto mode from localStorage token');
     autoSetupMode = true;
 }
+
+// ✅ 리소스 정보 캐시 (Chat + Agent 동시 조회)
+var resourceInfoCache = {
+    chat: null,      // Chat 정보 캐시
+    agent: null,     // Agent 정보 캐시
+    resourceId: null // 마지막 조회한 리소스 ID
+};
+
+console.log('[Cache] Resource info cache initialized');
 
 // ✅ OAuth 자동 설정 중에는 localStorage를 최우선으로 사용
 var operationMode = 'chat'; // 기본값
@@ -1005,14 +1013,26 @@ jQuery(document).ready(function($) {
             $('#new-ai-resource-form').slideUp(300);
         }
         
-        var mode = $('input[name="oauth_mode"]:checked').val();
-        if (mode === 'agent' && value && value !== '__CREATE_NEW__') {
-            loadAgents(value);
+        // ✅ 듀얼 모드: Chat + Agent 정보 동시 조회
+        if (value && value !== '__CREATE_NEW__') {
+            console.log('[Dual Mode] ========================================');
+            console.log('[Dual Mode] Resource selected, fetching BOTH Chat + Agent info');
+            console.log('[Dual Mode] Resource ID:', value);
+            console.log('[Dual Mode] ========================================');
+
+            // 캐시 초기화
+            resourceInfoCache.resourceId = value;
+            resourceInfoCache.chat = null;
+            resourceInfoCache.agent = null;
+
+            // Chat + Agent 정보 동시 조회
+            fetchDualModeInfo(value);
         }
+
         updateFetchButton();
     });
     
-    // 모드 변경 시 리소스 다시 로드 및 UI 업데이트
+    // 모드 변경 시 캐시된 데이터 사용 (재조회 없음)
     $('input[name="oauth_mode"]').on('change', function() {
         var mode = $(this).val();
         var previousMode = operationMode;
@@ -1030,6 +1050,26 @@ jQuery(document).ready(function($) {
 
         // 전역 모드 값 갱신 및 서버에 저장
         operationMode = mode;
+
+        // ✅ 캐시 확인 및 사용
+        if (mode === 'agent') {
+            console.log('[Cache] Checking for cached Agent info...');
+            if (resourceInfoCache.agent && resourceInfoCache.agent.agents) {
+                console.log('[Cache] ✅ Using cached Agent data:', resourceInfoCache.agent.agents.length, 'agents');
+                updateAgentDropdown(resourceInfoCache.agent.agents);
+            } else if (resourceInfoCache.resourceId) {
+                console.log('[Cache] ⚠️ No cached Agent data, but resource selected. Fetching...');
+                fetchAgentInfo(resourceInfoCache.resourceId).done(function() {
+                    if (resourceInfoCache.agent && resourceInfoCache.agent.agents) {
+                        updateAgentDropdown(resourceInfoCache.agent.agents);
+                    }
+                });
+            } else {
+                console.log('[Cache] ℹ️ No resource selected yet');
+            }
+        } else {
+            console.log('[Cache] Chat mode - no Agent dropdown needed');
+        }
         try {
             localStorage.setItem('azure_oauth_operation_mode', operationMode);
             sessionStorage.setItem('azure_oauth_operation_mode', operationMode);
@@ -1304,6 +1344,115 @@ function loadResources() {
             $select.html('<option value="">오류: ' + response.data.message + '</option>');
         }
     });
+}
+
+// ✅ 듀얼 모드: Chat + Agent 정보 동시 조회
+function fetchDualModeInfo(resourceId) {
+    if (!resourceId || resourceId === '__CREATE_NEW__') {
+        console.warn('[Dual Mode] Invalid resource ID, skipping fetch');
+        return;
+    }
+
+    console.log('[Dual Mode] Starting dual fetch for resource:', resourceId);
+
+    // 병렬로 Chat과 Agent 정보 조회
+    var chatPromise = fetchChatInfo(resourceId);
+    var agentPromise = fetchAgentInfo(resourceId);
+
+    // 두 요청 모두 완료될 때까지 기다림
+    jQuery.when(chatPromise, agentPromise).done(function(chatResult, agentResult) {
+        console.log('[Dual Mode] ✅ Both fetches completed');
+        console.log('[Dual Mode] Chat info:', resourceInfoCache.chat ? 'Available' : 'Not found');
+        console.log('[Dual Mode] Agent info:', resourceInfoCache.agent ? 'Available' : 'Not found');
+
+        // Agent 드롭다운 업데이트 (Agent 모드일 때만)
+        var currentMode = jQuery('input[name="oauth_mode"]:checked').val();
+        if (currentMode === 'agent' && resourceInfoCache.agent && resourceInfoCache.agent.agents) {
+            updateAgentDropdown(resourceInfoCache.agent.agents);
+        }
+    }).fail(function() {
+        console.error('[Dual Mode] ❌ One or both fetches failed');
+    });
+}
+
+// Chat 정보 조회
+function fetchChatInfo(resourceId) {
+    var deferred = jQuery.Deferred();
+
+    console.log('[Dual Mode] [1/2] Fetching Chat info...');
+
+    // Chat 정보 조회 로직 (기존 코드에서 추출)
+    jQuery.post(ajaxurl, {
+        action: 'azure_oauth_get_resource_info',
+        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
+        resource_id: resourceId,
+        mode: 'chat'
+    }, function(response) {
+        if (response.success && response.data) {
+            resourceInfoCache.chat = response.data;
+            console.log('[Dual Mode] ✅ Chat info cached:', response.data);
+            deferred.resolve(response.data);
+        } else {
+            console.log('[Dual Mode] ⚠️ Chat info not available');
+            deferred.reject();
+        }
+    }).fail(function() {
+        console.error('[Dual Mode] ❌ Chat fetch failed');
+        deferred.reject();
+    });
+
+    return deferred.promise();
+}
+
+// Agent 정보 조회
+function fetchAgentInfo(resourceId) {
+    var deferred = jQuery.Deferred();
+
+    console.log('[Dual Mode] [2/2] Fetching Agent info...');
+
+    jQuery.post(ajaxurl, {
+        action: 'azure_oauth_get_agents',
+        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
+        resource_id: resourceId
+    }, function(response) {
+        if (response.success && response.data && response.data.agents) {
+            resourceInfoCache.agent = {
+                agents: response.data.agents,
+                message: response.data.message
+            };
+            console.log('[Dual Mode] ✅ Agent info cached:', response.data.agents.length, 'agents found');
+            deferred.resolve(response.data);
+        } else {
+            var message = response.data ? response.data.message : 'Unknown error';
+            console.log('[Dual Mode] ⚠️ Agent info not available:', message);
+            resourceInfoCache.agent = { agents: [], message: message };
+            deferred.resolve({ agents: [] }); // 실패해도 resolve (404는 정상)
+        }
+    }).fail(function() {
+        console.error('[Dual Mode] ❌ Agent fetch failed');
+        resourceInfoCache.agent = { agents: [], message: 'Network error' };
+        deferred.resolve({ agents: [] }); // 실패해도 resolve
+    });
+
+    return deferred.promise();
+}
+
+// Agent 드롭다운 업데이트
+function updateAgentDropdown(agents) {
+    var $select = jQuery('#oauth_agent');
+    $select.html('<option value="">선택하세요</option>');
+
+    if (agents && agents.length > 0) {
+        agents.forEach(function(agent) {
+            $select.append('<option value="' + agent.id + '">' + agent.name + '</option>');
+        });
+        $select.prop('disabled', false);
+        console.log('[Dual Mode] Agent dropdown updated:', agents.length, 'agents');
+    } else {
+        $select.html('<option value="">사용 가능한 Agent가 없습니다</option>');
+        $select.prop('disabled', true);
+        console.log('[Dual Mode] No agents available');
+    }
 }
 
 function loadAgents(resourceId) {

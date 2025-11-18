@@ -1,5 +1,259 @@
 # 변경 이력
 
+## [3.0.54] - 2025-11-18
+
+### 🎉 **Major UI/UX Overhaul + Dual-Mode Intelligence**
+
+#### 주요 개선사항
+
+##### 1. 🎯 **라디오 버튼 가시성 완전 해결**
+
+**문제:**
+```javascript
+[DEBUG] Radio 0: {value: 'chat', checked: true, visible: false}  ← visible: false!
+[DEBUG] Radio 1: {value: 'agent', checked: false, visible: false}
+```
+
+**해결:**
+- 모드 선택을 **페이지 맨 위로 이동** ([templates/oauth-auto-setup.php:276-292](templates/oauth-auto-setup.php#L276-L292))
+- 눈에 띄는 파란색 박스로 강조
+- 항상 표시되고 클릭 가능
+- 인라인 스타일로 CSS 우선순위 문제 해결
+
+**새로운 UI:**
+```
+┌─────────────────────────────────────────────────┐
+│ 🎯 모드 선택                                      │
+│                                                 │
+│ ☑ Chat 모드 - Azure OpenAI (GPT-4, GPT-3.5)    │
+│ ☑ Agent 모드 - AI Foundry Agent (Assistants)   │
+│                                                 │
+│ 💡 Chat: Azure OpenAI | Agent: AI Foundry Hub  │
+└─────────────────────────────────────────────────┘
+```
+
+---
+
+##### 2. 🚫 **불필요한 자동 팝업 제거**
+
+**이전 동작:**
+- OAuth 인증 완료 → 자동으로 Subscription 로드
+- 자동으로 Resource Group 팝업
+- 자동으로 리소스 생성 시도
+- 사용자 혼란
+
+**개선된 동작:**
+- OAuth 인증 완료 → 모드 선택 박스로 부드럽게 스크롤
+- 2초간 강조 효과 (박스 섀도우)
+- 사용자가 직접 선택할 때까지 대기
+- 깔끔한 UX
+
+**코드 변경:** [templates/oauth-auto-setup.php:38-64](templates/oauth-auto-setup.php#L38-L64)
+```javascript
+// ✅ 새로운 코드
+setTimeout(function() {
+    $("html, body").animate({ scrollTop: $modeBox.offset().top - 50 }, 400);
+    $modeBox.css("box-shadow", "0 0 10px rgba(0, 115, 170, 0.5)");
+}, 300);
+```
+
+---
+
+##### 3. 🔄 **듀얼 모드: Chat + Agent 정보 동시 조회**
+
+**이전 방식 (비효율적):**
+```
+사용자가 Chat 모드 선택
+  → Chat 리소스만 조회
+
+사용자가 Agent 모드로 전환
+  → Agent 리소스 재조회 (느림)
+
+사용자가 다시 Chat 모드로 전환
+  → Chat 리소스 재조회 (느림)
+```
+
+**새로운 방식 (효율적):**
+```
+사용자가 리소스 선택
+  → Chat + Agent 정보 **동시 조회** (병렬)
+  → 결과를 캐시에 저장
+
+사용자가 모드 전환
+  → 재조회 없이 **캐시된 데이터 사용** (즉시!)
+```
+
+**구현 상세:**
+
+**전역 캐시** ([templates/oauth-auto-setup.php:698-705](templates/oauth-auto-setup.php#L698-L705)):
+```javascript
+var resourceInfoCache = {
+    chat: null,      // Chat 정보
+    agent: null,     // Agent 정보
+    resourceId: null // 리소스 ID
+};
+```
+
+**병렬 조회 함수** ([templates/oauth-auto-setup.php:1329-1436](templates/oauth-auto-setup.php#L1329-L1436)):
+- `fetchDualModeInfo()`: 병렬 조회 오케스트레이션
+- `fetchChatInfo()`: Chat 정보 조회 + 캐시
+- `fetchAgentInfo()`: Agent 정보 조회 + 캐시
+- `updateAgentDropdown()`: Agent 드롭다운 업데이트
+
+**리소스 선택 핸들러** ([templates/oauth-auto-setup.php:1016-1030](templates/oauth-auto-setup.php#L1016-L1030)):
+```javascript
+if (value && value !== '__CREATE_NEW__') {
+    console.log('[Dual Mode] Resource selected, fetching BOTH info');
+    fetchDualModeInfo(value); // 병렬 조회
+}
+```
+
+**모드 전환 핸들러** ([templates/oauth-auto-setup.php:1054-1072](templates/oauth-auto-setup.php#L1054-L1072)):
+```javascript
+if (mode === 'agent') {
+    if (resourceInfoCache.agent) {
+        // ✅ 재조회 없이 캐시 사용!
+        updateAgentDropdown(resourceInfoCache.agent.agents);
+    }
+}
+```
+
+**콘솔 로그 예시:**
+```javascript
+[Dual Mode] ========================================
+[Dual Mode] Resource selected, fetching BOTH Chat + Agent info
+[Dual Mode] ========================================
+[Dual Mode] [1/2] Fetching Chat info...
+[Dual Mode] [2/2] Fetching Agent info...
+[Dual Mode] ✅ Both fetches completed
+[Dual Mode] Chat info: Available
+[Dual Mode] Agent info: 3 agents found
+
+[Cache] Checking for cached Agent info...
+[Cache] ✅ Using cached Agent data: 3 agents
+```
+
+---
+
+#### 파일 변경 내역
+
+**templates/oauth-auto-setup.php:**
+- Lines 276-292: 모드 선택 UI를 맨 위로 이동
+- Lines 38-64: 자동 팝업 제거, 스크롤 + 강조 효과만
+- Lines 698-705: 전역 캐시 객체 추가
+- Lines 1016-1030: 리소스 선택 시 듀얼 모드 조회
+- Lines 1329-1436: 듀얼 모드 함수 3개 추가
+- Lines 1054-1072: 모드 전환 시 캐시 사용
+
+**azure-ai-chatbot.php:**
+- Version updated to 3.0.54
+
+**README-ko.md, README.md:**
+- Version badges updated to 3.0.54
+
+---
+
+#### 테스트 시나리오
+
+**시나리오 1: 라디오 버튼 가시성**
+```
+1. OAuth 인증 완료
+2. 페이지 로드
+3. 콘솔 확인:
+   [DEBUG] Total radio buttons in DOM: 2
+   [DEBUG] Radio 0: {visible: true}  ← ✅
+   [DEBUG] Radio 1: {visible: true}  ← ✅
+4. UI 확인: 파란색 박스에 모드 선택이 명확히 보임
+```
+
+**시나리오 2: 듀얼 모드 조회**
+```
+1. Chat 모드 선택 (기본값)
+2. Resource Group 선택
+3. AI Resource 선택
+4. 콘솔 확인:
+   [Dual Mode] Resource selected, fetching BOTH info
+   [Dual Mode] ✅ Both fetches completed
+5. Agent 모드로 전환
+6. 콘솔 확인:
+   [Cache] ✅ Using cached Agent data (재조회 없이 즉시!)
+```
+
+---
+
+#### Breaking Changes
+없음 - 기존 기능과 완전 호환
+
+#### Migration Guide
+업그레이드만 하면 됨 - 추가 작업 불필요
+
+---
+
+#### Known Issues
+
+**AI Foundry Hub 없을 때:**
+- 현재 Resource Group에 AI Foundry Hub가 없으면 Agent 모드 사용 불가
+- **해결 방법**: Azure Portal에서 AI Foundry Hub 생성
+
+**CognitiveServices (Azure OpenAI) 선택 시:**
+- Agent 조회 시 404 발생 (정상 동작)
+- **이유**: Azure OpenAI는 Agent 지원 안 함
+- **해결 방법**: AI Foundry Hub 선택
+
+---
+
+## [3.0.53] - 2025-11-14
+
+### 🐛 **Critical Bug Fix: 라디오 버튼이 DOM에 렌더링되지 않는 문제 수정**
+
+#### 문제 상황
+콘솔 로그가 명확히 보여준 문제:
+```javascript
+[DEBUG] Total radio buttons in DOM: 0
+[DEBUG] ⚠️ No radio buttons found! User must authenticate first.
+```
+
+URL에 `&has_token=1`이 있는데도 라디오 버튼이 DOM에 없었습니다.
+
+#### 근본 원인
+**파일**: [templates/oauth-auto-setup.php:15](templates/oauth-auto-setup.php#L15)
+
+```php
+// ❌ 이전 코드: 세션만 체크
+$has_token = isset($_SESSION['azure_access_token']) && !empty($_SESSION['azure_access_token']);
+```
+
+문제:
+1. Line 15에서 `$has_token`은 **세션만** 체크
+2. OAuth 리디렉션 후 URL에 `&has_token=1` 파라미터가 있어도
+3. 세션에 토큰이 없으면 `$has_token === false`
+4. Line 276의 조건문 `<?php if (!$has_token): ?>`에서 Step 1(인증 버튼)을 표시
+5. **라디오 버튼이 Step 2에 있으므로 렌더링되지 않음**
+
+#### 수정 내용
+**파일**: [templates/oauth-auto-setup.php:16-22](templates/oauth-auto-setup.php#L16-L22)
+
+```php
+// ✅ 수정된 코드: 세션 + URL 파라미터 모두 체크
+$session_has_token = isset($_SESSION['azure_access_token']) && !empty($_SESSION['azure_access_token']);
+$url_has_token = isset($_GET['has_token']) && $_GET['has_token'] === '1';
+$has_token = $session_has_token || $url_has_token;
+
+// 디버그 로그
+error_log('[OAuth Auto Setup] Token check - Session: ' . ($session_has_token ? 'YES' : 'NO') . ', URL: ' . ($url_has_token ? 'YES' : 'NO') . ', Final: ' . ($has_token ? 'YES' : 'NO'));
+```
+
+#### 해결 효과
+
+이제 OAuth 리디렉션 후:
+1. ✅ URL에 `&has_token=1`이 있으면 `$has_token === true`
+2. ✅ Step 2 (리소스 선택) 섹션이 표시됨
+3. ✅ 라디오 버튼이 DOM에 렌더링됨
+4. ✅ 사용자가 Chat/Agent 모드를 선택할 수 있음
+
+---
+
+
 ## [3.0.52] - 2025-11-14
 
 ### 🔍 디버깅 대폭 강화: F12 콘솔 로그 완전 개선
