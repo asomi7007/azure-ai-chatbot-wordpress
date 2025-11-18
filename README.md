@@ -1,6 +1,6 @@
 # Azure AI Chatbot for WordPress
 
-[![Version](https://img.shields.io/badge/version-3.0.51-blue.svg)](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/latest)
+[![Version](https://img.shields.io/badge/version-3.0.52-blue.svg)](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/latest)
 [![WordPress](https://img.shields.io/badge/wordpress-6.0%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/php-7.4%2B-purple.svg)](https://www.php.net/)
 [![License](https://img.shields.io/badge/license-GPL--2.0%2B-green.svg)](LICENSE)
@@ -457,7 +457,7 @@ Log location: `/wp-content/debug.log`
 
 ## Version History
 
-### Latest Release: v3.0.51 (2025-11-14)
+### Latest Release: v3.0.52 (2025-11-14)
 
 **🔁 Agent Mode Persistence & AI Foundry Discovery:**
 - ✅ **Stable Mode Selection**: The OAuth auto-setup wizard now writes the selected mode to both localStorage and sessionStorage before every popup, so Agent mode never silently flips back to Chat after refresh.
@@ -465,7 +465,7 @@ Log location: `/wp-content/debug.log`
 - 🤖 **Expanded Project Discovery**: When Agent mode is active, Azure resources API calls now collect both `Microsoft.MachineLearningServices` workspaces and the newer Azure AI Services (AIServices) accounts, making AI Foundry projects discoverable regardless of portal flavor.
 - 🔌 **AIServices Agent Support**: Agent lookups detect AIServices endpoints/kinds and normalize their metadata so the auto-setup flow can pull agent IDs, endpoints, and credentials without manual fixes.
 
-[Download v3.0.51](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/tag/v3.0.51)
+[Download v3.0.52](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/tag/v3.0.52)
 
 ### v3.0.41 (2025-11-08)
 

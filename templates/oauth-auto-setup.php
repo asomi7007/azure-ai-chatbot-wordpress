@@ -754,19 +754,66 @@ function loadSavedSettings() {
 }
 
 function openOAuthPopup(url) {
-    console.log('[Auto Setup] Starting OAuth auto-setup (OAuth credentials will be preserved)');
+    console.log('[Auto Setup] ========================================');
+    console.log('[Auto Setup] OAUTH BUTTON CLICKED - Starting OAuth');
+    console.log('[Auto Setup] ========================================');
 
     // 팝업을 열기 전에 현재 선택된 operationMode를 storage에 저장
     try {
-        var selectedMode = operationMode || jQuery('input[name="oauth_mode"]:checked').val() || 'chat';
+        // ✅ DEBUG: 모든 라디오 버튼 상태 확인
+        var allRadios = jQuery('input[name="oauth_mode"]');
+        console.log('[DEBUG] Step 1: Checking all radio buttons in DOM');
+        console.log('[DEBUG] Total radio buttons found:', allRadios.length);
+
+        if (allRadios.length === 0) {
+            console.error('[DEBUG] ❌ ERROR: No radio buttons found in DOM!');
+            console.error('[DEBUG] This means user has not authenticated yet or page structure is wrong');
+        } else {
+            allRadios.each(function(index) {
+                console.log('[DEBUG] Radio', index, ':', {
+                    value: jQuery(this).val(),
+                    checked: jQuery(this).prop('checked'),
+                    visible: jQuery(this).is(':visible'),
+                    id: jQuery(this).attr('id') || 'no-id',
+                    name: jQuery(this).attr('name')
+                });
+            });
+        }
+
+        console.log('[DEBUG] Step 2: Determining mode to save');
+        console.log('[DEBUG] - Global operationMode variable:', operationMode);
+
+        var checkedRadio = jQuery('input[name="oauth_mode"]:checked');
+        var radioValue = checkedRadio.val();
+        console.log('[DEBUG] - Checked radio button value:', radioValue);
+
+        // 우선순위: 체크된 라디오 버튼 > 전역 변수 > 'chat' 기본값
+        var selectedMode = radioValue || operationMode || 'chat';
+        console.log('[DEBUG] - Final selected mode:', selectedMode);
+
+        console.log('[DEBUG] Step 3: Saving to storage');
         localStorage.setItem('azure_oauth_operation_mode', selectedMode);
         sessionStorage.setItem('azure_oauth_operation_mode', selectedMode);
-        console.log('[Auto Setup] ✅ Saving operation mode to storage before OAuth:', selectedMode);
+
+        // 확인
+        var savedLocalStorage = localStorage.getItem('azure_oauth_operation_mode');
+        var savedSessionStorage = sessionStorage.getItem('azure_oauth_operation_mode');
+        console.log('[DEBUG] ✅ Verification:');
+        console.log('[DEBUG]    localStorage now contains:', savedLocalStorage);
+        console.log('[DEBUG]    sessionStorage now contains:', savedSessionStorage);
+
+        if (savedLocalStorage !== selectedMode) {
+            console.error('[DEBUG] ❌ ERROR: localStorage save failed! Expected:', selectedMode, 'Got:', savedLocalStorage);
+        } else {
+            console.log('[Auto Setup] ✅ Mode saved successfully before OAuth:', selectedMode);
+        }
     } catch(e) {
-        console.warn('[Auto Setup] Cannot save operationMode to storage:', e);
+        console.error('[Auto Setup] ❌ Exception while saving mode to storage:', e);
+        console.error('[Auto Setup] Stack trace:', e.stack);
     }
 
     // OAuth 인증 정보는 유지하고 팝업만 열기 (설정 초기화 X)
+    console.log('[Auto Setup] Opening OAuth popup window...');
     openPopupWindow(url);
 
     return false; // 기본 링크 동작 방지
@@ -845,15 +892,45 @@ function copyOAuthCommand() {
 
 jQuery(document).ready(function($) {
     // ========== 페이지 로드 시 저장된 설정 복원 ==========
+    console.log('[Auto Setup] ========================================');
     console.log('[Auto Setup] Page loaded - Checking for saved settings');
+    console.log('[Auto Setup] ========================================');
+
+    // ✅ DEBUG: DOM에 라디오 버튼이 존재하는지 먼저 확인
+    var allRadioButtons = $('input[name="oauth_mode"]');
+    console.log('[DEBUG] Total radio buttons in DOM:', allRadioButtons.length);
+
+    if (allRadioButtons.length > 0) {
+        allRadioButtons.each(function(index) {
+            console.log('[DEBUG] Radio', index, ':', {
+                value: $(this).val(),
+                checked: $(this).prop('checked'),
+                visible: $(this).is(':visible'),
+                disabled: $(this).prop('disabled')
+            });
+        });
+    } else {
+        console.warn('[DEBUG] ⚠️ No radio buttons found! User must authenticate first.');
+    }
 
     // ✅ 페이지 로드 시 operationMode에 따라 UI 초기화
-    console.log('[Auto Setup] Initializing UI with mode:', operationMode);
     console.log('[DEBUG] DB mode value:', dbMode);
     console.log('[DEBUG] localStorage value:', localStorage.getItem('azure_oauth_operation_mode'));
+    console.log('[DEBUG] Current operationMode variable:', operationMode);
 
-    $('input[name="oauth_mode"][value="' + operationMode + '"]').prop('checked', true);
-    console.log('[DEBUG] Radio button set - verifying:', $('input[name="oauth_mode"]:checked').val());
+    if (allRadioButtons.length > 0) {
+        // 라디오 버튼이 있을 때만 설정
+        $('input[name="oauth_mode"][value="' + operationMode + '"]').prop('checked', true);
+
+        // 설정 후 확인
+        var checkedValue = $('input[name="oauth_mode"]:checked').val();
+        if (checkedValue) {
+            console.log('[DEBUG] ✅ Radio button successfully set to:', checkedValue);
+        } else {
+            console.error('[DEBUG] ❌ Failed to set radio button! Selector returned undefined');
+            console.log('[DEBUG] Attempted to set value:', operationMode);
+        }
+    }
     
     // Agent 모드면 Agent 선택 행 표시
     if (operationMode === 'agent') {
@@ -933,8 +1010,16 @@ jQuery(document).ready(function($) {
         var mode = $(this).val();
         var previousMode = operationMode;
 
-        console.log('[DEBUG] Radio button changed - from:', previousMode, 'to:', mode);
-        console.log('[DEBUG] Radio button that triggered change:', this.value, 'checked:', this.checked);
+        console.log('[Auto Setup] ========================================');
+        console.log('[Auto Setup] MODE CHANGE EVENT TRIGGERED');
+        console.log('[Auto Setup] ========================================');
+        console.log('[DEBUG] Previous mode:', previousMode);
+        console.log('[DEBUG] New mode:', mode);
+        console.log('[DEBUG] Radio button that triggered change:', {
+            value: this.value,
+            checked: this.checked,
+            name: this.name
+        });
 
         // 전역 모드 값 갱신 및 서버에 저장
         operationMode = mode;
@@ -1102,43 +1187,87 @@ function loadSubscriptions() {
 }
 
 function loadResourceGroups() {
+    console.log('[Auto Setup] ========================================');
+    console.log('[Auto Setup] LOADING RESOURCE GROUPS');
+    console.log('[Auto Setup] ========================================');
+
     var subscriptionId = jQuery('#oauth_subscription').val();
-    if (!subscriptionId) return;
-    
+    console.log('[DEBUG] Subscription ID:', subscriptionId);
+
+    if (!subscriptionId) {
+        console.warn('[DEBUG] ⚠️ No subscription selected, aborting resource group load');
+        return;
+    }
+
     var $select = jQuery('#oauth_resource_group');
     $select.html('<option value="">로딩 중...</option>').prop('disabled', true);
-    
+
+    console.log('[DEBUG] Sending AJAX request to: azure_oauth_get_resource_groups');
     jQuery.post(ajaxurl, {
         action: 'azure_oauth_get_resource_groups',
         nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
         subscription_id: subscriptionId
     }, function(response) {
+        console.log('[DEBUG] Resource Groups response received:', response);
+
         $select.prop('disabled', false);
-        
+
         if (response.success) {
+            var rgCount = response.data.resource_groups ? response.data.resource_groups.length : 0;
+            console.log('[DEBUG] ✅ Successfully loaded', rgCount, 'resource groups');
+
             $select.html('<option value="">선택하세요</option>');
-            response.data.resource_groups.forEach(function(rg) {
+            response.data.resource_groups.forEach(function(rg, index) {
+                console.log('[DEBUG] RG', index + 1, ':', rg.name, 'in', rg.location);
                 $select.append('<option value="' + rg.name + '">' + rg.name + ' (' + rg.location + ')</option>');
             });
         } else {
-            $select.html('<option value="">오류: ' + response.data.message + '</option>');
+            console.error('[DEBUG] ❌ Failed to load resource groups:', response.data ? response.data.message : 'Unknown error');
+            $select.html('<option value="">오류: ' + (response.data ? response.data.message : 'Unknown error') + '</option>');
         }
+    }).fail(function(jqXHR, textStatus, errorThrown) {
+        console.error('[DEBUG] ❌ AJAX request failed:', {
+            status: textStatus,
+            error: errorThrown,
+            responseText: jqXHR.responseText
+        });
+        $select.html('<option value="">네트워크 오류</option>').prop('disabled', false);
     });
 }
 
 function loadResources() {
+    console.log('[Auto Setup] ========================================');
+    console.log('[Auto Setup] LOADING AI RESOURCES');
+    console.log('[Auto Setup] ========================================');
+
     var subscriptionId = jQuery('#oauth_subscription').val();
     var resourceGroup = jQuery('#oauth_resource_group').val();
     var mode = operationMode || jQuery('input[name="oauth_mode"]:checked').val();
-    
-    if (!subscriptionId || !resourceGroup) return;
-    
+
+    console.log('[DEBUG] Subscription ID:', subscriptionId);
+    console.log('[DEBUG] Resource Group:', resourceGroup);
+    console.log('[DEBUG] Mode:', mode);
+    console.log('[DEBUG] Global operationMode:', operationMode);
+
+    if (!subscriptionId || !resourceGroup) {
+        console.warn('[DEBUG] ⚠️ Missing subscription or resource group, aborting');
+        return;
+    }
+
     var $select = jQuery('#oauth_resource');
     $select.html('<option value="">로딩 중...</option>').prop('disabled', true);
-    
+
     // Agent 선택 초기화
     jQuery('#oauth_agent').html('<option value="">먼저 리소스를 선택하세요</option>').prop('disabled', true);
-    
+
+    console.log('[DEBUG] Sending AJAX request to: azure_oauth_get_resources');
+    console.log('[DEBUG] Request parameters:', {
+        action: 'azure_oauth_get_resources',
+        subscription_id: subscriptionId,
+        resource_group: resourceGroup,
+        mode: mode
+    });
+
     jQuery.post(ajaxurl, {
         action: 'azure_oauth_get_resources',
         nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
@@ -1146,11 +1275,22 @@ function loadResources() {
         resource_group: resourceGroup,
         mode: mode
     }, function(response) {
+        console.log('[DEBUG] AI Resources response received:', response);
+
         $select.prop('disabled', false);
-        
+
         if (response.success) {
+            var resCount = response.data.resources ? response.data.resources.length : 0;
+            console.log('[DEBUG] ✅ Successfully loaded', resCount, 'AI resources');
+
             $select.html('<option value="">선택하세요</option>');
-            response.data.resources.forEach(function(res) {
+            response.data.resources.forEach(function(res, index) {
+                console.log('[DEBUG] Resource', index + 1, ':', {
+                    name: res.name,
+                    type: res.type,
+                    location: res.location,
+                    id: res.id
+                });
                 $select.append('<option value="' + res.id + '">' + res.name + ' (' + res.location + ')</option>');
             });
         } else {

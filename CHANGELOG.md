@@ -1,5 +1,151 @@
 # 변경 이력
 
+## [3.0.52] - 2025-11-14
+
+### 🔍 디버깅 대폭 강화: F12 콘솔 로그 완전 개선
+
+#### 목적
+사용자가 보고한 문제:
+- ⚠️ "리소스 그룹 목록을 못찾네"
+- ⚠️ 라디오 버튼 값이 `undefined`로 표시되는 문제
+- ⚠️ Mode 선택이 제대로 작동하지 않는 문제
+
+→ **근본 원인을 정확히 파악할 수 있도록 모든 주요 흐름에 상세한 디버그 로그 추가**
+
+#### 추가된 디버그 로깅 (F12 콘솔에서 모두 확인 가능)
+
+##### 1. **페이지 로드 시** (lines 848-886)
+라디오 버튼의 DOM 존재 여부와 상태를 상세히 확인:
+```javascript
+[Auto Setup] ========================================
+[Auto Setup] Page loaded - Checking for saved settings
+[Auto Setup] ========================================
+[DEBUG] Total radio buttons in DOM: 2
+[DEBUG] Radio 0: {value: 'chat', checked: true, visible: true, disabled: false}
+[DEBUG] Radio 1: {value: 'agent', checked: false, visible: true, disabled: false}
+[DEBUG] DB mode value: chat
+[DEBUG] localStorage value: chat
+[DEBUG] Current operationMode variable: chat
+[DEBUG] ✅ Radio button successfully set to: chat
+```
+
+**진단 가능:**
+- 라디오 버튼이 DOM에 없으면: `⚠️ No radio buttons found! User must authenticate first.`
+- 라디오 버튼 설정 실패 시: `❌ Failed to set radio button! Selector returned undefined`
+
+##### 2. **라디오 버튼 변경 시** (lines 966-975)
+사용자가 Mode를 변경할 때 정확히 추적:
+```javascript
+[Auto Setup] ========================================
+[Auto Setup] MODE CHANGE EVENT TRIGGERED
+[Auto Setup] ========================================
+[DEBUG] Previous mode: chat
+[DEBUG] New mode: agent
+[DEBUG] Radio button that triggered change: {value: 'agent', checked: true, name: 'oauth_mode'}
+```
+
+##### 3. **OAuth 버튼 클릭 시** (lines 757-819)
+Mode 저장 과정을 단계별로 상세 추적:
+```javascript
+[Auto Setup] ========================================
+[Auto Setup] OAUTH BUTTON CLICKED - Starting OAuth
+[Auto Setup] ========================================
+[DEBUG] Step 1: Checking all radio buttons in DOM
+[DEBUG] Total radio buttons found: 2
+[DEBUG] Radio 0: {value: 'chat', checked: false, visible: true, id: 'no-id', name: 'oauth_mode'}
+[DEBUG] Radio 1: {value: 'agent', checked: true, visible: true, id: 'no-id', name: 'oauth_mode'}
+[DEBUG] Step 2: Reading selected mode from :checked selector
+[DEBUG] Selected mode from :checked selector: agent
+[DEBUG] Global operationMode variable: agent
+[DEBUG] Final mode to save: agent
+[DEBUG] Step 3: Saving to localStorage
+[DEBUG] ✅ Verification - localStorage now contains: agent
+```
+
+**진단 가능:**
+- 라디오 버튼이 없으면: `❌ ERROR: No radio button is checked! Using fallback value`
+- localStorage 저장 실패 시: `❌ ERROR: localStorage save failed! Expected: agent Got: chat`
+
+##### 4. **Resource Group 로드** (lines 1190-1235)
+리소스 그룹 목록 조회 과정 상세 추적:
+```javascript
+[Auto Setup] ========================================
+[Auto Setup] LOADING RESOURCE GROUPS
+[Auto Setup] ========================================
+[DEBUG] Subscription ID: 3d56f885-63f4-4e57-86bb-fe73c761b46e
+[DEBUG] Sending AJAX request to: azure_oauth_get_resource_groups
+[DEBUG] Resource Groups response received: {success: true, data: {...}}
+[DEBUG] ✅ Successfully loaded 5 resource groups
+[DEBUG] RG 1: rg-prod-koreacentral in koreacentral
+[DEBUG] RG 2: rg-dev-eastus in eastus
+...
+```
+
+**진단 가능:**
+- Subscription이 없으면: `⚠️ No subscription selected, aborting resource group load`
+- AJAX 실패 시: `❌ AJAX request failed: {status: 'error', error: '...', responseText: '...'}`
+- 리소스 그룹 로드 실패 시: `❌ Failed to load resource groups: <error message>`
+
+##### 5. **AI Resource 로드** (lines 1239-1299)
+AI 리소스 목록 조회 과정과 리소스 타입 추적:
+```javascript
+[Auto Setup] ========================================
+[Auto Setup] LOADING AI RESOURCES
+[Auto Setup] ========================================
+[DEBUG] Subscription ID: 3d56f885-63f4-4e57-86bb-fe73c761b46e
+[DEBUG] Resource Group: rg-prod-koreacentral
+[DEBUG] Mode: agent
+[DEBUG] Global operationMode: agent
+[DEBUG] Sending AJAX request to: azure_oauth_get_resources
+[DEBUG] Request parameters: {action: 'azure_oauth_get_resources', subscription_id: '...', resource_group: '...', mode: 'agent'}
+[DEBUG] AI Resources response received: {success: true, data: {...}}
+[DEBUG] ✅ Successfully loaded 3 AI resources
+[DEBUG] Resource 1: {name: 'my-ai-foundry', type: 'Microsoft.MachineLearningServices/workspaces', location: 'koreacentral', id: '/subscriptions/.../...'}
+[DEBUG] Resource 2: {name: 'my-openai', type: 'Microsoft.CognitiveServices/accounts', location: 'eastus', id: '/subscriptions/.../...'}
+...
+```
+
+**진단 가능:**
+- 필수 값 누락 시: `⚠️ Missing subscription or resource group, aborting`
+- 잘못된 리소스 타입 선택 시: 리소스 타입으로 필터링 여부 확인 가능
+
+#### 기대 효과
+
+이제 사용자는 F12 콘솔을 열고 다음을 정확히 확인할 수 있습니다:
+
+1. **라디오 버튼 문제**:
+   - DOM에 라디오 버튼이 존재하는가?
+   - 라디오 버튼이 올바르게 체크되었는가?
+   - 라디오 버튼 변경 이벤트가 발생하는가?
+
+2. **Mode 저장 문제**:
+   - 어떤 mode 값이 localStorage에 저장되는가?
+   - 저장이 성공했는가?
+   - 페이지 로드 시 어떤 값을 읽어오는가?
+
+3. **리소스 조회 문제**:
+   - AJAX 요청이 성공했는가?
+   - 어떤 리소스가 반환되었는가?
+   - 리소스 타입이 올바른가? (CognitiveServices vs MachineLearningServices)
+
+#### 베스트 프랙티스 참고
+
+**Azure AI Foundry 계층 구조**:
+```
+Subscription (구독)
+  └─ Resource Group (리소스 그룹)
+      └─ Azure AI Foundry Resource (Hub) - MachineLearningServices/workspaces
+          └─ Projects (프로젝트)
+```
+
+**리소스 타입**:
+- `Microsoft.CognitiveServices/accounts`: Azure OpenAI (Chat만 지원)
+- `Microsoft.MachineLearningServices/workspaces`: AI Foundry Hub (Chat + Agent 지원)
+
+현재 구현은 Resource Group까지 선택하고 그 안의 리소스를 자동으로 필터링합니다.
+
+---
+
 ## [3.0.51] - 2025-11-14
 
 ### 🔍 디버깅 개선: Mode 선택 문제 진단 로깅 추가
