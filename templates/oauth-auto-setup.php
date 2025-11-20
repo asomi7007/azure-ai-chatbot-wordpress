@@ -1,3175 +1,926 @@
 <?php
 /**
- * Azure OAuth Auto Setup UI Template
+ * Azure OAuth Auto Setup UI Template (cascading dropdown edition)
  */
 
-if (!defined('ABSPATH')) exit;
+if (!defined('ABSPATH')) {
+	exit;
+}
 
-$oauth = new Azure_Chatbot_OAuth();
-$is_configured = $oauth->is_configured();
+$oauth          = new Azure_Chatbot_OAuth();
+$is_configured  = $oauth->is_configured();
 
-// 세션에 토큰이 있는지 확인 (headers_sent 체크 추가)
+// 세션 토큰 확인
 if (!session_id() && !headers_sent()) {
-    session_start();
+	session_start();
 }
 
-// ✅ 토큰 확인: 세션 또는 URL 파라미터 (localStorage에서 전달된 경우)
-$session_has_token = isset($_SESSION['azure_access_token']) && !empty($_SESSION['azure_access_token']);
-$url_has_token = isset($_GET['has_token']) && $_GET['has_token'] === '1';
-$has_token = $session_has_token || $url_has_token;
+$session_has_token = !empty($_SESSION['azure_access_token']);
+$url_has_token     = isset($_GET['has_token']) && $_GET['has_token'] === '1';
+$has_token         = $session_has_token || $url_has_token;
 
-// 디버그 로그 (개발 중)
-error_log('[OAuth Auto Setup] Token check - Session: ' . ($session_has_token ? 'YES' : 'NO') . ', URL: ' . ($url_has_token ? 'YES' : 'NO') . ', Final: ' . ($has_token ? 'YES' : 'NO'));
+$settings       = get_option('azure_chatbot_settings', array());
+$operation_mode = isset($settings['mode']) ? $settings['mode'] : 'chat';
+$nonce          = wp_create_nonce('azure_oauth_nonce');
 
-// OAuth 성공/실패 메시지 표시
-if (isset($_GET['oauth_success'])) {
-    // 세션에서 토큰 확인 또는 localStorage에서 확인
-    $token_exists = $has_token || (isset($_GET['has_token']) && $_GET['has_token'] === '1');
-    
-    if ($token_exists) {
-        echo '<div class="notice notice-success is-dismissible"><p>';
-        esc_html_e('Azure 인증에 성공했습니다! 자동으로 리소스를 생성합니다...', 'azure-ai-chatbot');
-        echo '</p></div>';
-
-        // ✅ Operation Mode 확인 (단일 소스: azure_chatbot_settings['mode'])
-        $settings = get_option('azure_chatbot_settings', array());
-        $operation_mode = isset($settings['mode']) ? $settings['mode'] : 'chat';
-
-        // ✅ 자동 팝업 제거: 사용자가 직접 리소스를 선택하도록 함
-        echo '<script>
-        jQuery(document).ready(function($) {
-            console.log("[Auto Setup] OAuth 인증 완료");
-            console.log("[Auto Setup] Operation Mode: ' . esc_js($operation_mode) . '");
-            console.log("[Auto Setup] 모드를 선택하고 리소스를 선택하세요");
-
-            // 모드 선택 박스로 부드럽게 스크롤
-            setTimeout(function() {
-                var $modeBox = $(".notice-info").first();
-                if ($modeBox.length > 0) {
-                    $("html, body").animate({
-                        scrollTop: $modeBox.offset().top - 50
-                    }, 400);
-
-                    // 모드 선택 박스 강조 효과
-                    $modeBox.css({
-                        "box-shadow": "0 0 10px rgba(0, 115, 170, 0.5)",
-                        "transition": "box-shadow 0.3s ease"
-                    });
-                    setTimeout(function() {
-                        $modeBox.css("box-shadow", "none");
-                    }, 2000);
-                }
-            }, 300);
-        });
-        </script>';
-    }
-    // oauth_success=1일 때는 세션 경고를 표시하지 않음 (팝업에서 리다이렉트된 경우이므로)
-}
-
-if (isset($_GET['oauth_error'])) {
-    $error_msg = get_transient('azure_oauth_error');
-    delete_transient('azure_oauth_error');
-    echo '<div class="notice notice-error is-dismissible"><p>';
-    echo esc_html__('인증 실패: ', 'azure-ai-chatbot') . esc_html($error_msg ?: '알 수 없는 오류');
-    echo '</p></div>';
-}
 ?>
 
 <div class="postbox azure-oauth-section">
-    <h2 class="hndle">
-        <span class="dashicons dashicons-admin-network"></span>
-        <?php esc_html_e('Azure 자동 설정 (OAuth)', 'azure-ai-chatbot'); ?>
-    </h2>
-    <div class="inside">
-        <!-- ✅ 모드 선택을 맨 위로 이동 (항상 표시) -->
-        <?php
-        $settings = get_option('azure_chatbot_settings', array());
-        $operation_mode = isset($settings['mode']) ? $settings['mode'] : 'chat';
-        ?>
-        <div class="notice notice-info inline" style="margin: 20px 0; padding: 15px; background: #f5f5f5; border-left: 4px solid #999;">
-            <h3 style="margin-top: 0; color: #666;"><?php esc_html_e('📍 선택된 모드', 'azure-ai-chatbot'); ?></h3>
-            <p style="margin: 10px 0;">
-                <label style="margin-right: 20px; font-size: 14px; color: #999; cursor: not-allowed;">
-                    <input type="radio" name="oauth_mode" value="chat" <?php checked($operation_mode, 'chat'); ?> disabled style="margin-right: 5px; cursor: not-allowed;" />
-                    <strong style="color: #999;"><?php esc_html_e('Chat 모드', 'azure-ai-chatbot'); ?></strong> <span style="color: #aaa;">- Azure OpenAI (GPT-4, GPT-3.5 등)</span>
-                </label>
-                <label style="font-size: 14px; color: #999; cursor: not-allowed;">
-                    <input type="radio" name="oauth_mode" value="agent" <?php checked($operation_mode, 'agent'); ?> disabled style="margin-right: 5px; cursor: not-allowed;" />
-                    <strong style="color: #999;"><?php esc_html_e('Agent 모드', 'azure-ai-chatbot'); ?></strong> <span style="color: #aaa;">- AI Foundry Agent (Assistants API)</span>
-                </label>
-            </p>
-            <p class="description" style="margin: 5px 0 0 0; color: #666;">
-                ℹ️ <?php esc_html_e('모드는 Manual Settings 탭에서 변경할 수 있습니다.', 'azure-ai-chatbot'); ?>
-            </p>
-        </div>
+	<h2 class="hndle">
+		<span class="dashicons dashicons-admin-network"></span>
+		<?php esc_html_e('Azure 자동 설정 (OAuth)', 'azure-ai-chatbot'); ?>
+	</h2>
+	<div class="inside">
+		<div class="notice notice-info inline" style="margin: 15px 0; padding: 15px; background: #f5f5f5; border-left: 4px solid #2271b1;">
+			<h3 style="margin: 0 0 10px;">📍 <?php esc_html_e('선택된 모드', 'azure-ai-chatbot'); ?></h3>
+			<p style="margin: 0; color: #333;">
+				<strong><?php echo esc_html($operation_mode === 'agent' ? __('Agent 모드', 'azure-ai-chatbot') : __('Chat 모드', 'azure-ai-chatbot')); ?></strong>
+				<span style="color:#777; margin-left:6px;">
+					<?php echo esc_html($operation_mode === 'agent'
+						? __('AI Foundry Agent (Assistants API)', 'azure-ai-chatbot')
+						: __('Azure OpenAI (GPT 계열)', 'azure-ai-chatbot'));
+					?>
+				</span>
+			</p>
+			<p class="description" style="margin-top: 8px;">
+				ℹ️ <?php esc_html_e('모드는 Manual Settings 탭에서 변경할 수 있습니다.', 'azure-ai-chatbot'); ?>
+			</p>
+		</div>
 
-        <?php if (!$is_configured): ?>
-            <div class="notice notice-warning inline">
-                <p>
-                    <strong><?php esc_html_e('자동 설정을 사용하려면 OAuth 설정이 필요합니다.', 'azure-ai-chatbot'); ?></strong><br>
-                    <?php esc_html_e('Azure Portal에서 App Registration을 생성하거나 아래 자동 설정 스크립트를 사용하세요.', 'azure-ai-chatbot'); ?>
-                </p>
-                <details style="margin-top: 10px;">
-                    <summary style="cursor: pointer; color: #0073aa; font-weight: 600;">
-                        <span class="dashicons dashicons-info-outline" style="margin-top: 2px;"></span>
-                        <?php esc_html_e('OAuth 인증이 필요한 이유', 'azure-ai-chatbot'); ?>
-                    </summary>
-                    <div style="margin: 10px 0 0 25px; padding: 10px; background: #fff; border-left: 3px solid #0073aa;">
-                        <p><strong><?php esc_html_e('OAuth 인증의 역할:', 'azure-ai-chatbot'); ?></strong></p>
-                        <ul style="margin: 5px 0;">
-                            <li><?php esc_html_e('Azure 구독의 리소스 목록을 안전하게 조회', 'azure-ai-chatbot'); ?></li>
-                            <li><?php esc_html_e('기존 AI Foundry 프로젝트 자동 탐지', 'azure-ai-chatbot'); ?></li>
-                            <li><?php esc_html_e('API Key 자동 조회 및 암호화 저장', 'azure-ai-chatbot'); ?></li>
-                            <li><?php esc_html_e('Agent 목록 자동 검색 및 선택', 'azure-ai-chatbot'); ?></li>
-                        </ul>
-                        <p style="margin-top: 10px;"><strong><?php esc_html_e('자동 설정 과정:', 'azure-ai-chatbot'); ?></strong></p>
-                        <ol style="margin: 5px 0;">
-                            <li><?php esc_html_e('OAuth로 Azure에 로그인 → 권한 부여', 'azure-ai-chatbot'); ?></li>
-                            <li><?php esc_html_e('구독/리소스 선택 → 설정값 자동 조회', 'azure-ai-chatbot'); ?></li>
-                            <li><?php esc_html_e('Agent 모드: Client ID/Secret 자동 채움', 'azure-ai-chatbot'); ?></li>
-                            <li><?php esc_html_e('모든 설정 완료 → 즉시 사용 가능', 'azure-ai-chatbot'); ?></li>
-                        </ol>
-                        <p style="margin-top: 10px; padding: 8px; background: #f0f6fc; border-radius: 4px;">
-                            <span class="dashicons dashicons-lock" style="color: #0078d4;"></span>
-                            <strong><?php esc_html_e('보안:', 'azure-ai-chatbot'); ?></strong>
-                            <?php esc_html_e('OAuth 토큰은 일시적이며 설정 완료 후 자동 삭제됩니다. 저장되는 것은 암호화된 API Key와 Agent 인증 정보만입니다.', 'azure-ai-chatbot'); ?>
-                        </p>
-                    </div>
-                </details>
-            </div>
-            
-            <!-- App Registration 자동 설정 안내 -->
-            <div class="oauth-setup-guide" style="background: #f0f6fc; border-left: 4px solid #0078d4; padding: 15px; margin: 20px 0;">
-                <h3 style="margin-top: 0;">
-                    <span class="dashicons dashicons-info"></span>
-                    <?php esc_html_e('Azure App Registration 자동 설정', 'azure-ai-chatbot'); ?>
-                </h3>
-                
-                <p><strong><?php esc_html_e('방법 1: Azure Cloud Shell 사용 (추천)', 'azure-ai-chatbot'); ?></strong></p>
-                <ol>
-                    <li>
-                        <a href="https://shell.azure.com" target="_blank" class="button button-primary">
-                            <span class="dashicons dashicons-cloud" style="margin-top: 3px;"></span>
-                            <?php esc_html_e('Azure Cloud Shell 열기', 'azure-ai-chatbot'); ?>
-                        </a>
-                    </li>
-                    <li>
-                        <?php esc_html_e('아래 명령어를 복사해서 Cloud Shell에 붙여넣으세요:', 'azure-ai-chatbot'); ?>
-                        <?php
-                        $site_url = get_site_url();
-                        $bash_command = "bash <(curl -s https://raw.githubusercontent.com/asomi7007/azure-ai-chatbot-wordpress/main/scripts/setup-oauth-app.sh) " . esc_url($site_url);
-                        $pwsh_command = "curl -s https://raw.githubusercontent.com/asomi7007/azure-ai-chatbot-wordpress/main/scripts/setup-oauth-app.sh | bash -s " . esc_url($site_url);
-                        ?>
-                        
-                        <p style="margin: 10px 0 5px 0;"><strong>Bash 모드 (권장):</strong></p>
-                        <div style="background: #2d2d2d; color: #f8f8f8; padding: 10px; margin: 5px 0; border-radius: 4px; font-family: monospace; position: relative;">
-                            <code id="oauth-setup-command-bash"><?php echo esc_html($bash_command); ?></code>
-                            <button type="button" class="button button-small" onclick="copyOAuthCommandBash()" style="position: absolute; right: 10px; top: 10px;">
-                                <?php esc_html_e('복사', 'azure-ai-chatbot'); ?>
-                            </button>
-                        </div>
-                        
-                        <p style="margin: 10px 0 5px 0;"><strong>PowerShell 모드:</strong></p>
-                        <div style="background: #2d2d2d; color: #f8f8f8; padding: 10px; margin: 5px 0; border-radius: 4px; font-family: monospace; position: relative;">
-                            <code id="oauth-setup-command-pwsh"><?php echo esc_html($pwsh_command); ?></code>
-                            <button type="button" class="button button-small" onclick="copyOAuthCommandPwsh()" style="position: absolute; right: 10px; top: 10px;">
-                                <?php esc_html_e('복사', 'azure-ai-chatbot'); ?>
-                            </button>
-                        </div>
-                        <p style="margin: 5px 0; font-size: 12px; color: #666;">
-                            💡 Cloud Shell이 PowerShell 모드로 시작되면 PowerShell 명령어를 사용하세요.
-                        </p>
-                    </li>
-                    <li><?php esc_html_e('생성된 Client ID, Client Secret, Tenant ID를 복사', 'azure-ai-chatbot'); ?></li>
-                    <li><?php esc_html_e('Azure Portal에서 Admin Consent 부여', 'azure-ai-chatbot'); ?></li>
-                </ol>
-                
-                <p><strong><?php esc_html_e('방법 2: Azure Portal에서 수동 설정', 'azure-ai-chatbot'); ?></strong></p>
-                <ol>
-                    <li>
-                        <?php
-                        $site_url = get_site_url();
-                        $redirect_uri = admin_url('admin.php?page=azure-ai-chatbot&azure_callback=1');
-                        $app_reg_url = 'https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/CreateApplicationBlade';
-                        ?>
-                        <a href="<?php echo esc_url($app_reg_url); ?>" target="_blank" class="button">
-                            <?php esc_html_e('Azure Portal에서 App Registration 생성', 'azure-ai-chatbot'); ?>
-                        </a>
-                    </li>
-                    <li>
-                        <?php esc_html_e('Redirect URI 설정:', 'azure-ai-chatbot'); ?>
-                        <div style="background: #fff; border: 1px solid #ddd; padding: 10px; margin: 10px 0; border-radius: 4px; position: relative;">
-                            <code id="redirect-uri"><?php echo esc_html($redirect_uri); ?></code>
-                            <button type="button" class="button button-small" onclick="copyRedirectUri()" style="position: absolute; right: 10px; top: 10px;">
-                                <?php esc_html_e('복사', 'azure-ai-chatbot'); ?>
-                            </button>
-                        </div>
-                    </li>
-                    <li><?php esc_html_e('API 권한 추가: Microsoft Graph (User.Read), Azure Service Management (user_impersonation)', 'azure-ai-chatbot'); ?></li>
-                    <li><?php esc_html_e('Client Secret 생성', 'azure-ai-chatbot'); ?></li>
-                    <li><?php esc_html_e('Admin Consent 부여', 'azure-ai-chatbot'); ?></li>
-                </ol>
-                
-                <p>
-                    <a href="<?php echo esc_url(AZURE_CHATBOT_PLUGIN_URL . 'docs/AZURE_AUTO_SETUP.md'); ?>" target="_blank">
-                        <span class="dashicons dashicons-book"></span>
-                        <?php esc_html_e('자세한 설정 가이드 보기', 'azure-ai-chatbot'); ?>
-                    </a>
-                </p>
-            </div>
-            
-            <table class="form-table">
-                <tr>
-                    <th scope="row">
-                        <label for="oauth_client_id"><?php esc_html_e('Client ID', 'azure-ai-chatbot'); ?> *</label>
-                    </th>
-                    <td>
-                        <input type="text" 
-                               id="oauth_client_id" 
-                               name="azure_chatbot_oauth_client_id" 
-                               value="<?php echo esc_attr(get_option('azure_chatbot_oauth_client_id', '')); ?>" 
-                               class="regular-text" 
-                               placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
-                        <p class="description">
-                            <?php esc_html_e('Azure App Registration의 Application (client) ID', 'azure-ai-chatbot'); ?>
-                        </p>
-                    </td>
-                </tr>
-                <tr>
-                    <th scope="row">
-                        <label for="oauth_client_secret"><?php esc_html_e('Client Secret', 'azure-ai-chatbot'); ?> *</label>
-                    </th>
-                    <td>
-                        <?php
-                        // OAuth Client Secret 마스킹 처리
-                        $oauth_secret_encrypted = get_option('azure_chatbot_oauth_client_secret', '');
-                        $oauth_secret_display = '';
-                        $oauth_secret_has_value = !empty($oauth_secret_encrypted);
-                        
-                        if ($oauth_secret_has_value) {
-                            // 저장된 값이 있으면 마스킹 표시
-                            $oauth_secret_display = '••••••••••••••••';
-                        }
-                        ?>
-                        <input type="password" 
-                               id="oauth_client_secret" 
-                               name="azure_chatbot_oauth_client_secret" 
-                               value="<?php echo esc_attr($oauth_secret_display); ?>" 
-                               class="regular-text" 
-                               placeholder="<?php echo $oauth_secret_has_value ? esc_attr__('새 시크릿을 입력하여 변경', 'azure-ai-chatbot') : esc_attr__('Client Secret을 입력하세요', 'azure-ai-chatbot'); ?>" />
-                        <p class="description">
-                            <?php esc_html_e('Azure App Registration에서 생성한 Client Secret', 'azure-ai-chatbot'); ?>
-                            <?php if ($oauth_secret_has_value): ?>
-                                <br><strong><?php esc_html_e('※ 저장된 값이 있습니다. 변경하려면 새 값을 입력하세요.', 'azure-ai-chatbot'); ?></strong>
-                            <?php endif; ?>
-                        </p>
-                    </td>
-                </tr>
-                <tr>
-                    <th scope="row">
-                        <label for="oauth_tenant_id"><?php esc_html_e('Tenant ID', 'azure-ai-chatbot'); ?> *</label>
-                    </th>
-                    <td>
-                        <input type="text" 
-                               id="oauth_tenant_id" 
-                               name="azure_chatbot_oauth_tenant_id" 
-                               value="<?php echo esc_attr(get_option('azure_chatbot_oauth_tenant_id', '')); ?>" 
-                               class="regular-text" 
-                               placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
-                        <p class="description">
-                            <?php esc_html_e('Azure AD의 Directory (tenant) ID', 'azure-ai-chatbot'); ?>
-                        </p>
-                    </td>
-                </tr>
-            </table>
-            
-            <p class="submit">
-                <button type="button" class="button" onclick="saveOAuthSettings()">
-                    <?php esc_html_e('OAuth 설정 저장', 'azure-ai-chatbot'); ?>
-                </button>
-            </p>
-            
-        <?php else: ?>
-            <!-- ✅ 모드 선택 박스는 위로 이동했으므로 여기서는 제거 -->
+		<?php if (isset($_GET['oauth_success']) && $has_token): ?>
+			<div class="notice notice-success is-dismissible">
+				<p><?php esc_html_e('Azure 인증이 완료되었습니다. 아래 드롭다운에서 리소스를 차례대로 선택하세요.', 'azure-ai-chatbot'); ?></p>
+			</div>
+		<?php endif; ?>
 
-            <?php if (!$has_token): ?>
-                <!-- Step 1: Azure 인증 -->
-                <div class="oauth-step oauth-step-1">
-                    <h3><?php esc_html_e('1단계: Admin Consent 승인 (필수)', 'azure-ai-chatbot'); ?></h3>
-                    <div class="notice notice-warning inline" style="margin: 10px 0; padding: 12px;">
-                        <p style="margin: 0 0 10px 0;">
-                            <strong><?php esc_html_e('⚠️ 중요: Azure 자동 설정을 시작하기 전에 Admin Consent를 먼저 승인해야 합니다!', 'azure-ai-chatbot'); ?></strong>
-                        </p>
-                        <p style="margin: 0 0 10px 0;">
-                            <?php esc_html_e('다음 링크를 클릭하여 브라우저에서 관리자 동의를 승인하세요:', 'azure-ai-chatbot'); ?>
-                        </p>
-                        <?php 
-                        $client_id = get_option('azure_ai_chatbot_client_id');
-                        $tenant_id = get_option('azure_ai_chatbot_tenant_id');
-                        if ($client_id && $tenant_id):
-                            $consent_url = "https://login.microsoftonline.com/{$tenant_id}/adminconsent?client_id={$client_id}";
-                        ?>
-                        <p style="margin: 0;">
-                            <a href="<?php echo esc_url($consent_url); ?>" 
-                               class="button button-secondary"
-                               target="_blank"
-                               style="background: #2271b1; color: white; border-color: #2271b1;">
-                                <span class="dashicons dashicons-yes" style="margin-top: 3px;"></span>
-                                <?php esc_html_e('Admin Consent 승인하기', 'azure-ai-chatbot'); ?>
-                            </a>
-                        </p>
-                        <?php else: ?>
-                        <p style="margin: 0; color: #d63638;">
-                            <?php esc_html_e('❌ Client ID와 Tenant ID를 먼저 입력하고 저장하세요.', 'azure-ai-chatbot'); ?>
-                        </p>
-                        <?php endif; ?>
-                    </div>
-                    
-                    <h3><?php esc_html_e('2단계: Azure 인증', 'azure-ai-chatbot'); ?></h3>
-                    <p>
-                        <?php esc_html_e('Admin Consent 승인 후, Azure에 로그인하여 리소스 접근 권한을 부여하세요.', 'azure-ai-chatbot'); ?>
-                    </p>
-                    <p>
-                        <a href="<?php echo esc_url($oauth->get_authorization_url()); ?>" 
-                           class="button button-primary button-hero"
-                           target="_blank"
-                           onclick="return openOAuthPopup(this.href);">
-                            <span class="dashicons dashicons-lock" style="margin-top: 3px;"></span>
-                            <?php esc_html_e('Azure 자동 설정 시작', 'azure-ai-chatbot'); ?>
-                        </a>
-                    </p>
-                    <p class="description">
-                        <?php esc_html_e('Microsoft 계정으로 로그인 후 권한을 승인하면 자동으로 돌아옵니다.', 'azure-ai-chatbot'); ?>
-                    </p>
-                </div>
-            <?php else: ?>
-                <!-- Step 2: 리소스 선택 -->
-                <div class="oauth-step oauth-step-2">
-                    <h3><?php esc_html_e('2단계: Azure 리소스 선택', 'azure-ai-chatbot'); ?></h3>
-                    
-                    <table class="form-table">
-                        <tr>
-                            <th scope="row">
-                                <label for="oauth_subscription"><?php esc_html_e('Subscription', 'azure-ai-chatbot'); ?> *</label>
-                            </th>
-                            <td>
-                                <select id="oauth_subscription" class="regular-text">
-                                    <option value=""><?php esc_html_e('로딩 중...', 'azure-ai-chatbot'); ?></option>
-                                </select>
-                                <button type="button" class="button" onclick="loadSubscriptions()">
-                                    <span class="dashicons dashicons-update"></span>
-                                    <?php esc_html_e('새로고침', 'azure-ai-chatbot'); ?>
-                                </button>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th scope="row">
-                                <label for="oauth_resource_group"><?php esc_html_e('Resource Group', 'azure-ai-chatbot'); ?> *</label>
-                            </th>
-                            <td>
-                                <select id="oauth_resource_group" class="regular-text" disabled>
-                                    <option value=""><?php esc_html_e('먼저 Subscription을 선택하세요', 'azure-ai-chatbot'); ?></option>
-                                    <option value="__CREATE_NEW__"><?php esc_html_e('➕ 새 Resource Group 만들기', 'azure-ai-chatbot'); ?></option>
-                                </select>
-                                <button type="button" class="button" onclick="loadResourceGroups()" style="display:none;" id="refresh-rg-btn">
-                                    <span class="dashicons dashicons-update"></span>
-                                    <?php esc_html_e('새로고침', 'azure-ai-chatbot'); ?>
-                                </button>
-                                
-                                <!-- 새 Resource Group 생성 폼 -->
-                                <div id="new-rg-form" style="display:none; margin-top:10px; padding:15px; background:#f0f6fc; border-left:4px solid #0078d4;">
-                                    <p><strong><?php esc_html_e('새 Resource Group 만들기', 'azure-ai-chatbot'); ?></strong></p>
-                                    
-                                    <p style="margin:10px 0;">
-                                        <label>
-                                            <input type="radio" name="rg_name_mode" value="auto" checked onchange="toggleRgNameInput()">
-                                            <?php esc_html_e('자동 생성 이름 사용 (권장)', 'azure-ai-chatbot'); ?>
-                                        </label>
-                                        <br>
-                                        <label>
-                                            <input type="radio" name="rg_name_mode" value="manual" onchange="toggleRgNameInput()">
-                                            <?php esc_html_e('직접 입력', 'azure-ai-chatbot'); ?>
-                                        </label>
-                                    </p>
-                                    
-                                    <div id="auto-rg-name" style="margin:10px 0;">
-                                        <input type="text" id="new_rg_name_auto" class="regular-text" 
-                                               value="" readonly 
-                                               placeholder="rg-aichatbot-prod-koreacentral"
-                                               style="background:#f5f5f5;">
-                                        <p class="description">
-                                            💡 <?php esc_html_e('Azure 명명 규칙: rg-{워크로드}-{환경}-{지역}', 'azure-ai-chatbot'); ?>
-                                        </p>
-                                    </div>
-                                    
-                                    <div id="manual-rg-name" style="margin:10px 0; display:none;">
-                                        <input type="text" id="new_rg_name_manual" class="regular-text" 
-                                               placeholder="my-resource-group"
-                                               pattern="[a-z0-9-]{3,24}">
-                                        <p class="description">
-                                            <?php esc_html_e('소문자, 숫자, 하이픈만 사용 (3-24자)', 'azure-ai-chatbot'); ?>
-                                        </p>
-                                    </div>
-                                    
-                                    <p style="margin:10px 0;">
-                                        <label for="new_rg_location"><?php esc_html_e('위치 (Region)', 'azure-ai-chatbot'); ?> *</label><br>
-                                        <select id="new_rg_location" class="regular-text">
-                                            <option value=""><?php esc_html_e('로딩 중...', 'azure-ai-chatbot'); ?></option>
-                                        </select>
-                                        <button type="button" class="button button-small" onclick="loadAvailableLocations()" style="margin-left:5px;">
-                                            <span class="dashicons dashicons-update"></span>
-                                            <?php esc_html_e('새로고침', 'azure-ai-chatbot'); ?>
-                                        </button>
-                                        <p class="description">
-                                            💡 <?php esc_html_e('AI Foundry 사용 가능 지역만 표시됩니다', 'azure-ai-chatbot'); ?>
-                                        </p>
-                                    </p>
-                                    
-                                    <p style="margin:10px 0;">
-                                        <button type="button" class="button button-primary" onclick="createResourceGroup()">
-                                            <span class="dashicons dashicons-plus"></span>
-                                            <?php esc_html_e('Resource Group 생성', 'azure-ai-chatbot'); ?>
-                                        </button>
-                                        <button type="button" class="button" onclick="cancelNewResourceGroup()">
-                                            <?php esc_html_e('취소', 'azure-ai-chatbot'); ?>
-                                        </button>
-                                    </p>
-                                </div>
-                            </td>
-                        </tr>
-                        <!-- ✅ 모드 선택은 위로 이동했으므로 이 행 제거 -->
-                        <tr>
-                            <th scope="row">
-                                <label for="oauth_resource"><?php esc_html_e('AI 리소스', 'azure-ai-chatbot'); ?> *</label>
-                            </th>
-                            <td>
-                                <select id="oauth_resource" class="regular-text" disabled>
-                                    <option value=""><?php esc_html_e('먼저 Resource Group을 선택하세요', 'azure-ai-chatbot'); ?></option>
-                                    <option value="__CREATE_NEW__"><?php esc_html_e('➕ 새 AI 리소스 만들기', 'azure-ai-chatbot'); ?></option>
-                                </select>
-                                
-                                <!-- 새 AI 리소스 생성 폼 -->
-                                <div id="new-ai-resource-form" style="display:none; margin-top:10px; padding:15px; background:#f0f6fc; border-left:4px solid #0078d4;">
-                                    <p><strong><?php esc_html_e('새 AI Foundry Project 만들기', 'azure-ai-chatbot'); ?></strong></p>
-                                    
-                                    <p style="margin:10px 0;">
-                                        <label>
-                                            <input type="radio" name="ai_name_mode" value="auto" checked onchange="toggleAiNameInput()">
-                                            <?php esc_html_e('자동 생성 이름 사용 (권장)', 'azure-ai-chatbot'); ?>
-                                        </label>
-                                        <br>
-                                        <label>
-                                            <input type="radio" name="ai_name_mode" value="manual" onchange="toggleAiNameInput()">
-                                            <?php esc_html_e('직접 입력', 'azure-ai-chatbot'); ?>
-                                        </label>
-                                    </p>
-                                    
-                                    <div id="auto-ai-name" style="margin:10px 0;">
-                                        <input type="text" id="new_ai_name_auto" class="regular-text" 
-                                               value="" readonly 
-                                               placeholder="ai-chatbot-prod"
-                                               style="background:#f5f5f5;">
-                                        <p class="description">
-                                            💡 <?php esc_html_e('Azure 명명 규칙: ai-{워크로드}-{환경}', 'azure-ai-chatbot'); ?>
-                                        </p>
-                                    </div>
-                                    
-                                    <div id="manual-ai-name" style="margin:10px 0; display:none;">
-                                        <input type="text" id="new_ai_name_manual" class="regular-text" 
-                                               placeholder="my-ai-resource"
-                                               pattern="[a-z0-9-]{3,24}">
-                                        <p class="description">
-                                            <?php esc_html_e('소문자, 숫자, 하이픈만 사용 (3-24자)', 'azure-ai-chatbot'); ?>
-                                        </p>
-                                    </div>
-                                    
-                                    <p style="margin:10px 0;">
-                                        <label for="new_ai_sku"><?php esc_html_e('가격 계층 (SKU)', 'azure-ai-chatbot'); ?> *</label><br>
-                                        <select id="new_ai_sku" class="regular-text">
-                                            <option value="S0">S0 - Standard (프로덕션 권장)</option>
-                                            <option value="F0">F0 - Free (테스트용, 제한적)</option>
-                                        </select>
-                                    </p>
-                                    
-                                    <p style="margin:10px 0;" id="ai-location-container">
-                                        <label for="new_ai_location"><?php esc_html_e('위치 (Region)', 'azure-ai-chatbot'); ?></label><br>
-                                        <input type="text" id="new_ai_location" class="regular-text" readonly 
-                                               value="" 
-                                               style="background:#f5f5f5;">
-                                        <span class="description">
-                                            <?php esc_html_e('(Resource Group과 동일한 위치 사용)', 'azure-ai-chatbot'); ?>
-                                        </span>
-                                    </p>
-                                    
-                                    <!-- Chat 모드 전용: 모델 선택 -->
-                                    <div id="chat-model-selection" style="display:none;">
-                                        <p style="margin:10px 0;">
-                                            <label for="new_ai_model"><?php esc_html_e('배포할 모델', 'azure-ai-chatbot'); ?> *</label><br>
-                                            <select id="new_ai_model" class="regular-text">
-                                                <option value=""><?php esc_html_e('지역을 선택하면 사용 가능한 모델이 표시됩니다', 'azure-ai-chatbot'); ?></option>
-                                            </select>
-                                            <button type="button" class="button button-small" onclick="loadAvailableModels()" style="margin-left:5px;">
-                                                <span class="dashicons dashicons-update"></span>
-                                            </button>
-                                        </p>
-                                        
-                                        <p style="margin:10px 0;">
-                                            <label for="new_ai_deployment_name"><?php esc_html_e('배포 이름 (Deployment Name)', 'azure-ai-chatbot'); ?></label><br>
-                                            <input type="text" id="new_ai_deployment_name" class="regular-text" 
-                                                   value="" readonly 
-                                                   style="background:#f5f5f5;">
-                                            <p class="description">
-                                                💡 <?php esc_html_e('자동 생성: {model-name}-deployment', 'azure-ai-chatbot'); ?>
-                                            </p>
-                                        </p>
-                                        
-                                        <p style="margin:10px 0;">
-                                            <label for="new_ai_capacity"><?php esc_html_e('용량 (Capacity)', 'azure-ai-chatbot'); ?></label><br>
-                                            <select id="new_ai_capacity" class="regular-text">
-                                                <option value="10">10K TPM (테스트용)</option>
-                                                <option value="30" selected>30K TPM (권장)</option>
-                                                <option value="50">50K TPM</option>
-                                                <option value="100">100K TPM</option>
-                                                <option value="240">240K TPM (최대)</option>
-                                            </select>
-                                            <p class="description">
-                                                TPM = Tokens Per Minute (분당 토큰 수)
-                                            </p>
-                                        </p>
-                                    </div>
-                                    
-                                    <p style="margin:10px 0;">
-                                        <button type="button" class="button button-primary" onclick="createAIResource()">
-                                            <span class="dashicons dashicons-plus"></span>
-                                            <span id="create-ai-btn-text"><?php esc_html_e('AI Foundry Project 생성', 'azure-ai-chatbot'); ?></span>
-                                        </button>
-                                        <button type="button" class="button" onclick="cancelNewAIResource()">
-                                            <?php esc_html_e('취소', 'azure-ai-chatbot'); ?>
-                                        </button>
-                                    </p>
-                                    
-                                    <p class="description" style="margin-top:10px; font-size:12px; color:#666;">
-                                        ⏱️ <span id="creation-time-estimate"><?php esc_html_e('리소스 생성은 1-2분 정도 소요됩니다.', 'azure-ai-chatbot'); ?></span>
-                                    </p>
-                                </div>
-                            </td>
-                        </tr>
-                        
-                        <!-- Agent 모드 전용: Agent 선택 -->
-                        <tr id="agent_selection_row" style="display: none;">
-                            <th scope="row">
-                                <label for="oauth_agent"><?php esc_html_e('Agent', 'azure-ai-chatbot'); ?> *</label>
-                            </th>
-                            <td>
-                                <select id="oauth_agent" class="regular-text" disabled>
-                                    <option value=""><?php esc_html_e('먼저 리소스를 선택하세요', 'azure-ai-chatbot'); ?></option>
-                                </select>
-                                <p class="description">
-                                    <?php esc_html_e('AI Foundry Project에서 생성된 Agent를 선택하세요.', 'azure-ai-chatbot'); ?>
-                                </p>
-                            </td>
-                        </tr>
-                    </table>
-                    
-                    <p class="submit">
-                        <button type="button" 
-                                class="button button-primary" 
-                                id="btn-fetch-keys" 
-                                onclick="fetchKeys()" 
-                                disabled>
-                            <?php esc_html_e('값 자동 추출', 'azure-ai-chatbot'); ?>
-                        </button>
-                        <button type="button" 
-                                class="button" 
-                                onclick="clearOAuthSession()">
-                            <?php esc_html_e('인증 초기화', 'azure-ai-chatbot'); ?>
-                        </button>
-                    </p>
-                </div>
-            <?php endif; ?>
-            
-            <!-- OAuth 설정 재구성 -->
-            <p style="margin-top: 20px;">
-                <button type="button" id="reset-oauth-button" class="button">
-                    <span class="dashicons dashicons-admin-generic" style="margin-top: 3px;"></span>
-                    <?php esc_html_e('OAuth 설정 변경', 'azure-ai-chatbot'); ?>
-                </button>
-                <span class="description" style="margin-left: 10px;">
-                    <?php esc_html_e('Client ID, Secret, Tenant ID를 변경하려면 클릭하세요', 'azure-ai-chatbot'); ?>
-                </span>
-            </p>
-            
-            <script type="text/javascript">
-            (function($) {
-                console.log('Script loaded, looking for button...');
-                var button = $('#reset-oauth-button');
-                console.log('Button found:', button.length);
-                
-                $('#reset-oauth-button').on('click', function(e) {
-                    e.preventDefault();
-                    console.log('Reset OAuth button clicked!');
-                    
-                    if (!confirm('<?php esc_html_e('OAuth 설정을 초기화하시겠습니까? 저장된 Client ID, Client Secret, Tenant ID가 모두 삭제됩니다.', 'azure-ai-chatbot'); ?>')) {
-                        console.log('User cancelled');
-                        return false;
-                    }
-                    
-                    var btn = $(this);
-                    var originalHtml = btn.html();
-                    btn.prop('disabled', true).html('<span class="dashicons dashicons-update" style="animation: rotation 2s infinite linear;"></span> <?php esc_html_e('초기화 중...', 'azure-ai-chatbot'); ?>');
-                    
-                    $.post(ajaxurl, {
-                        action: 'azure_oauth_reset_config',
-                        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>'
-                    })
-                    .done(function(response) {
-                        console.log('Response:', response);
-                        if (response.success) {
-                            var resetSuccessMsg = <?php echo json_encode(__('OAuth 설정이 초기화되었습니다. 페이지를 새로고침합니다.', 'azure-ai-chatbot')); ?>;
-                            alert(resetSuccessMsg);
-                            location.reload();
-                        } else {
-                            var resetFailMsg = <?php echo json_encode(__('초기화 실패:', 'azure-ai-chatbot')); ?>;
-                            var unknownErrorMsg = <?php echo json_encode(__('알 수 없는 오류', 'azure-ai-chatbot')); ?>;
-                            alert(resetFailMsg + ' ' + (response.data && response.data.message ? response.data.message : unknownErrorMsg));
-                            btn.prop('disabled', false).html(originalHtml);
-                        }
-                    })
-                    .fail(function(xhr, status, error) {
-                        console.error('AJAX Error:', xhr, status, error);
-                        alert('<?php esc_html_e('AJAX 오류:', 'azure-ai-chatbot'); ?> ' + error);
-                        btn.prop('disabled', false).html(originalHtml);
-                    });
-                    
-                    return false;
-                });
-            })(jQuery);
-            </script>
-            
-        <?php endif; ?>
-    </div>
+		<?php if (isset($_GET['oauth_error'])): ?>
+			<div class="notice notice-error is-dismissible">
+				<p><?php echo esc_html__('인증 실패: ', 'azure-ai-chatbot') . esc_html(get_transient('azure_oauth_error') ?: __('알 수 없는 오류', 'azure-ai-chatbot')); ?></p>
+			</div>
+			<?php delete_transient('azure_oauth_error'); ?>
+		<?php endif; ?>
+
+		<?php if (!$is_configured): ?>
+			<div class="notice notice-warning inline" style="margin-bottom: 20px;">
+				<p>
+					<strong><?php esc_html_e('OAuth 자격 증명이 필요합니다.', 'azure-ai-chatbot'); ?></strong><br>
+					<?php esc_html_e('Azure Portal에서 App Registration을 생성하거나 제공된 스크립트로 자동 설정을 완료하세요.', 'azure-ai-chatbot'); ?>
+				</p>
+			</div>
+			<div style="background: #f0f6fc; border-left: 4px solid #2563eb; padding: 15px; border-radius: 4px;">
+				<h3 style="margin-top: 0;">
+					<span class="dashicons dashicons-info"></span>
+					<?php esc_html_e('빠른 시작', 'azure-ai-chatbot'); ?>
+				</h3>
+				<?php
+				$site_url      = get_site_url();
+				$redirect_uri  = admin_url('admin.php?page=azure-ai-chatbot&azure_callback=1');
+				$shell_command = "bash <(curl -s https://raw.githubusercontent.com/asomi7007/azure-ai-chatbot-wordpress/main/scripts/setup-oauth-app.sh) " . esc_url($site_url);
+				?>
+				<ol style="margin-left: 20px;">
+					<li><?php esc_html_e('Azure Cloud Shell을 연 뒤 아래 명령을 실행하세요.', 'azure-ai-chatbot'); ?></li>
+					<li>
+						<code style="display:block; background:#111827; color:#f8fafc; padding:10px; border-radius:4px;">
+							<?php echo esc_html($shell_command); ?>
+						</code>
+					</li>
+					<li><?php esc_html_e('생성된 Client ID / Client Secret / Tenant ID를 입력하고 저장합니다.', 'azure-ai-chatbot'); ?></li>
+					<li>
+						<?php esc_html_e('Redirect URI', 'azure-ai-chatbot'); ?>:
+						<code><?php echo esc_html($redirect_uri); ?></code>
+					</li>
+				</ol>
+				<p class="description" style="margin-top:10px;">
+					📘 <a href="<?php echo esc_url(AZURE_CHATBOT_PLUGIN_URL . 'docs/AZURE_AUTO_SETUP.md'); ?>" target="_blank">
+						<?php esc_html_e('상세 가이드 보기', 'azure-ai-chatbot'); ?>
+					</a>
+				</p>
+			</div>
+		<?php else: ?>
+			<?php if (!$has_token): ?>
+				<div class="oauth-step" style="margin:30px 0;">
+					<h3>1. <?php esc_html_e('Azure 자동 설정 시작', 'azure-ai-chatbot'); ?></h3>
+					<p><?php esc_html_e('버튼을 누르면 중앙에 OAuth 팝업이 열리고 인증이 끝나면 자동으로 닫힙니다.', 'azure-ai-chatbot'); ?></p>
+					<p class="description" style="margin-bottom:12px;">
+						<?php esc_html_e('브라우저 팝업 차단이 켜져 있다면 허용해 주세요. 창이 닫힌 뒤에는 이 화면이 자동으로 새로고침됩니다.', 'azure-ai-chatbot'); ?>
+					</p>
+					<p>
+						<a href="<?php echo esc_url($oauth->get_authorization_url()); ?>"
+						   class="button button-primary button-hero"
+						   onclick="return openOAuthPopup(this.href);">
+							<span class="dashicons dashicons-controls-play" style="margin-top:4px;"></span>
+							<?php esc_html_e('Azure 자동 설정 시작', 'azure-ai-chatbot'); ?>
+						</a>
+					</p>
+				</div>
+			<?php endif; ?>
+
+			<div class="oauth-step cascade-step" <?php if (!$has_token) echo 'style="opacity:0.4; pointer-events:none;"'; ?>>
+				<h3>2. <?php esc_html_e('드롭다운으로 리소스 연결', 'azure-ai-chatbot'); ?></h3>
+				<p class="description" style="margin-bottom: 20px;">
+					<?php esc_html_e('아래 순서대로 값을 선택하면 Chat/Agent 설정이 자동으로 채워집니다.', 'azure-ai-chatbot'); ?>
+				</p>
+				<div class="cascade-actions">
+					<button type="button" class="button" id="reset-oauth-session" <?php if (!$has_token) echo 'disabled'; ?>>
+						<span class="dashicons dashicons-image-rotate" style="margin-top:3px;"></span>
+						<?php esc_html_e('인증 초기화', 'azure-ai-chatbot'); ?>
+					</button>
+					<button type="button" class="button button-secondary" id="reset-oauth-config" <?php if (!$is_configured) echo 'disabled'; ?>>
+						<span class="dashicons dashicons-trash" style="margin-top:3px;"></span>
+						<?php esc_html_e('OAuth 설정 완전 초기화', 'azure-ai-chatbot'); ?>
+					</button>
+					<span class="description">
+						<?php esc_html_e('인증 문제 시: "인증 초기화" | OAuth 재설정 시: "OAuth 설정 완전 초기화"', 'azure-ai-chatbot'); ?>
+					</span>
+				</div>
+
+				<div class="azure-cascade-grid">
+					<div class="azure-cascade-card">
+						<h4>① <?php esc_html_e('Subscription', 'azure-ai-chatbot'); ?></h4>
+						<select id="oauth_subscription" class="widefat" <?php if (!$has_token) echo 'disabled'; ?>>
+							<option value=""><?php esc_html_e('OAuth 인증 후 사용할 수 있습니다.', 'azure-ai-chatbot'); ?></option>
+						</select>
+						<button type="button" class="button" id="refresh-subscriptions" style="margin-top:10px;">
+							<span class="dashicons dashicons-update"></span>
+							<?php esc_html_e('새로고침', 'azure-ai-chatbot'); ?>
+						</button>
+					</div>
+
+					<div class="azure-cascade-card">
+						<h4>② <?php esc_html_e('Azure Resource Group', 'azure-ai-chatbot'); ?></h4>
+						<select id="oauth_resource_group" class="widefat" disabled>
+							<option value=""><?php esc_html_e('먼저 Subscription을 선택하세요.', 'azure-ai-chatbot'); ?></option>
+						</select>
+					</div>
+
+					<div class="azure-cascade-card">
+						<h4>③ <?php esc_html_e('AI Foundry 프로젝트', 'azure-ai-chatbot'); ?></h4>
+						<select id="foundry_project" class="widefat" disabled>
+							<option value=""><?php esc_html_e('Resource Group을 먼저 선택하세요.', 'azure-ai-chatbot'); ?></option>
+						</select>
+						<p class="description" style="margin-top:8px;">
+							<?php esc_html_e('Azure OpenAI 또는 AI Foundry 리소스가 자동으로 필터링됩니다.', 'azure-ai-chatbot'); ?>
+						</p>
+					</div>
+
+					<div class="azure-cascade-card" id="chat-deployment-card">
+						<h4>④ <?php esc_html_e('모델 배포 선택 (Chat)', 'azure-ai-chatbot'); ?></h4>
+						<select id="chat_deployment" class="widefat" disabled>
+							<option value=""><?php esc_html_e('프로젝트를 선택하면 배포 목록이 표시됩니다.', 'azure-ai-chatbot'); ?></option>
+						</select>
+						<p class="description" style="margin-top:8px;">
+							<?php esc_html_e('선택 시 Endpoint / API Key가 자동 저장됩니다.', 'azure-ai-chatbot'); ?>
+						</p>
+					</div>
+
+					<div class="azure-cascade-card" id="agent-card">
+						<h4>④ <?php esc_html_e('Agent 선택 (Agent 모드)', 'azure-ai-chatbot'); ?></h4>
+						<select id="agent_selector" class="widefat" disabled>
+							<option value=""><?php esc_html_e('AI Foundry 프로젝트를 선택하면 Agent 목록이 표시됩니다.', 'azure-ai-chatbot'); ?></option>
+						</select>
+						<p class="description" style="margin-top:8px;">
+							<?php esc_html_e('선택한 Agent의 Endpoint / ID가 자동 저장됩니다.', 'azure-ai-chatbot'); ?>
+						</p>
+					</div>
+				</div>
+
+				<div class="auto-setup-status">
+					<div id="auto-setup-summary" data-status="idle">
+						<strong><?php esc_html_e('상태: 대기 중', 'azure-ai-chatbot'); ?></strong>
+						<p><?php esc_html_e('드롭다운을 순서대로 선택하면 진행 상황이 여기에 표시됩니다.', 'azure-ai-chatbot'); ?></p>
+					</div>
+					<pre id="auto-setup-log" class="auto-setup-log">[Log] Ready.</pre>
+				</div>
+			</div>
+		<?php endif; ?>
+	</div>
 </div>
 
 <style>
-.azure-oauth-section .inside {
-    padding: 20px;
-}
-.oauth-step {
-    background: #f9f9f9;
-    border-left: 4px solid #2271b1;
-    padding: 15px;
-    margin: 15px 0;
-}
-.oauth-step h3 {
-    margin-top: 0;
-}
+	.azure-cascade-grid {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 16px;
+	}
+	.azure-cascade-card {
+		flex: 1 1 260px;
+		background: #fff;
+		border: 1px solid #dcdcde;
+		border-radius: 6px;
+		padding: 16px;
+		box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+	}
+	.cascade-actions {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		margin: 0 0 16px;
+	}
+	.cascade-actions .description {
+		margin: 0;
+		color: #555;
+	}
+	.azure-cascade-card h4 {
+		margin: 0 0 10px;
+		font-size: 14px;
+		color: #111;
+	}
+	.auto-setup-status {
+		margin-top: 24px;
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+		gap: 16px;
+	}
+	#auto-setup-summary {
+		border-left: 4px solid #2271b1;
+		padding: 14px;
+		background: #f8fbff;
+		border-radius: 4px;
+		min-height: 96px;
+	}
+	#auto-setup-summary[data-status="success"] {
+		border-color: #22c55e;
+		background: #f0fdf4;
+	}
+	#auto-setup-summary[data-status="error"] {
+		border-color: #ef4444;
+		background: #fef2f2;
+	}
+	.auto-setup-log {
+		background: #0f172a;
+		color: #e2e8f0;
+		padding: 14px;
+		border-radius: 4px;
+		min-height: 120px;
+		max-height: 220px;
+		overflow-y: auto;
+		font-family: Consolas, Monaco, monospace;
+		font-size: 12px;
+	}
+	.auto-setup-log::-webkit-scrollbar {
+		width: 6px;
+	}
+	.auto-setup-log::-webkit-scrollbar-thumb {
+		background: rgba(148, 163, 184, 0.6);
+		border-radius: 3px;
+	}
+	@keyframes rotation {
+		from { transform: rotate(0deg); }
+		to { transform: rotate(360deg); }
+	}
 </style>
 
 <script>
-// localStorage에서 토큰 저장 플래그 확인
-var hasTokenFromStorage = false;
-try {
-    var tokenSaved = localStorage.getItem('azure_oauth_token_saved');
-    var tokenSavedTime = localStorage.getItem('azure_oauth_token_saved_time');
-    if (tokenSaved === '1' && tokenSavedTime) {
-        // 5분 이내에 저장된 토큰만 유효
-        var timeDiff = Date.now() - parseInt(tokenSavedTime);
-        if (timeDiff < 5 * 60 * 1000) {
-            hasTokenFromStorage = true;
-            console.log('[Auto Setup] Token found in localStorage (age: ' + Math.floor(timeDiff / 1000) + 's)');
-        } else {
-            console.log('[Auto Setup] Token in localStorage expired, clearing');
-            localStorage.removeItem('azure_oauth_token_saved');
-            localStorage.removeItem('azure_oauth_token_saved_time');
-        }
-    }
-} catch(e) {
-    console.warn('[Auto Setup] Cannot access localStorage:', e);
-}
-
-// 자동 설정 모드 플래그
-var autoSetupMode = <?php 
-    // 세션 토큰 또는 localStorage 토큰 존재 확인
-    $token_exists = $has_token || (isset($_GET['has_token']) && $_GET['has_token'] === '1');
-    echo isset($_GET['oauth_success']) && $token_exists ? 'true' : 'false'; 
-?>;
-
-// localStorage에서 토큰 발견 시 자동 설정 모드 활성화
-if (!autoSetupMode && hasTokenFromStorage && window.location.search.indexOf('oauth_success=1') !== -1) {
-    console.log('[Auto Setup] Activating auto mode from localStorage token');
-    autoSetupMode = true;
-}
-
-// ✅ 리소스 정보 캐시 (Chat + Agent 동시 조회)
-var resourceInfoCache = {
-    chat: null,      // Chat 정보 캐시
-    agent: null,     // Agent 정보 캐시
-    resourceId: null // 마지막 조회한 리소스 ID
-};
-
-console.log('[Cache] Resource info cache initialized');
-
-// ✅ OAuth 자동 설정 중에는 localStorage를 최우선으로 사용
-var operationMode = 'chat'; // 기본값
-var dbMode = '<?php
-    $settings = get_option('azure_chatbot_settings', array());
-    echo esc_js(isset($settings['mode']) ? $settings['mode'] : 'chat');
-?>';
-
-// OAuth 리디렉션 후 localStorage에서 operationMode를 읽어옴 (자동 설정 중 최우선)
-try {
-    var savedMode = localStorage.getItem('azure_oauth_operation_mode');
-    if (savedMode && (savedMode === 'chat' || savedMode === 'agent')) {
-        operationMode = savedMode;
-        console.log('[Auto Setup] ✅ Operation mode loaded from localStorage:', operationMode);
-        // ⚠️ 자동 설정 완료 전까지 localStorage 유지 (삭제하지 않음)
-    } else {
-        // localStorage에 값이 없으면 DB 값 사용
-        operationMode = dbMode;
-        console.log('[Auto Setup] Operation mode loaded from DB:', operationMode);
-    }
-} catch(e) {
-    console.warn('[Auto Setup] Cannot access localStorage for operationMode, using DB value:', e);
-    operationMode = dbMode;
-}
-
-console.log('[Auto Setup] Auto mode:', autoSetupMode);
-console.log('[Auto Setup] Operation mode:', operationMode);
-console.log('[Auto Setup] Has token from storage:', hasTokenFromStorage);
-
-// 페이지 로드 시 저장된 설정 복원 함수
-function loadSavedSettings() {
-    console.log('[Auto Setup] loadSavedSettings() called');
-    
-    <?php
-    $saved_settings = get_option('azure_chatbot_settings', array());
-    if (!empty($saved_settings)):
-    ?>
-    var savedSettings = <?php echo json_encode($saved_settings); ?>;
-    console.log('[Auto Setup] Found saved settings:', savedSettings);
-    
-    // Chat 모드 설정 복원
-    if (savedSettings.chat_endpoint || savedSettings.deployment_name) {
-        console.log('[Auto Setup] Restoring Chat mode settings');
-        // UI에 표시할 정보 준비 (드롭다운 선택은 리소스 로드 후 자동 선택됨)
-    }
-    
-    // Agent 모드 설정 복원
-    if (savedSettings.agent_endpoint || savedSettings.agent_id) {
-        console.log('[Auto Setup] Restoring Agent mode settings');
-        // UI에 표시할 정보 준비
-    }
-    
-    // 알림 메시지 표시
-    if (savedSettings.mode) {
-        var modeText = savedSettings.mode === 'chat' ? 'Chat' : 'Agent';
-        jQuery('#wpbody-content').prepend(
-            '<div class="notice notice-info is-dismissible" style="margin-top: 10px;">' +
-            '<p>📌 <strong><?php echo esc_html__('이전 설정이 감지되었습니다', 'azure-ai-chatbot'); ?>:</strong> ' +
-            modeText + ' <?php echo esc_html__('모드로 마지막 설정이 저장되어 있습니다.', 'azure-ai-chatbot'); ?>' +
-            '</p></div>'
-        );
-    }
-    <?php endif; ?>
-}
-
-function openOAuthPopup(url) {
-    console.log('[Auto Setup] ========================================');
-    console.log('[Auto Setup] OAUTH BUTTON CLICKED - Starting OAuth');
-    console.log('[Auto Setup] ========================================');
-
-    // 팝업을 열기 전에 현재 선택된 operationMode를 storage에 저장
-    try {
-        // ✅ DEBUG: 모든 라디오 버튼 상태 확인
-        var allRadios = jQuery('input[name="oauth_mode"]');
-        console.log('[DEBUG] Step 1: Checking all radio buttons in DOM');
-        console.log('[DEBUG] Total radio buttons found:', allRadios.length);
-
-        if (allRadios.length === 0) {
-            console.error('[DEBUG] ❌ ERROR: No radio buttons found in DOM!');
-            console.error('[DEBUG] This means user has not authenticated yet or page structure is wrong');
-        } else {
-            allRadios.each(function(index) {
-                console.log('[DEBUG] Radio', index, ':', {
-                    value: jQuery(this).val(),
-                    checked: jQuery(this).prop('checked'),
-                    visible: jQuery(this).is(':visible'),
-                    id: jQuery(this).attr('id') || 'no-id',
-                    name: jQuery(this).attr('name')
-                });
-            });
-        }
-
-        console.log('[DEBUG] Step 2: Determining mode to save');
-        console.log('[DEBUG] - Global operationMode variable:', operationMode);
-
-        var checkedRadio = jQuery('input[name="oauth_mode"]:checked');
-        var radioValue = checkedRadio.val();
-        console.log('[DEBUG] - Checked radio button value:', radioValue);
-
-        // 우선순위: 체크된 라디오 버튼 > 전역 변수 > 'chat' 기본값
-        var selectedMode = radioValue || operationMode || 'chat';
-        console.log('[DEBUG] - Final selected mode:', selectedMode);
-
-        console.log('[DEBUG] Step 3: Saving to storage');
-        localStorage.setItem('azure_oauth_operation_mode', selectedMode);
-        sessionStorage.setItem('azure_oauth_operation_mode', selectedMode);
-
-        // 확인
-        var savedLocalStorage = localStorage.getItem('azure_oauth_operation_mode');
-        var savedSessionStorage = sessionStorage.getItem('azure_oauth_operation_mode');
-        console.log('[DEBUG] ✅ Verification:');
-        console.log('[DEBUG]    localStorage now contains:', savedLocalStorage);
-        console.log('[DEBUG]    sessionStorage now contains:', savedSessionStorage);
-
-        if (savedLocalStorage !== selectedMode) {
-            console.error('[DEBUG] ❌ ERROR: localStorage save failed! Expected:', selectedMode, 'Got:', savedLocalStorage);
-        } else {
-            console.log('[Auto Setup] ✅ Mode saved successfully before OAuth:', selectedMode);
-        }
-    } catch(e) {
-        console.error('[Auto Setup] ❌ Exception while saving mode to storage:', e);
-        console.error('[Auto Setup] Stack trace:', e.stack);
-    }
-
-    // OAuth 인증 정보는 유지하고 팝업만 열기 (설정 초기화 X)
-    console.log('[Auto Setup] Opening OAuth popup window...');
-    openPopupWindow(url);
-
-    return false; // 기본 링크 동작 방지
-}
-
-// 팝업 창 열기 함수 분리
-function openPopupWindow(url) {
-    var width = 600;
-    var height = 700;
-    var left = (screen.width - width) / 2;
-    var top = (screen.height - height) / 2;
-    
-    window.open(
-        url,
-        'AzureOAuth',
-        'width=' + width + ',height=' + height + ',top=' + top + ',left=' + left + ',toolbar=no,menubar=no,scrollbars=yes,resizable=yes'
-    );
-}
-
-function copyToClipboard(elementId, successMessage) {
-    var textToCopy = document.getElementById(elementId).textContent;
-    if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(textToCopy).then(function() {
-            alert(successMessage);
-        }).catch(function(err) {
-            console.error('Clipboard write failed: ', err);
-            // Fallback for older browsers
-            var textArea = document.createElement("textarea");
-            textArea.value = textToCopy;
-            document.body.appendChild(textArea);
-            textArea.focus();
-            textArea.select();
-            try {
-                document.execCommand('copy');
-                alert(successMessage);
-            } catch (e) {
-                console.error('Fallback copy failed: ', e);
-                alert('<?php esc_html_e('복사에 실패했습니다.', 'azure-ai-chatbot'); ?>');
-            }
-            document.body.removeChild(textArea);
-        });
-    } else {
-        // Fallback for non-secure contexts or old browsers
-        var textArea = document.createElement("textarea");
-        textArea.value = textToCopy;
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        try {
-            document.execCommand('copy');
-            alert(successMessage);
-        } catch (e) {
-            console.error('Fallback copy failed: ', e);
-            alert('<?php esc_html_e('복사에 실패했습니다.', 'azure-ai-chatbot'); ?>');
-        }
-        document.body.removeChild(textArea);
-    }
-}
-
-function copyOAuthCommandBash() {
-    copyToClipboard('oauth-setup-command-bash', '<?php esc_html_e('Bash 명령어가 클립보드에 복사되었습니다!', 'azure-ai-chatbot'); ?>');
-}
-
-function copyOAuthCommandPwsh() {
-    copyToClipboard('oauth-setup-command-pwsh', '<?php esc_html_e('PowerShell 명령어가 클립보드에 복사되었습니다!', 'azure-ai-chatbot'); ?>');
-}
-
-function copyRedirectUri() {
-    copyToClipboard('redirect-uri', '<?php esc_html_e('Redirect URI가 클립보드에 복사되었습니다!', 'azure-ai-chatbot'); ?>');
-}
-
-// 하위 호환성을 위해 유지
-function copyOAuthCommand() {
-    copyOAuthCommandBash();
-}
-
-jQuery(document).ready(function($) {
-    // ========== 페이지 로드 시 저장된 설정 복원 ==========
-    console.log('[Auto Setup] ========================================');
-    console.log('[Auto Setup] Page loaded - Checking for saved settings');
-    console.log('[Auto Setup] ========================================');
-
-    // ✅ DEBUG: DOM에 라디오 버튼이 존재하는지 먼저 확인
-    var allRadioButtons = $('input[name="oauth_mode"]');
-    console.log('[DEBUG] Total radio buttons in DOM:', allRadioButtons.length);
-
-    if (allRadioButtons.length > 0) {
-        allRadioButtons.each(function(index) {
-            console.log('[DEBUG] Radio', index, ':', {
-                value: $(this).val(),
-                checked: $(this).prop('checked'),
-                visible: $(this).is(':visible'),
-                disabled: $(this).prop('disabled')
-            });
-        });
-    } else {
-        console.warn('[DEBUG] ⚠️ No radio buttons found! User must authenticate first.');
-    }
-
-    // ✅ 페이지 로드 시 operationMode에 따라 UI 초기화
-    console.log('[DEBUG] DB mode value:', dbMode);
-    console.log('[DEBUG] localStorage value:', localStorage.getItem('azure_oauth_operation_mode'));
-    console.log('[DEBUG] Current operationMode variable:', operationMode);
-
-    if (allRadioButtons.length > 0) {
-        // 라디오 버튼이 있을 때만 설정
-        $('input[name="oauth_mode"][value="' + operationMode + '"]').prop('checked', true);
-
-        // 설정 후 확인
-        var checkedValue = $('input[name="oauth_mode"]:checked').val();
-        if (checkedValue) {
-            console.log('[DEBUG] ✅ Radio button successfully set to:', checkedValue);
-        } else {
-            console.error('[DEBUG] ❌ Failed to set radio button! Selector returned undefined');
-            console.log('[DEBUG] Attempted to set value:', operationMode);
-        }
-    }
-    
-    // Agent 모드면 Agent 선택 행 표시
-    if (operationMode === 'agent') {
-        $('#agent_selection_row').show();
-        console.log('[Auto Setup] Agent mode UI initialized');
-    } else {
-        $('#agent_selection_row').hide();
-        $('#oauth_agent').val('').prop('disabled', true);
-        console.log('[Auto Setup] Chat mode UI initialized');
-    }
-    
-    // 인증 성공 시 자동으로 Subscription 로드
-    <?php if ($has_token): ?>
-    loadSubscriptions();
-    
-    // 저장된 설정 값 복원 (비동기)
-    loadSavedSettings();
-    <?php endif; ?>
-    
-    // Subscription 변경 시 Resource Group 로드
-    $('#oauth_subscription').on('change', function() {
-        loadResourceGroups();
-    });
-    
-    // Resource Group 변경 시 리소스 로드 및 새 리소스 그룹 폼 처리
-    $('#oauth_resource_group').on('change', function() {
-        var value = $(this).val();
-        if (value === '__CREATE_NEW__') {
-            $('#new-rg-form').slideDown(300);
-            // 위치 정보가 로드되지 않았으면 로드
-            if ($('#new_rg_location option').length <= 1) {
-                loadAvailableLocations();
-            } else {
-                generateResourceGroupName();
-            }
-        } else {
-            $('#new-rg-form').slideUp(300);
-            if (value) {
-                var selectedOption = $(this).find('option:selected');
-                var location = selectedOption.text().match(/\(([^)]+)\)/);
-                if (location && location[1]) {
-                    $('#new_ai_location').val(location[1]);
-                }
-            }
-            loadResources();
-        }
-    });
-
-    // AI 리소스 선택 시 새 리소스 폼 처리
-    $('#oauth_resource').on('change', function() {
-        var value = $(this).val();
-        if (value === '__CREATE_NEW__') {
-            $('#new-ai-resource-form').slideDown(300);
-            generateAIResourceName();
-            
-            var rgLocation = $('#new_ai_location').val();
-            if (!rgLocation) {
-                var selectedRg = $('#oauth_resource_group option:selected');
-                var location = selectedRg.text().match(/\(([^)]+)\)/);
-                 if (location && location[1]) {
-                    $('#new_ai_location').val(location[1]);
-                }
-            }
-        } else {
-            $('#new-ai-resource-form').slideUp(300);
-        }
-        
-        // ✅ 듀얼 모드: Chat + Agent 정보 동시 조회
-        if (value && value !== '__CREATE_NEW__') {
-            console.log('[Dual Mode] ========================================');
-            console.log('[Dual Mode] Resource selected, fetching BOTH Chat + Agent info');
-            console.log('[Dual Mode] Resource ID:', value);
-            console.log('[Dual Mode] ========================================');
-
-            // 캐시 초기화
-            resourceInfoCache.resourceId = value;
-            resourceInfoCache.chat = null;
-            resourceInfoCache.agent = null;
-
-            // Chat + Agent 정보 동시 조회
-            fetchDualModeInfo(value);
-        }
-
-        updateFetchButton();
-    });
-    
-    // 모드 변경 시 캐시된 데이터 사용 (재조회 없음)
-    $('input[name="oauth_mode"]').on('change', function() {
-        var mode = $(this).val();
-        var previousMode = operationMode;
-
-        console.log('[Auto Setup] ========================================');
-        console.log('[Auto Setup] MODE CHANGE EVENT TRIGGERED');
-        console.log('[Auto Setup] ========================================');
-        console.log('[DEBUG] Previous mode:', previousMode);
-        console.log('[DEBUG] New mode:', mode);
-        console.log('[DEBUG] Radio button that triggered change:', {
-            value: this.value,
-            checked: this.checked,
-            name: this.name
-        });
-
-        // 전역 모드 값 갱신 및 서버에 저장
-        operationMode = mode;
-
-        // ✅ 캐시 확인 및 사용
-        if (mode === 'agent') {
-            console.log('[Cache] Checking for cached Agent info...');
-            if (resourceInfoCache.agent && resourceInfoCache.agent.agents) {
-                console.log('[Cache] ✅ Using cached Agent data:', resourceInfoCache.agent.agents.length, 'agents');
-                updateAgentDropdown(resourceInfoCache.agent.agents);
-            } else if (resourceInfoCache.resourceId) {
-                console.log('[Cache] ⚠️ No cached Agent data, but resource selected. Fetching...');
-                fetchAgentInfo(resourceInfoCache.resourceId).done(function() {
-                    if (resourceInfoCache.agent && resourceInfoCache.agent.agents) {
-                        updateAgentDropdown(resourceInfoCache.agent.agents);
-                    }
-                });
-            } else {
-                console.log('[Cache] ℹ️ No resource selected yet');
-            }
-        } else {
-            console.log('[Cache] Chat mode - no Agent dropdown needed');
-        }
-        try {
-            localStorage.setItem('azure_oauth_operation_mode', operationMode);
-            sessionStorage.setItem('azure_oauth_operation_mode', operationMode);
-            console.log('[Auto Setup] Operation mode persisted to storage:', operationMode);
-        } catch (storageError) {
-            console.warn('[Auto Setup] Failed to persist operation mode:', storageError);
-        }
-        if (previousMode !== mode) {
-            $.post(ajaxurl, {
-                action: 'azure_oauth_set_operation_mode',
-                nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-                mode: mode
-            }, function(response) {
-                if (response && response.success) {
-                    console.log('[Auto Setup] Operation mode 저장 완료:', response.data.mode);
-                } else {
-                    console.warn('[Auto Setup] Operation mode 저장 실패:', response);
-                }
-            }).fail(function(xhr, status, error) {
-                console.error('[Auto Setup] Operation mode 저장 AJAX 실패:', { status: status, error: error });
-            });
-        }
-        
-        if (mode === 'agent') {
-            $('#agent_selection_row').show();
-        } else {
-            $('#agent_selection_row').hide();
-            $('#oauth_agent').val('').prop('disabled', true);
-        }
-        
-        if ($('#oauth_resource_group').val() && $('#oauth_resource_group').val() !== '__CREATE_NEW__') {
-            loadResources();
-        }
-        
-        if ($('#new-ai-resource-form').is(':visible')) {
-            generateAIResourceName();
-        }
-    });
-    
-    // Agent 선택 시 버튼 활성화
-    $('#oauth_agent').on('change', function() {
-        updateFetchButton();
-    });
-
-    // Location 변경 시 Resource Group 이름 재생성
-    $('#new_rg_location').on('change', function() {
-        if ($('input[name="rg_name_mode"]:checked').val() === 'auto') {
-            generateResourceGroupName();
-        }
-    });
-
-    // 모델 선택 시 배포 이름 자동 생성
-    $('#new_ai_model').on('change', function() {
-        var modelName = $(this).val();
-        if (modelName) {
-            var deploymentName = modelName.replace(/[^a-zA-Z0-9]/g, '-') + '-deployment';
-            $('#new_ai_deployment_name').val(deploymentName);
-        }
-    });
-
-    // 초기 모드 상태 반영
-    $('input[name="oauth_mode"]:checked').trigger('change');
-});
-
-function updateFetchButton() {
-    var mode = jQuery('input[name="oauth_mode"]:checked').val();
-    var resourceSelected = jQuery('#oauth_resource').val();
-    var canFetch = false;
-    
-    if (mode === 'chat') {
-        // Chat 모드: 리소스만 선택되면 OK
-        canFetch = !!resourceSelected;
-    } else {
-        // Agent 모드: 리소스 + Agent 선택되어야 함
-        var agentSelected = jQuery('#oauth_agent').val();
-        canFetch = !!resourceSelected && !!agentSelected;
-    }
-    
-    jQuery('#btn-fetch-keys').prop('disabled', !canFetch);
-}
-
-function saveOAuthSettings() {
-    var clientId = jQuery('#oauth_client_id').val();
-    var clientSecret = jQuery('#oauth_client_secret').val();
-    var tenantId = jQuery('#oauth_tenant_id').val();
-    
-    var data = {
-        action: 'save_oauth_settings',
-        nonce: '<?php echo wp_create_nonce("azure_oauth_save"); ?>',
-        client_id: clientId,
-        client_secret: clientSecret,
-        tenant_id: tenantId,
-        // Agent Mode 필드에도 자동으로 저장
-        save_to_agent_mode: true
-    };
-    
-    jQuery.post(ajaxurl, data, function(response) {
-        if (response.success) {
-            console.log('[OAuth] 설정 저장 완료 (Agent Mode 포함)');
-            location.reload();
-        } else {
-            alert('저장 실패: ' + response.data.message);
-        }
-    });
-}
-
-function loadSubscriptions() {
-    var $select = jQuery('#oauth_subscription');
-    $select.html('<option value="">로딩 중...</option>').prop('disabled', true);
-    
-    jQuery.post(ajaxurl, {
-        action: 'azure_oauth_get_subscriptions',
-        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>'
-    }, function(response) {
-        $select.prop('disabled', false);
-        
-        if (response.success) {
-            console.log('[Auto Setup] Subscription 로드 성공:', response.data.subscriptions.length + '개');
-            $select.html('<option value="">선택하세요</option>');
-            response.data.subscriptions.forEach(function(sub) {
-                $select.append('<option value="' + sub.id + '">' + sub.name + '</option>');
-            });
-            
-            // 자동 설정 모드: 첫 번째 Subscription 자동 선택
-            console.log('[Auto Setup] autoSetupMode =', autoSetupMode);
-            console.log('[Auto Setup] subscriptions length =', response.data.subscriptions.length);
-            
-            if (autoSetupMode && response.data.subscriptions.length > 0) {
-                var firstSubscription = response.data.subscriptions[0];
-                console.log('[Auto Setup] 첫 번째 Subscription 자동 선택:', firstSubscription.name);
-                $select.val(firstSubscription.id);
-                
-                // Subscription 선택 이벤트 트리거
-                $select.trigger('change');
-                
-                // 1초 후 자동으로 리소스 생성 시작
-                setTimeout(function() {
-                    console.log('[Auto Setup] 리소스 자동 생성 시작 호출...');
-                    
-                    // startAutoResourceCreation 함수가 정의되어 있는지 확인
-                    if (typeof startAutoResourceCreation === 'function') {
-                        console.log('[Auto Setup] startAutoResourceCreation 함수 실행');
-                        startAutoResourceCreation(firstSubscription.id);
-                    } else {
-                        console.error('[Auto Setup] startAutoResourceCreation 함수를 찾을 수 없습니다!');
-                        alert('오류: 자동 설정 함수를 찾을 수 없습니다. 페이지를 새로고침 하거나 수동으로 설정하세요.');
-                    }
-                }, 1000);
-            } else {
-                console.log('[Auto Setup] 자동 설정 모드가 아니거나 Subscription이 없습니다');
-            }
-        } else {
-            $select.html('<option value="">오류: ' + response.data.message + '</option>');
-            console.error('[Auto Setup] Subscription 로드 실패:', response.data.message);
-        }
-    }).fail(function(xhr, status, error) {
-        console.error('[Auto Setup] AJAX 요청 실패:', status, error);
-        console.error('[Auto Setup] Response:', xhr.responseText);
-        $select.html('<option value="">네트워크 오류</option>').prop('disabled', false);
-        alert('오류: Subscription 로드에 실패했습니다. 콘솔을 확인하세요.');
-    });
-}
-
-function loadResourceGroups() {
-    console.log('[Auto Setup] ========================================');
-    console.log('[Auto Setup] LOADING RESOURCE GROUPS');
-    console.log('[Auto Setup] ========================================');
-
-    var subscriptionId = jQuery('#oauth_subscription').val();
-    console.log('[DEBUG] Subscription ID:', subscriptionId);
-
-    if (!subscriptionId) {
-        console.warn('[DEBUG] ⚠️ No subscription selected, aborting resource group load');
-        return;
-    }
-
-    var $select = jQuery('#oauth_resource_group');
-    $select.html('<option value="">로딩 중...</option>').prop('disabled', true);
-
-    console.log('[DEBUG] Sending AJAX request to: azure_oauth_get_resource_groups');
-    jQuery.post(ajaxurl, {
-        action: 'azure_oauth_get_resource_groups',
-        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-        subscription_id: subscriptionId
-    }, function(response) {
-        console.log('[DEBUG] Resource Groups response received:', response);
-
-        $select.prop('disabled', false);
-
-        if (response.success) {
-            var rgCount = response.data.resource_groups ? response.data.resource_groups.length : 0;
-            console.log('[DEBUG] ✅ Successfully loaded', rgCount, 'resource groups');
-
-            $select.html('<option value="">선택하세요</option>');
-            response.data.resource_groups.forEach(function(rg, index) {
-                console.log('[DEBUG] RG', index + 1, ':', rg.name, 'in', rg.location);
-                $select.append('<option value="' + rg.name + '">' + rg.name + ' (' + rg.location + ')</option>');
-            });
-        } else {
-            console.error('[DEBUG] ❌ Failed to load resource groups:', response.data ? response.data.message : 'Unknown error');
-            $select.html('<option value="">오류: ' + (response.data ? response.data.message : 'Unknown error') + '</option>');
-        }
-    }).fail(function(jqXHR, textStatus, errorThrown) {
-        console.error('[DEBUG] ❌ AJAX request failed:', {
-            status: textStatus,
-            error: errorThrown,
-            responseText: jqXHR.responseText
-        });
-        $select.html('<option value="">네트워크 오류</option>').prop('disabled', false);
-    });
-}
-
-function loadResources() {
-    console.log('[Auto Setup] ========================================');
-    console.log('[Auto Setup] LOADING AI RESOURCES');
-    console.log('[Auto Setup] ========================================');
-
-    var subscriptionId = jQuery('#oauth_subscription').val();
-    var resourceGroup = jQuery('#oauth_resource_group').val();
-    var mode = operationMode || jQuery('input[name="oauth_mode"]:checked').val();
-
-    console.log('[DEBUG] Subscription ID:', subscriptionId);
-    console.log('[DEBUG] Resource Group:', resourceGroup);
-    console.log('[DEBUG] Mode:', mode);
-    console.log('[DEBUG] Global operationMode:', operationMode);
-
-    if (!subscriptionId || !resourceGroup) {
-        console.warn('[DEBUG] ⚠️ Missing subscription or resource group, aborting');
-        return;
-    }
-
-    var $select = jQuery('#oauth_resource');
-    $select.html('<option value="">로딩 중...</option>').prop('disabled', true);
-
-    // Agent 선택 초기화
-    jQuery('#oauth_agent').html('<option value="">먼저 리소스를 선택하세요</option>').prop('disabled', true);
-
-    console.log('[DEBUG] Sending AJAX request to: azure_oauth_get_resources');
-    console.log('[DEBUG] Request parameters:', {
-        action: 'azure_oauth_get_resources',
-        subscription_id: subscriptionId,
-        resource_group: resourceGroup,
-        mode: mode
-    });
-
-    jQuery.post(ajaxurl, {
-        action: 'azure_oauth_get_resources',
-        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-        subscription_id: subscriptionId,
-        resource_group: resourceGroup,
-        mode: mode
-    }, function(response) {
-        console.log('[DEBUG] AI Resources response received:', response);
-
-        $select.prop('disabled', false);
-
-        if (response.success) {
-            var resCount = response.data.resources ? response.data.resources.length : 0;
-            console.log('[DEBUG] ✅ Successfully loaded', resCount, 'AI resources');
-
-            $select.html('<option value="">선택하세요</option>');
-            response.data.resources.forEach(function(res, index) {
-                console.log('[DEBUG] Resource', index + 1, ':', {
-                    name: res.name,
-                    type: res.type,
-                    location: res.location,
-                    id: res.id
-                });
-                $select.append('<option value="' + res.id + '">' + res.name + ' (' + res.location + ')</option>');
-            });
-        } else {
-            $select.html('<option value="">오류: ' + response.data.message + '</option>');
-        }
-    });
-}
-
-// ✅ 듀얼 모드: Chat + Agent 정보 동시 조회
-function fetchDualModeInfo(resourceId) {
-    if (!resourceId || resourceId === '__CREATE_NEW__') {
-        console.warn('[Dual Mode] Invalid resource ID, skipping fetch');
-        return;
-    }
-
-    console.log('[Dual Mode] Starting dual fetch for resource:', resourceId);
-
-    // 병렬로 Chat과 Agent 정보 조회
-    var chatPromise = fetchChatInfo(resourceId);
-    var agentPromise = fetchAgentInfo(resourceId);
-
-    // 두 요청 모두 완료될 때까지 기다림
-    jQuery.when(chatPromise, agentPromise).done(function(chatResult, agentResult) {
-        console.log('[Dual Mode] ✅ Both fetches completed');
-        console.log('[Dual Mode] Chat info:', resourceInfoCache.chat ? 'Available' : 'Not found');
-        console.log('[Dual Mode] Agent info:', resourceInfoCache.agent ? 'Available' : 'Not found');
-
-        // Agent 드롭다운 업데이트 (Agent 모드일 때만)
-        var currentMode = jQuery('input[name="oauth_mode"]:checked').val();
-        if (currentMode === 'agent' && resourceInfoCache.agent && resourceInfoCache.agent.agents) {
-            updateAgentDropdown(resourceInfoCache.agent.agents);
-        }
-    }).fail(function() {
-        console.error('[Dual Mode] ❌ One or both fetches failed');
-    });
-}
-
-// Chat 정보 조회
-function fetchChatInfo(resourceId) {
-    var deferred = jQuery.Deferred();
-
-    console.log('[Dual Mode] [1/2] Fetching Chat info...');
-
-    // Chat 정보 조회 로직 (기존 코드에서 추출)
-    jQuery.post(ajaxurl, {
-        action: 'azure_oauth_get_resource_info',
-        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-        resource_id: resourceId,
-        mode: 'chat'
-    }, function(response) {
-        if (response.success && response.data) {
-            resourceInfoCache.chat = response.data;
-            console.log('[Dual Mode] ✅ Chat info cached:', response.data);
-            deferred.resolve(response.data);
-        } else {
-            console.log('[Dual Mode] ⚠️ Chat info not available');
-            deferred.reject();
-        }
-    }).fail(function() {
-        console.error('[Dual Mode] ❌ Chat fetch failed');
-        deferred.reject();
-    });
-
-    return deferred.promise();
-}
-
-// Agent 정보 조회
-function fetchAgentInfo(resourceId) {
-    var deferred = jQuery.Deferred();
-
-    console.log('[Dual Mode] [2/2] Fetching Agent info...');
-
-    jQuery.post(ajaxurl, {
-        action: 'azure_oauth_get_agents',
-        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-        resource_id: resourceId
-    }, function(response) {
-        if (response.success && response.data && response.data.agents) {
-            resourceInfoCache.agent = {
-                agents: response.data.agents,
-                message: response.data.message
-            };
-            console.log('[Dual Mode] ✅ Agent info cached:', response.data.agents.length, 'agents found');
-            deferred.resolve(response.data);
-        } else {
-            var message = response.data ? response.data.message : 'Unknown error';
-            console.log('[Dual Mode] ⚠️ Agent info not available:', message);
-            resourceInfoCache.agent = { agents: [], message: message };
-            deferred.resolve({ agents: [] }); // 실패해도 resolve (404는 정상)
-        }
-    }).fail(function() {
-        console.error('[Dual Mode] ❌ Agent fetch failed');
-        resourceInfoCache.agent = { agents: [], message: 'Network error' };
-        deferred.resolve({ agents: [] }); // 실패해도 resolve
-    });
-
-    return deferred.promise();
-}
-
-// Agent 드롭다운 업데이트
-function updateAgentDropdown(agents) {
-    var $select = jQuery('#oauth_agent');
-    $select.html('<option value="">선택하세요</option>');
-
-    if (agents && agents.length > 0) {
-        agents.forEach(function(agent) {
-            $select.append('<option value="' + agent.id + '">' + agent.name + '</option>');
-        });
-        $select.prop('disabled', false);
-        console.log('[Dual Mode] Agent dropdown updated:', agents.length, 'agents');
-    } else {
-        $select.html('<option value="">사용 가능한 Agent가 없습니다</option>');
-        $select.prop('disabled', true);
-        console.log('[Dual Mode] No agents available');
-    }
-}
-
-function loadAgents(resourceId) {
-    if (!resourceId) return;
-    
-    var $select = jQuery('#oauth_agent');
-    $select.html('<option value="">로딩 중...</option>').prop('disabled', true);
-    
-    jQuery.post(ajaxurl, {
-        action: 'azure_oauth_get_agents',
-        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-        resource_id: resourceId
-    }, function(response) {
-        $select.prop('disabled', false);
-        
-        // 디버깅 강화: 전체 응답을 콘솔에 기록
-        console.log('[Auto Setup] [Agent] get_agents 응답:', response);
-
-        if (response.success) {
-            if (response.data.agents.length === 0) {
-                $select.html('<option value="">Agent가 없습니다. AI Foundry에서 Agent를 생성하세요.</option>');
-            } else {
-                $select.html('<option value="">선택하세요</option>');
-                response.data.agents.forEach(function(agent) {
-                    var label = agent.name;
-                    if (agent.description) {
-                        label += ' - ' + agent.description;
-                    }
-                    $select.append('<option value="' + agent.id + '">' + label + '</option>');
-                });
-            }
-        } else {
-            var errorMessage = response.data && response.data.message ? response.data.message : '알 수 없는 오류';
-            $select.html('<option value="">오류: ' + errorMessage + '</option>');
-        }
-    }).fail(function(xhr, status, error) {
-        // 디버깅 강화: 실패 시 모든 정보 기록
-        console.error('[Auto Setup] [Agent] get_agents AJAX 실패:', {
-            status: status,
-            error: error,
-            responseText: xhr.responseText
-        });
-        $select.html('<option value="">네트워크 오류 또는 서버 에러</option>').prop('disabled', false);
-    });
-}
-
-function fetchKeys() {
-    var resourceId = jQuery('#oauth_resource').val();
-    var mode = jQuery('input[name="oauth_mode"]:checked').val();
-    var agentId = mode === 'agent' ? jQuery('#oauth_agent').val() : '';
-    
-    if (!resourceId) {
-        alert('<?php esc_html_e('먼저 리소스를 선택하세요.', 'azure-ai-chatbot'); ?>');
-        return;
-    }
-    
-    if (mode === 'agent' && !agentId) {
-        alert('<?php esc_html_e('Agent 모드에서는 에이전트를 선택해야 합니다.', 'azure-ai-chatbot'); ?>');
-        return;
-    }
-    
-    jQuery('#btn-fetch-keys').prop('disabled', true).text('<?php esc_html_e('추출 중...', 'azure-ai-chatbot'); ?>');
-    
-    jQuery.post(ajaxurl, {
-        action: 'azure_oauth_get_keys',
-        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-        resource_id: resourceId,
-        mode: mode
-    }, function(response) {
-        jQuery('#btn-fetch-keys').prop('disabled', false).text('<?php esc_html_e('값 가져오기', 'azure-ai-chatbot'); ?>');
-        
-        if (response.success) {
-            // 모드에 따라 필드에 값 자동 입력
-            if (mode === 'chat') {
-                jQuery('#chat_endpoint').val(response.data.endpoint);
-                jQuery('#api_key').val(response.data.api_key);
-                // Chat 모드 라디오 버튼 선택
-                jQuery('input[name="azure_chatbot_settings[mode]"][value="chat"]').prop('checked', true).trigger('change');
-                
-                var chatModeMsg = <?php echo json_encode(__('Chat 모드 값이 자동으로 입력되었습니다.', 'azure-ai-chatbot')); ?>;
-                var endpointLabel = <?php echo json_encode(__('Endpoint:', 'azure-ai-chatbot')); ?>;
-                var saveSettingsMsg = <?php echo json_encode(__('설정을 저장하세요.', 'azure-ai-chatbot')); ?>;
-                alert(chatModeMsg + '\n\n' + endpointLabel + ' ' + response.data.endpoint + '\n\n' + saveSettingsMsg);
-            } else {
-                jQuery('#agent_endpoint').val(response.data.endpoint);
-                jQuery('#subscription_key').val(response.data.api_key);
-                jQuery('#agent_id').val(agentId);
-                // Agent 모드 라디오 버튼 선택
-                jQuery('input[name="azure_chatbot_settings[mode]"][value="agent"]').prop('checked', true).trigger('change');
-                
-                var agentModeMsg = <?php echo json_encode(__('Agent 모드 값이 자동으로 입력되었습니다.', 'azure-ai-chatbot')); ?>;
-                var projectEndpointLabel = <?php echo json_encode(__('Project Endpoint:', 'azure-ai-chatbot')); ?>;
-                var agentIdLabel = <?php echo json_encode(__('Agent ID:', 'azure-ai-chatbot')); ?>;
-                var saveSettingsMsg2 = <?php echo json_encode(__('설정을 저장하세요.', 'azure-ai-chatbot')); ?>;
-                alert(agentModeMsg + '\n\n' + projectEndpointLabel + ' ' + response.data.endpoint + '\n' + agentIdLabel + ' ' + agentId + '\n\n' + saveSettingsMsg2);
-            }
-            
-            // Auto Setting 섹션 닫기
-            jQuery('#oauth-auto-setup-section').slideUp(300);
-            jQuery('#toggle-auto-setup .dashicons').attr('class', 'dashicons dashicons-admin-network');
-            
-            // API 설정 섹션으로 스크롤
-            jQuery('html, body').animate({
-                scrollTop: jQuery('.postbox').eq(1).offset().top - 50
-            }, 500);
-        } else {
-            alert('<?php esc_html_e('키 추출 실패:', 'azure-ai-chatbot'); ?> ' + response.data.message);
-        }
-    });
-}
-
-function clearOAuthSession() {
-    if (!confirm('인증 세션을 초기화하시겠습니까?')) return;
-    
-    jQuery.post(ajaxurl, {
-        action: 'azure_oauth_clear_session',
-        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>'
-    }, function() {
-        location.reload();
-    });
-}
-
-// Resource Group 생성 관련 함수들
-function toggleRgNameInput() {
-    var mode = jQuery('input[name="rg_name_mode"]:checked').val();
-    if (mode === 'auto') {
-        jQuery('#auto-rg-name').show();
-        jQuery('#manual-rg-name').hide();
-        generateResourceGroupName();
-    } else {
-        jQuery('#auto-rg-name').hide();
-        jQuery('#manual-rg-name').show();
-    }
-}
-
-// 사용 가능한 Azure 지역 로드
-function loadAvailableLocations() {
-    var subscription = jQuery('#oauth_subscription').val();
-    var mode = jQuery('input[name="oauth_mode"]:checked').val();
-    
-    if (!subscription) {
-        alert('<?php esc_html_e('먼저 Subscription을 선택하세요.', 'azure-ai-chatbot'); ?>');
-        return;
-    }
-    
-    jQuery('#new_rg_location').html('<option value=""><?php esc_html_e('로딩 중...', 'azure-ai-chatbot'); ?></option>');
-    
-    jQuery.post(ajaxurl, {
-        action: 'azure_oauth_get_available_locations',
-        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-        subscription: subscription,
-        mode: mode,
-        resource_type: mode === 'chat' ? 'Microsoft.CognitiveServices/accounts' : 'Microsoft.MachineLearningServices/workspaces'
-    }, function(response) {
-        if (response.success && response.data.locations) {
-            var html = '';
-            response.data.locations.forEach(function(location) {
-                html += '<option value="' + location.name + '">' + location.displayName + '</option>';
-            });
-            jQuery('#new_rg_location').html(html);
-            
-            // 첫 번째 지역 선택 시 RG 이름 자동 생성
-            if (jQuery('input[name="rg_name_mode"]:checked').val() === 'auto') {
-                generateResourceGroupName();
-            }
-        } else {
-            // 실패 시 기본 지역 목록 표시
-            var defaultLocations = [
-                {name: 'koreacentral', display: 'Korea Central (한국 중부)'},
-                {name: 'eastus', display: 'East US (미국 동부)'},
-                {name: 'eastus2', display: 'East US 2 (미국 동부 2)'},
-                {name: 'westus', display: 'West US (미국 서부)'},
-                {name: 'westus2', display: 'West US 2 (미국 서부 2)'},
-                {name: 'westeurope', display: 'West Europe (서유럽)'},
-                {name: 'northeurope', display: 'North Europe (북유럽)'},
-                {name: 'southeastasia', display: 'Southeast Asia (동남아시아)'},
-                {name: 'japaneast', display: 'Japan East (일본 동부)'}
-            ];
-            
-            var html = '';
-            defaultLocations.forEach(function(location) {
-                html += '<option value="' + location.name + '">' + location.display + '</option>';
-            });
-            jQuery('#new_rg_location').html(html);
-        }
-    });
-}
-
-// 사용 가능한 OpenAI 모델 로드 (Chat 모드 전용)
-function loadAvailableModels() {
-    var location = jQuery('#new_ai_location').val() || jQuery('#new_rg_location').val();
-    
-    if (!location) {
-        alert('<?php esc_html_e('먼저 위치를 선택하세요.', 'azure-ai-chatbot'); ?>');
-        return;
-    }
-    
-    jQuery('#new_ai_model').html('<option value=""><?php esc_html_e('로딩 중...', 'azure-ai-chatbot'); ?></option>');
-    
-    jQuery.post(ajaxurl, {
-        action: 'azure_oauth_get_available_models',
-        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-        location: location
-    }, function(response) {
-        if (response.success && response.data.models) {
-            var html = '<option value=""><?php esc_html_e('모델을 선택하세요', 'azure-ai-chatbot'); ?></option>';
-            response.data.models.forEach(function(model) {
-                html += '<option value="' + model.name + '">' + model.displayName + ' (' + model.version + ')</option>';
-            });
-            jQuery('#new_ai_model').html(html);
-        } else {
-            // 실패 시 기본 모델 목록
-            var defaultModels = [
-                {name: 'gpt-4o', display: 'GPT-4o', version: '2024-08-06'},
-                {name: 'gpt-4o-mini', display: 'GPT-4o Mini', version: '2024-07-18'},
-                {name: 'gpt-4', display: 'GPT-4 Turbo', version: '0125-Preview'},
-                {name: 'gpt-35-turbo', display: 'GPT-3.5 Turbo', version: '0125'}
-            ];
-            
-            var html = '<option value=""><?php esc_html_e('모델을 선택하세요', 'azure-ai-chatbot'); ?></option>';
-            defaultModels.forEach(function(model) {
-                html += '<option value="' + model.name + '">' + model.display + ' (' + model.version + ')</option>';
-            });
-            jQuery('#new_ai_model').html(html);
-        }
-    });
-}
-
-function generateResourceGroupName() {
-    var location = jQuery('#new_rg_location').val();
-    var timestamp = new Date().toISOString().slice(0,10).replace(/-/g, '');
-    var name = 'rg-aichatbot-prod-' + location;
-    jQuery('#new_rg_name_auto').val(name);
-}
-
-function createResourceGroup() {
-    var nameMode = jQuery('input[name="rg_name_mode"]:checked').val();
-    var name = nameMode === 'auto' ? 
-        jQuery('#new_rg_name_auto').val() : 
-        jQuery('#new_rg_name_manual').val();
-    var location = jQuery('#new_rg_location').val();
-    var subscription = jQuery('#oauth_subscription').val();
-    
-    if (!name || !location) {
-        alert('<?php esc_html_e('모든 필드를 입력하세요.', 'azure-ai-chatbot'); ?>');
-        return;
-    }
-    
-    // 이름 유효성 검사
-    if (!/^[a-z0-9-]{3,24}$/.test(name)) {
-        alert('<?php esc_html_e('리소스 그룹 이름은 소문자, 숫자, 하이픈만 사용하며 3-24자여야 합니다.', 'azure-ai-chatbot'); ?>');
-        return;
-    }
-    
-    jQuery('#new-rg-form button').prop('disabled', true);
-    jQuery('#new-rg-form').prepend('<p class="notice notice-info inline"><span class="dashicons dashicons-update spin"></span> <?php esc_html_e('리소스 그룹 생성 중...', 'azure-ai-chatbot'); ?></p>');
-    
-    jQuery.post(ajaxurl, {
-        action: 'azure_oauth_create_resource_group',
-        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-        name: name,
-        location: location,
-        subscription: subscription
-    }, function(response) {
-        jQuery('#new-rg-form .notice').remove();
-        jQuery('#new-rg-form button').prop('disabled', false);
-        
-        if (response.success) {
-            alert('<?php esc_html_e('리소스 그룹이 성공적으로 생성되었습니다!', 'azure-ai-chatbot'); ?>');
-            
-            // 폼 숨기기
-            jQuery('#new-rg-form').hide();
-            jQuery('#oauth_resource_group').val('');
-            
-            // 리소스 그룹 목록 새로고침
-            loadResourceGroups();
-        } else {
-            alert('<?php esc_html_e('생성 실패:', 'azure-ai-chatbot'); ?> ' + response.data.message);
-        }
-    });
-}
-
-function cancelNewResourceGroup() {
-    jQuery('#new-rg-form').hide();
-    jQuery('#oauth_resource_group').val('');
-}
-
-// AI 리소스 생성 관련 함수들
-function toggleAiNameInput() {
-    var mode = jQuery('input[name="ai_name_mode"]:checked').val();
-    if (mode === 'auto') {
-        jQuery('#auto-ai-name').show();
-        jQuery('#manual-ai-name').hide();
-        generateAIResourceName();
-    } else {
-        jQuery('#auto-ai-name').hide();
-        jQuery('#manual-ai-name').show();
-    }
-}
-
-function generateAIResourceName() {
-    var chatMode = jQuery('input[name="oauth_mode"]:checked').val();
-    var timestamp = new Date().toISOString().slice(0,10).replace(/-/g, '');
-    var name;
-    
-    if (chatMode === 'chat') {
-        name = 'ai-chatbot-prod';
-        jQuery('#create-ai-btn-text').text('<?php esc_html_e('Project 생성 및 모델 배포', 'azure-ai-chatbot'); ?>');
-        jQuery('#chat-model-selection').show();
-        jQuery('#creation-time-estimate').text('<?php esc_html_e('AI Foundry Project 생성 및 모델 배포는 2-3분 정도 소요됩니다.', 'azure-ai-chatbot'); ?>');
-        
-        // 지역이 선택되어 있으면 모델 목록 로드
-        var location = jQuery('#new_ai_location').val() || jQuery('#new_rg_location').val();
-        if (location) {
-            loadAvailableModels();
-        }
-    } else {
-        name = 'ai-chatbot-prod';
-        jQuery('#create-ai-btn-text').text('<?php esc_html_e('AI Foundry Project 생성', 'azure-ai-chatbot'); ?>');
-        jQuery('#chat-model-selection').hide();
-        jQuery('#creation-time-estimate').text('<?php esc_html_e('AI Foundry Project 생성은 1-2분 정도 소요됩니다.', 'azure-ai-chatbot'); ?>');
-    }
-    
-    jQuery('#new_ai_name_auto').val(name);
-}
-
-// 모델 선택 시 배포 이름 자동 생성
-jQuery(document).ready(function($) {
-    $('#new_ai_model').on('change', function() {
-        var modelName = $(this).val();
-        if (modelName) {
-            var deploymentName = modelName + '-deployment';
-            $('#new_ai_deployment_name').val(deploymentName);
-        }
-    });
-});
-
-// --- 간단한 모달 유틸리티 (prompt 대체) ---
-function ensureAdminModal() {
-    if (jQuery('#azure-admin-modal').length) return;
-
-    var modal = jQuery(
-        '<div id="azure-admin-modal" class="azure-modal" style="display:none; position:fixed; left:0; top:0; right:0; bottom:0; background:rgba(0,0,0,0.45); z-index:99999;">' +
-        '<div class="azure-modal-inner wp-core-ui" role="dialog" aria-modal="true" aria-labelledby="azure-modal-title" style="width:520px; max-width:95%; margin:6% auto; background:#fff; border-radius:4px; padding:18px; box-shadow:0 2px 12px rgba(0,0,0,0.2);">' +
-        '<h2 id="azure-modal-title" style="margin-top:0; font-size:18px"></h2>' +
-        '<div id="azure-modal-body" style="margin:12px 0"></div>' +
-        '<div style="text-align:right; margin-top:14px">' +
-        '<button type="button" id="azure-modal-cancel" class="button">' + <?php echo json_encode(__('취소', 'azure-ai-chatbot')); ?> + '</button> ' +
-        '<button type="button" id="azure-modal-new" class="button button-secondary" style="display:none; margin-right:8px">' + <?php echo json_encode(__('새로 생성', 'azure-ai-chatbot')); ?> + '</button>' +
-        '<button type="button" id="azure-modal-ok" class="button button-primary">' + <?php echo json_encode(__('확인', 'azure-ai-chatbot')); ?> + '</button>' +
-        '</div></div></div>'
-    );
-
-    jQuery('body').append(modal);
-
-    // 버튼 이벤트
-    jQuery(document).on('click', '#azure-modal-cancel', function() {
-        jQuery('#azure-admin-modal').hide();
-        if (window._azureModalReject) { window._azureModalReject(); }
-    });
-    jQuery(document).on('click', '#azure-modal-new', function() {
-        jQuery('#azure-admin-modal').hide();
-        if (window._azureModalResolve) { window._azureModalResolve({ action: 'new' }); }
-    });
-    jQuery(document).on('click', '#azure-modal-ok', function() {
-        // collect values
-        var result = {};
-        jQuery('#azure-modal-body').find('input, select, textarea').each(function() {
-            var name = jQuery(this).attr('name') || jQuery(this).attr('id');
-            if (!name) return;
-            result[name] = jQuery(this).val();
-        });
-        jQuery('#azure-admin-modal').hide();
-        if (window._azureModalResolve) { window._azureModalResolve({ action: 'ok', data: result }); }
-    });
-
-    // ESC 키로 닫기 및 포커스 관리
-    jQuery(document).on('keydown.azureModal', function(e) {
-        if (!jQuery('#azure-admin-modal').is(':visible')) return;
-        if (e.key === 'Escape' || e.keyCode === 27) {
-            jQuery('#azure-admin-modal').hide();
-            if (window._azureModalReject) { window._azureModalReject(); }
-        }
-        if (e.key === 'Enter' || e.keyCode === 13) {
-            // Enter는 폼요소에 따라 OK 동작 유도
-            if (jQuery('#azure-admin-modal').is(':visible')) {
-                jQuery('#azure-modal-ok').trigger('click');
-            }
-        }
-    });
-
-    // 초기 포커스 이동 함수
-    jQuery(document).on('azureModal.open', function() {
-        // focus first input or OK button
-        var first = jQuery('#azure-modal-body').find('input, select, textarea, button').filter(':visible').first();
-        if (first && first.length) {
-            first.focus();
-        } else {
-            jQuery('#azure-modal-ok').focus();
-        }
-    });
-}
-
-function showSelectionModal(title, items, allowNew) {
-    return new Promise(function(resolve, reject) {
-        ensureAdminModal();
-        window._azureModalResolve = resolve;
-        window._azureModalReject = reject;
-        jQuery('#azure-modal-title').text(title);
-        var body = '<div style="max-height:300px; overflow:auto;">';
-        body += '<form id="azure-selection-form">';
-        items.forEach(function(it, idx) {
-            var checked = (idx === 0) ? ' checked' : '';
-            body += '<div style="margin:6px 0"><label><input type="radio" name="azure_choice" value="' + idx + '"' + checked + ' /> ' + it.label + '</label></div>';
-        });
-        body += '</form></div>';
-        jQuery('#azure-modal-body').html(body);
-        if (allowNew) { jQuery('#azure-modal-new').show(); } else { jQuery('#azure-modal-new').hide(); }
-        jQuery('#azure-admin-modal').show();
-        // 트리거로 초기 포커스 처리
-        jQuery(document).trigger('azureModal.open');
-    });
-}
-
-function showInputModal(title, fields) {
-    return new Promise(function(resolve, reject) {
-        ensureAdminModal();
-        window._azureModalResolve = resolve;
-        window._azureModalReject = reject;
-        jQuery('#azure-modal-title').text(title);
-        var body = '<form id="azure-input-form">';
-        fields.forEach(function(f) {
-            body += '<div style="margin-bottom:8px"><label style="display:block; font-weight:600">' + f.label + '</label>' +
-                '<input type="text" name="' + f.name + '" value="' + (f.default || '') + '" style="width:100%; padding:6px; box-sizing:border-box" />' +
-                '</div>';
-        });
-        body += '</form>';
-        jQuery('#azure-modal-body').html(body);
-        jQuery('#azure-modal-new').hide();
-        jQuery('#azure-admin-modal').show();
-        // focus first input
-        jQuery(document).trigger('azureModal.open');
-    });
-}
-
-// 자동 리소스 생성 함수
-function startAutoResourceCreation(subscriptionId) {
-    console.log('[Auto Setup] 자동 리소스 생성 시작');
-    console.log('[Auto Setup] Subscription ID:', subscriptionId);
-    console.log('[Auto Setup] Operation Mode:', operationMode);
-    
-    window.lastSubscriptionId = subscriptionId;
-    jQuery('#auto-setup-progress').html('<div class="notice notice-info"><p>🔄 기존 리소스를 확인하고 있습니다...</p></div>');
-    
-    // 1단계: 기존 Resource Group 확인
-    console.log('[Auto Setup] 기존 Resource Group 확인 중...');
-    jQuery.post(ajaxurl, {
-        action: 'azure_oauth_get_resource_groups',
-        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-        subscription_id: subscriptionId
-    }, function(rgResponse) {
-        console.log('[Auto Setup] Resource Group 조회 응답:', rgResponse);
-        
-        if (!rgResponse.success) {
-            console.error('[Auto Setup] Resource Group 조회 실패:', rgResponse.data);
-            var errorMsg = rgResponse.data && rgResponse.data.message ? rgResponse.data.message : 
-                          (rgResponse.data || '알 수 없는 오류');
-            jQuery('#auto-setup-progress').append(
-                '<div class="notice notice-error"><p>❌ Resource Group 조회 실패: ' + errorMsg + '</p></div>'
-            );
-            
-            // 토큰 만료 체크
-            if (rgResponse.data && (rgResponse.data.message || '').includes('인증')) {
-                jQuery('#auto-setup-progress').append(
-                    '<div class="notice notice-warning"><p>⚠️ 인증이 만료되었습니다. "Azure 자동 설정 시작"을 다시 클릭하세요.</p></div>'
-                );
-                localStorage.removeItem('azure_oauth_token_flag');
-                return;
-            }
-            
-            // RG 조회 실패해도 새로 생성 시도
-            jQuery('#auto-setup-progress').append(
-                '<div class="notice notice-info"><p>ℹ️ 새로운 Resource Group을 생성합니다...</p></div>'
-            );
-            createNewResourceGroupAndAI(subscriptionId);
-            return;
-        }
-        
-        if (!rgResponse.data || rgResponse.data.resource_groups.length === 0) {
-            // Resource Group 없음 - 새로 생성
-            console.log('[Auto Setup] 기존 Resource Group 없음, 새로 생성');
-            jQuery('#auto-setup-progress').append(
-                '<div class="notice notice-info"><p>ℹ️ Resource Group이 없습니다. 새로 생성합니다...</p></div>'
-            );
-            createNewResourceGroupAndAI(subscriptionId);
-            return;
-        }
-
-        var rgs = rgResponse.data.resource_groups;
-        var chosenRG = null;
-
-        // AI 리소스 확인 및 처리하는 함수
-        function checkAIResources(rg) {
-            console.log('[Auto Setup] 선택된 Resource Group으로 AI Resource 확인 중...', rg.name);
-            jQuery.post(ajaxurl, {
-                action: 'azure_oauth_get_resources',
-                nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-                subscription_id: subscriptionId,
-                resource_group: rg.name,
-                mode: operationMode
-            }, function(aiResponse) {
-                if (!aiResponse.success || !aiResponse.data || aiResponse.data.resources.length === 0) {
-                    console.log('[Auto Setup] 기존 AI Resource 없음, 새로 생성');
-                    createAIResourceInRG(subscriptionId, rg.name, rg.location);
-                    return;
-                }
-
-                var resources = aiResponse.data.resources;
-                var chosenAI = null;
-                if (resources.length === 1) {
-                    chosenAI = resources[0];
-                    console.log('[Auto Setup] 선택된 AI Resource 사용:', chosenAI.name);
-                    
-                    // ✅ 모드와 무관하게 Chat + Agent 양쪽 모두 수집
-                    console.log('[Auto Setup] Chat 및 Agent 정보 모두 수집 시작...');
-                    collectBothChatAndAgentConfig(chosenAI, subscriptionId, rg.name);
-                } else {
-                    // 여러 리소스가 있으면 선택을 요청 (모달)
-                    var items = [];
-                    for (var i = 0; i < resources.length; i++) {
-                        items.push({ label: resources[i].name + ' (' + (resources[i].location || '') + ')', idx: i });
-                    }
-
-                    showSelectionModal('<?php echo esc_js(__('AI 리소스 선택', 'azure-ai-chatbot')); ?>', items, true)
-                    .then(function(res) {
-                        if (!res) {
-                            createAIResourceInRG(subscriptionId, rg.name, rg.location);
-                            return;
-                        }
-                        if (res.action === 'new') {
-                            createAIResourceInRG(subscriptionId, rg.name, rg.location);
-                            return;
-                        }
-                        if (res.action === 'ok' && res.data && typeof res.data.azure_choice !== 'undefined') {
-                            var sel = parseInt(res.data.azure_choice, 10);
-                            if (!isNaN(sel) && sel >= 0 && sel < resources.length) {
-                                chosenAI = resources[sel];
-                                console.log('[Auto Setup] 사용자 선택 AI Resource:', chosenAI.name);
-                                
-                                // ✅ 모드와 무관하게 Chat + Agent 양쪽 모두 수집
-                                console.log('[Auto Setup] Chat 및 Agent 정보 모두 수집 시작...');
-                                collectBothChatAndAgentConfig(chosenAI, subscriptionId, rg.name);
-                            } else {
-                                createAIResourceInRG(subscriptionId, rg.name, rg.location);
-                            }
-                        } else {
-                            createAIResourceInRG(subscriptionId, rg.name, rg.location);
-                        }
-                    }).catch(function() {
-                        createAIResourceInRG(subscriptionId, rg.name, rg.location);
-                    });
-                }
-            });
-        }
-
-        if (rgs.length === 1) {
-            chosenRG = rgs[0];
-            console.log('[Auto Setup] 하나의 Resource Group 발견, 사용:', chosenRG.name);
-            checkAIResources(chosenRG);
-        } else {
-            // 여러 RG가 있을 경우 사용자에게 선택 요청
-            var items = [];
-            for (var i = 0; i < rgs.length; i++) {
-                items.push({ label: rgs[i].name + ' (' + (rgs[i].location || '') + ')', idx: i });
-            }
-
-            showSelectionModal('<?php echo esc_js(__('Resource Group 선택', 'azure-ai-chatbot')); ?>', items, true)
-            .then(function(res) {
-                if (!res) {
-                    createNewResourceGroupAndAI(subscriptionId);
-                    return;
-                }
-                if (res.action === 'new') {
-                    createNewResourceGroupAndAI(subscriptionId);
-                    return;
-                }
-                if (res.action === 'ok' && res.data && typeof res.data.azure_choice !== 'undefined') {
-                    var selIdx = parseInt(res.data.azure_choice, 10);
-                    if (!isNaN(selIdx) && selIdx >= 0 && selIdx < rgs.length) {
-                        chosenRG = rgs[selIdx];
-                        console.log('[Auto Setup] 사용자 선택 Resource Group:', chosenRG.name);
-                        checkAIResources(chosenRG);
-                    } else {
-                        createNewResourceGroupAndAI(subscriptionId);
-                    }
-                } else {
-                    createNewResourceGroupAndAI(subscriptionId);
-                }
-            }).catch(function() {
-                createNewResourceGroupAndAI(subscriptionId);
-            });
-        }
-    });
-}
-
-// 새 Resource Group과 AI Resource 생성
-function createNewResourceGroupAndAI(subscriptionId) {
-    var timestamp = new Date().getTime();
-    var rgName = 'rg-ai-chatbot-' + timestamp;
-    var location = 'koreacentral';
-    
-    console.log('[Auto Setup] Resource Group 생성:', rgName);
-    createResourceGroup(subscriptionId, rgName, location, function(success) {
-        if (!success) {
-            console.error('[Auto Setup] Resource Group 생성 실패');
-            alert('<?php esc_html_e('리소스 그룹 생성에 실패했습니다. 수동으로 생성해 주세요.', 'azure-ai-chatbot'); ?>');
-            return;
-        }
-
-        // Resource Group 생성 성공: 이어서 AI Resource 생성
-        console.log('[Auto Setup] Resource Group 생성 완료, AI Resource 생성 시작');
-        createAIResourceInRG(subscriptionId, rgName, location);
-    });
-}
-
-// 주어진 RG에 AI Resource 생성 (자동 흐름용)
-function createAIResourceInRG(subscriptionId, rgName, location) {
-    var timestamp = new Date().getTime();
-    var aiName = 'ai-chatbot-' + timestamp;
-    var sku = 'standard';
-    var mode = operationMode || 'chat';
-    var model = (mode === 'chat') ? 'gpt-4o' : '';
-    var deploymentName = (mode === 'chat') ? model + '-deployment-' + timestamp : '';
-    var capacity = (mode === 'chat') ? 'S0' : '';
-
-    function doCreateAI() {
-        console.log('[Auto Setup] AI Resource 생성 요청:', aiName, rgName, location, 'mode:', mode);
-        jQuery.post(ajaxurl, {
-            action: 'azure_oauth_create_ai_resource',
-            nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-            name: aiName,
-            sku: sku,
-            location: location,
-            resource_group: rgName,
-            subscription: subscriptionId,
-            mode: mode,
-            model: model,
-            deployment_name: deploymentName,
-            capacity: capacity
-        }, function(response) {
-            if (response.success) {
-                console.log('[Auto Setup] AI Resource 생성 완료:', response.data.resource_id || aiName);
-                console.log('[Auto Setup] Configuration received:', response.data.config);
-                
-                if (mode === 'agent') {
-                    checkAndCreateAgent(response.data.resource_id || aiName, subscriptionId, rgName, response.data.config);
-                } else {
-                    // Chat 모드는 즉시 설정 저장
-                    completeSetup(mode, response.data.config);
-                }
-            } else {
-                console.error('[Auto Setup] AI Resource 생성 실패:', response.data && response.data.message);
-                alert('<?php esc_html_e('AI Resource 생성 실패:', 'azure-ai-chatbot'); ?> ' + (response.data && response.data.message ? response.data.message : ''));
-            }
-        });
-    }
-
-    if (mode === 'chat') {
-        // 모달로 모델/리전/배포 이름 입력 받기
-        showInputModal('<?php echo esc_js(__('AI 생성 - 모델/리전 선택', 'azure-ai-chatbot')); ?>', [
-            { name: 'model', label: '<?php echo esc_js(__('모델', 'azure-ai-chatbot')); ?>', default: model },
-            { name: 'location', label: '<?php echo esc_js(__('리전', 'azure-ai-chatbot')); ?>', default: location },
-            { name: 'deployment', label: '<?php echo esc_js(__('배포 이름', 'azure-ai-chatbot')); ?>', default: deploymentName }
-        ]).then(function(res) {
-            if (res && res.action === 'ok' && res.data) {
-                if (res.data.model && res.data.model.trim() !== '') model = res.data.model.trim();
-                if (res.data.location && res.data.location.trim() !== '') location = res.data.location.trim();
-                if (res.data.deployment && res.data.deployment.trim() !== '') deploymentName = res.data.deployment.trim();
-            }
-            doCreateAI();
-        }).catch(function() {
-            // 모달 취소 시 기본값으로 생성
-            doCreateAI();
-        });
-    } else {
-        doCreateAI();
-    }
-}
-
-// Agent 확인 및 생성
-function checkAndCreateAgent(resourceId, subscriptionId, rgName, config, existingResource) {
-    console.log('[Auto Setup] Agent 확인 중...');
-    console.log('[Auto Setup] Resource ID:', resourceId);
-    console.log('[Auto Setup] existingResource:', existingResource);
-    
-    jQuery.post(ajaxurl, {
-        action: 'azure_oauth_get_agents',
-        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-        resource_id: resourceId
-    }, function(response) {
-        if (response.success && response.data.agents && response.data.agents.length > 0) {
-            var agents = response.data.agents;
-            console.log('[Auto Setup] Agent 목록 조회 성공:', agents.length + '개');
-            
-            // OAuth Client ID와 Tenant ID는 서버측에서 자동으로 사용됨 (보안을 위해 JavaScript에 노출하지 않음)
-            console.log('[Auto Setup] OAuth credentials will be handled by server');
-            
-            // Agent 선택 처리 함수
-            function processSelectedAgent(agent) {
-                console.log('[Auto Setup] 선택된 Agent:', agent.name, 'ID:', agent.id);
-                
-                // 기존 리소스인 경우 설정 정보 구성
-                if (existingResource) {
-                    console.log('[Auto Setup] 기존 리소스 설정 구성 중...');
-                    config = {
-                        agent_endpoint: 'https://' + existingResource.name + '.' + existingResource.location + '.services.ai.azure.com/agents/v1.0/projects/' + existingResource.name,
-                        project_name: existingResource.name,
-                        location: existingResource.location,
-                        agent_id: agent.id || agent.name,
-                        agent_name: agent.name
-                        // client_id, tenant_id, client_secret는 서버측에서 자동 처리
-                    };
-                    
-                    console.log('[Auto Setup] Agent 모드 설정 구성:', config);
-                    
-                    // Agent 모드 설정 저장 (OAuth credentials는 서버에서 자동으로 가져옴)
-                    var settings = {
-                        mode: 'agent',
-                        agent_endpoint: config.agent_endpoint,
-                        agent_id: config.agent_id
-                        // client_id, tenant_id, client_secret는 서버측에서 자동으로 추가됨
-                    };
-                    
-                    console.log('[Auto Setup] Agent 모드 설정 저장 요청:', settings);
-                    
-                    jQuery.post(ajaxurl, {
-                        action: 'azure_oauth_save_existing_config',
-                        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-                        settings: settings
-                    }, function(saveResponse) {
-                        console.log('[Auto Setup] Agent 모드 설정 저장 응답:', saveResponse);
-                        console.log('[Auto Setup] saveResponse.success:', saveResponse.success);
-                        console.log('[Auto Setup] saveResponse.data:', saveResponse.data);
-                        
-                        // PHP 디버그 로그 출력 👈 추가!
-                        if (saveResponse.data && saveResponse.data.debug_logs) {
-                            console.log('========== PHP Debug Logs (Agent 기존) ==========');
-                            saveResponse.data.debug_logs.forEach(function(log) {
-                                console.log(log);
-                            });
-                            console.log('================================================');
-                        }
-                        
-                        if (saveResponse.success) {
-                            console.log('[Auto Setup] Agent 모드 설정 완료');
-                            console.log('[Auto Setup] 저장된 설정:', saveResponse.data.settings);
-                            console.log('[Auto Setup] save_result:', saveResponse.data.save_result);
-                            
-                            // 설정의 각 필드 개별 확인
-                            var settings = saveResponse.data.settings;
-                            console.log('[Auto Setup] 설정 필드 확인:');
-                            console.log('  - mode:', settings.mode);
-                            console.log('  - chat_endpoint:', settings.chat_endpoint || 'NOT SET');
-                            console.log('  - deployment_name:', settings.deployment_name || 'NOT SET');
-                            console.log('  - api_key_encrypted:', settings.api_key_encrypted ? 'YES (' + settings.api_key_encrypted.length + ' chars)' : 'NOT SET');
-                            console.log('  - chat_provider:', settings.chat_provider || 'NOT SET');
-                            console.log('  - agent_endpoint:', settings.agent_endpoint || 'NOT SET');
-                            console.log('  - agent_id:', settings.agent_id || 'NOT SET');
-                            console.log('  - client_id:', settings.client_id || 'NOT SET');
-                            console.log('  - tenant_id:', settings.tenant_id || 'NOT SET');
-                            console.log('  - client_secret_encrypted:', settings.client_secret_encrypted ? 'YES' : 'NOT SET');
-                            
-                            completeSetup('agent', config);
-                        } else {
-                            console.error('[Auto Setup] Agent 모드 설정 저장 실패:', saveResponse.data);
-                            console.warn('[Auto Setup] Agent 모드 설정 저장 실패, 기본 저장으로 대체');
-                            completeSetup('agent', config);
-                        }
-                    }).fail(function(xhr, status, error) {
-                        console.error('[Auto Setup] Agent 모드 설정 저장 AJAX 실패:', { status, error });
-                        console.error('[Auto Setup] XHR Response:', xhr.responseText);
-                        completeSetup('agent', config);
-                    });
-                } else if (config) {
-                    // 새로 생성된 리소스인 경우 Agent 정보 추가
-                    console.log('[Auto Setup] 새 리소스에 Agent 정보 추가');
-                    config.agent_id = agent.id || agent.name;
-                    config.agent_name = agent.name;
-                    // client_id, tenant_id, client_secret는 서버측에서 자동 처리
-                    
-                    // Agent 모드 설정 저장 (OAuth credentials는 서버에서 자동으로 가져옴)
-                    var settings = {
-                        mode: 'agent',
-                        agent_endpoint: config.agent_endpoint || config.endpoint,
-                        agent_id: config.agent_id
-                        // client_id, tenant_id, client_secret는 서버측에서 자동으로 추가됨
-                    };
-                    
-                    jQuery.post(ajaxurl, {
-                        action: 'azure_oauth_save_existing_config',
-                        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-                        settings: settings
-                    }, function(saveResponse) {
-                        console.log('[Auto Setup] Agent 모드 설정 저장 응답 (새 리소스):', saveResponse);
-                        console.log('[Auto Setup] saveResponse.success:', saveResponse.success);
-                        console.log('[Auto Setup] saveResponse.data:', saveResponse.data);
-                        
-                        // PHP 디버그 로그 출력 👈 추가!
-                        if (saveResponse.data && saveResponse.data.debug_logs) {
-                            console.log('========== PHP Debug Logs (Agent 새) ==========');
-                            saveResponse.data.debug_logs.forEach(function(log) {
-                                console.log(log);
-                            });
-                            console.log('===============================================');
-                        }
-                        
-                        if (saveResponse.success) {
-                            console.log('[Auto Setup] Agent 모드 설정 완료 (새 리소스)');
-                            console.log('[Auto Setup] 저장된 설정:', saveResponse.data.settings);
-                            completeSetup('agent', config);
-                        } else {
-                            console.error('[Auto Setup] Agent 모드 설정 저장 실패:', saveResponse.data);
-                            console.warn('[Auto Setup] Agent 모드 설정 저장 실패, 기본 저장으로 대체');
-                            completeSetup('agent', config);
-                        }
-                    }).fail(function(xhr, status, error) {
-                        console.error('[Auto Setup] Agent 모드 설정 저장 AJAX 실패:', { status, error });
-                        console.error('[Auto Setup] XHR Response:', xhr.responseText);
-                        console.warn('[Auto Setup] Agent 모드 설정 저장 AJAX 실패, 기본 저장으로 대체');
-                        completeSetup('agent', config);
-                    });
-                }
-            }
-            
-            // Agent 선택 로직
-            if (agents.length === 1) {
-                // Agent 하나만 있으면 자동 선택
-                console.log('[Auto Setup] Agent 자동 선택:', agents[0].name);
-                processSelectedAgent(agents[0]);
-            } else {
-                // 여러 Agent가 있으면 선택 모달 표시
-                var items = [];
-                for (var i = 0; i < agents.length; i++) {
-                    items.push({ 
-                        label: agents[i].name + ' (ID: ' + (agents[i].id || agents[i].name) + ')', 
-                        idx: i 
-                    });
-                }
-                
-                showSelectionModal('<?php echo esc_js(__('Agent 선택', 'azure-ai-chatbot')); ?>', items, false)
-                .then(function(res) {
-                    if (res && res.action === 'ok' && res.data && typeof res.data.azure_choice !== 'undefined') {
-                        var sel = parseInt(res.data.azure_choice, 10);
-                        if (!isNaN(sel) && sel >= 0 && sel < agents.length) {
-                            console.log('[Auto Setup] 사용자 선택 Agent:', agents[sel].name);
-                            processSelectedAgent(agents[sel]);
-                        } else {
-                            alert('<?php echo esc_js(__('유효하지 않은 선택입니다.', 'azure-ai-chatbot')); ?>');
-                        }
-                    } else {
-                        alert('<?php echo esc_js(__('Agent를 선택해주세요.', 'azure-ai-chatbot')); ?>');
-                    }
-                }).catch(function() {
-                    alert('<?php echo esc_js(__('Agent를 선택해주세요.', 'azure-ai-chatbot')); ?>');
-                });
-            }
-        } else {
-            // Agent 없음 - 선택 옵션 제공
-            console.log('[Auto Setup] Agent 없음');
-            if (existingResource) {
-                // 기존 리소스에 Agent가 없으면 새로 생성할지 묻기
-                if (confirm('<?php echo esc_js(__('선택한 AI Foundry Project에 Agent가 없습니다. 새로 생성하시겠습니까?', 'azure-ai-chatbot')); ?>')) {
-                    createNewAgentForExistingResource(resourceId, existingResource, subscriptionId, rgName);
-                } else {
-                    alert('<?php echo esc_js(__('Agent가 필요합니다. 다른 리소스를 선택하거나 새로 생성해주세요.', 'azure-ai-chatbot')); ?>');
-                }
-            } else {
-                // 새로 생성된 리소스 - Agent 생성
-                console.log('[Auto Setup] Agent 생성 중...');
-                var agentName = 'agent-' + new Date().getTime();
-                
-                jQuery.post(ajaxurl, {
-                    action: 'azure_oauth_create_agent',
-                    nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-                    resource_id: resourceId,
-                    agent_name: agentName,
-                    description: 'Auto-created agent for WordPress chatbot'
-                }, function(agentResponse) {
-                    if (agentResponse.success) {
-                        console.log('[Auto Setup] Agent 생성 완료');
-                        
-                        // Agent ID를 config에 추가
-                        if (config) {
-                            config.agent_id = agentResponse.data.agent_id;
-                            config.agent_name = agentName;
-                        }
-                        
-                        completeSetup(operationMode, config);
-                    } else {
-                        console.error('[Auto Setup] Agent 생성 실패:', agentResponse.data.message);
-                        alert('<?php esc_html_e('Agent 생성 실패:', 'azure-ai-chatbot'); ?> ' + agentResponse.data.message);
-                    }
-                });
-            }
-        }
-    });
-}
-
-// 설정 완료
-function completeSetup(mode, config) {
-    var successMsg = <?php echo json_encode(__('자동 설정이 완료되었습니다!', 'azure-ai-chatbot')); ?>;
-    var detailMsg = mode === 'chat' 
-        ? <?php echo json_encode(__('Chat 모드 설정(Endpoint, Deployment, API Key)이 저장되었습니다.', 'azure-ai-chatbot')); ?>
-        : <?php echo json_encode(__('Agent 모드 설정(Project, Agent, Client ID/Secret)이 저장되었습니다.', 'azure-ai-chatbot')); ?>;
-    
-    console.log('[Auto Setup] Setup complete. Mode:', mode);
-    console.log('[Auto Setup] Config:', config);
-    console.log('[Auto Setup] Current operationMode variable:', operationMode);
-    
-    // localStorage 토큰 플래그 및 operation mode 제거
-    try {
-        localStorage.removeItem('azure_oauth_token_saved');
-        localStorage.removeItem('azure_oauth_token_saved_time');
-        localStorage.removeItem('azure_oauth_operation_mode'); // ✅ 자동 설정 완료 시 삭제
-        console.log('[Auto Setup] localStorage token flags and operation mode cleared');
-    } catch(e) {
-        console.warn('[Auto Setup] Cannot clear localStorage:', e);
-    }
-    
-    // ✅ 중요: 사용자가 선택한 operationMode를 서버에 최종 저장
-    console.log('[Auto Setup] Saving final operation mode to server:', operationMode);
-    jQuery.post(ajaxurl, {
-        action: 'azure_oauth_set_operation_mode',
-        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-        mode: operationMode  // completeSetup의 mode 파라미터가 아닌 전역 operationMode 사용
-    }, function(response) {
-        console.log('[Auto Setup] Final mode saved:', response);
-        
-        // 설정은 이미 ajax_save_existing_config에서 저장되었으므로
-        // 별도 저장 없이 바로 리다이렉트 (DB 커밋 대기 2초)
-        console.log('[Auto Setup] Settings already saved, redirecting in 2 seconds...');
-        alert(successMsg + '\n\n' + detailMsg + '\n\n' + <?php echo json_encode(__('설정 페이지에서 확인하세요.', 'azure-ai-chatbot')); ?>);
-        
-        // DB 커밋 시간 보장을 위해 2초 대기 후 리다이렉트
-        setTimeout(function() {
-            console.log('[Auto Setup] Redirecting now...');
-            window.location.href = '<?php echo admin_url("admin.php?page=azure-ai-chatbot"); ?>';
-        }, 2000);
-    }).fail(function() {
-        console.error('[Auto Setup] Failed to save final mode, redirecting anyway...');
-        alert(successMsg + '\n\n' + detailMsg + '\n\n' + <?php echo json_encode(__('설정 페이지에서 확인하세요.', 'azure-ai-chatbot')); ?>);
-        
-        setTimeout(function() {
-            window.location.href = '<?php echo admin_url("admin.php?page=azure-ai-chatbot"); ?>';
-        }, 2000);
-    });
-}
-
-// ✅ Chat + Agent 양쪽 정보 모두 수집하는 함수
-function collectBothChatAndAgentConfig(resource, subscriptionId, rgName) {
-    console.log('[Auto Setup] ========== Chat + Agent 양방향 수집 시작 ==========');
-    console.log('[Auto Setup] Resource:', resource.name, 'ID:', resource.id);
-    
-    // 전역 변수로 수집 상태 추적
-    window.chatConfigCollected = false;
-    window.agentConfigCollected = false;
-    window.chatConfig = null;
-    window.agentConfig = null;
-    
-    // 1. Chat 정보 수집 시작
-    console.log('[Auto Setup] [1/2] Chat 정보 수집 시작...');
-    getExistingResourceConfigForBoth(resource, subscriptionId, rgName, function(chatConfig) {
-        console.log('[Auto Setup] Chat 정보 수집 완료:', chatConfig);
-        window.chatConfigCollected = true;
-        window.chatConfig = chatConfig;
-        checkBothCollected();
-    });
-    
-    // 2. Agent 정보 수집 시작
-    console.log('[Auto Setup] [2/2] Agent 정보 수집 시작...');
-    checkAndCreateAgentForBoth(resource.id, subscriptionId, rgName, null, resource, function(agentConfig) {
-        console.log('[Auto Setup] Agent 정보 수집 완료:', agentConfig);
-        window.agentConfigCollected = true;
-        window.agentConfig = agentConfig;
-        checkBothCollected();
-    });
-}
-
-// Chat + Agent 양쪽 수집 완료 확인
-function checkBothCollected() {
-    console.log('[Auto Setup] 수집 상태 확인:', {
-        chat: window.chatConfigCollected,
-        agent: window.agentConfigCollected
-    });
-    
-    if (window.chatConfigCollected && window.agentConfigCollected) {
-        console.log('[Auto Setup] ========== Chat + Agent 양방향 수집 완료 ==========');
-        console.log('[Auto Setup] Chat Config:', window.chatConfig);
-        console.log('[Auto Setup] Agent Config:', window.agentConfig);
-        console.log('[Auto Setup] Current operationMode variable:', operationMode);
-        
-        // 최종 완료 메시지
-        var successMsg = <?php echo json_encode(__('자동 설정이 완료되었습니다!', 'azure-ai-chatbot')); ?>;
-        var detailMsg = <?php echo json_encode(__('Chat 모드와 Agent 모드 설정이 모두 저장되었습니다.\n\n• Chat 모드: Endpoint, Deployment, API Key\n• Agent 모드: Project, Agent, Client ID/Secret', 'azure-ai-chatbot')); ?>;
-        
-        // localStorage 토큰 플래그 및 operation mode 제거
-        try {
-            localStorage.removeItem('azure_oauth_token_saved');
-            localStorage.removeItem('azure_oauth_token_saved_time');
-            localStorage.removeItem('azure_oauth_operation_mode'); // ✅ 자동 설정 완료 시 삭제
-            console.log('[Auto Setup] localStorage token flags and operation mode cleared');
-        } catch(e) {
-            console.warn('[Auto Setup] Cannot clear localStorage:', e);
-        }
-        
-        // ✅ 중요: 사용자가 선택한 operationMode를 서버에 최종 저장
-        console.log('[Auto Setup] Saving final operation mode to server:', operationMode);
-        jQuery.post(ajaxurl, {
-            action: 'azure_oauth_set_operation_mode',
-            nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-            mode: operationMode  // 전역 operationMode 사용
-        }, function(response) {
-            console.log('[Auto Setup] Final mode saved:', response);
-            
-            console.log('[Auto Setup] Settings already saved, redirecting in 2 seconds...');
-            alert(successMsg + '\n\n' + detailMsg + '\n\n' + <?php echo json_encode(__('설정 페이지에서 확인하세요.', 'azure-ai-chatbot')); ?>);
-            
-            // [수정] DB 커밋 시간 보장을 위해 2초 대기 후 리다이렉트
-            setTimeout(function() {
-                console.log('[Auto Setup] Redirecting now...');
-                // [수정] 리다이렉트 URL에서 tab 파라미터 제거 (메인 설정 페이지로 이동)
-                window.location.href = '<?php echo admin_url("admin.php?page=azure-ai-chatbot"); ?>';
-            }, 2000);
-        }).fail(function() {
-            console.error('[Auto Setup] Failed to save final mode, redirecting anyway...');
-            alert(successMsg + '\n\n' + detailMsg + '\n\n' + <?php echo json_encode(__('설정 페이지에서 확인하세요.', 'azure-ai-chatbot')); ?>);
-            
-            setTimeout(function() {
-                // [수정] 리다이렉트 URL에서 tab 파라미터 제거
-                window.location.href = '<?php echo admin_url("admin.php?page=azure-ai-chatbot"); ?>';
-            }, 2000);
-        });
-    }
-}
-
-// Chat 정보 수집 (양방향용)
-function getExistingResourceConfigForBoth(resource, subscriptionId, rgName, callback) {
-    console.log('[Auto Setup] [Chat] 기존 리소스 설정 정보 조회 중...', resource.name);
-    
-    var config = {
-        endpoint: '',
-        deployment_name: '',
-        model: '',
-        location: resource.location,
-        resource_name: resource.name
-    };
-    
-    // 배포 목록 조회
-    console.log('[Auto Setup] [Chat] 배포 목록 조회 요청');
-    
-    jQuery.post(ajaxurl, {
-        action: 'azure_oauth_get_deployments',
-        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-        resource_id: resource.id,
-        subscription_id: subscriptionId,
-        resource_group: rgName
-    }, function(response) {
-        console.log('[Auto Setup] [Chat] 배포 목록 조회 응답:', response);
-        
-        if (response.success && response.data.deployments && response.data.deployments.length > 0) {
-            var deployments = response.data.deployments;
-            console.log('[Auto Setup] [Chat] 배포 목록 조회 성공:', deployments.length + '개');
-            
-            // 첫 번째 배포 자동 선택
-            config.deployment_name = deployments[0].name;
-            config.model = deployments[0].model;
-            console.log('[Auto Setup] [Chat] 배포 자동 선택:', config.deployment_name);
-            
-            // API Key 조회
-            getResourceApiKeyForBoth(resource, subscriptionId, rgName, config, callback);
-        } else {
-            console.warn('[Auto Setup] [Chat] 배포 목록 없음, 빈 설정으로 진행');
-            callback(config);
-        }
-    }).fail(function(xhr, status, error) {
-        console.error('[Auto Setup] [Chat] 배포 목록 조회 실패:', { status, error });
-        callback(config);
-    });
-}
-
-// Chat API Key 조회 (양방향용)
-function getResourceApiKeyForBoth(resource, subscriptionId, rgName, config, callback) {
-    console.log('[Auto Setup] [Chat] API Key 조회 중...');
-    
-    jQuery.post(ajaxurl, {
-        action: 'azure_oauth_get_keys',
-        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-        resource_id: resource.id,
-        subscription_id: subscriptionId,
-        resource_group: rgName
-    }, function(response) {
-        console.log('[Auto Setup] [Chat] API Key 조회 응답:', response);
-        
-        if (response.success && response.data.key) {
-            console.log('[Auto Setup] [Chat] API Key 조회 성공');
-            config.api_key = response.data.key;
-            
-            // ✅ Azure OpenAI 엔드포인트 형식: https://your-resource.openai.azure.com
-            if (response.data.endpoint) {
-                var endpoint = response.data.endpoint;
-                // .cognitiveservices.azure.com을 .openai.azure.com으로 변환
-                if (endpoint.includes('.cognitiveservices.azure.com')) {
-                    endpoint = endpoint.replace('.cognitiveservices.azure.com', '.openai.azure.com');
-                    console.log('[Auto Setup] [Chat] 엔드포인트 변환됨:', endpoint);
-                }
-                config.endpoint = endpoint;
-                console.log('[Auto Setup] [Chat] Azure OpenAI 엔드포인트 설정:', config.endpoint);
-            } else {
-                // 엔드포인트가 없으면 리소스 이름으로 생성
-                config.endpoint = 'https://' + resource.name + '.openai.azure.com';
-                console.log('[Auto Setup] [Chat] 기본 엔드포인트 생성:', config.endpoint);
-            }
-            
-            // Chat 모드 설정 저장
-            var settings = {
-                mode: 'chat',
-                chat_endpoint: config.endpoint,
-                deployment_name: config.deployment_name,
-                api_key: config.api_key
-            };
-            
-            console.log('[Auto Setup] [Chat] 설정 저장 요청:', settings);
-            
-            jQuery.post(ajaxurl, {
-                action: 'azure_oauth_save_existing_config',
-                nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-                settings: settings
-            }, function(saveResponse) {
-                console.log('[Auto Setup] [Chat] 설정 저장 응답:', saveResponse);
-                
-                if (saveResponse.data && saveResponse.data.debug_logs) {
-                    console.log('========== PHP Debug Logs (Chat) ==========');
-                    saveResponse.data.debug_logs.forEach(function(log) {
-                        console.log(log);
-                    });
-                    console.log('===========================================');
-                }
-                
-                if (saveResponse.success) {
-                    console.log('[Auto Setup] [Chat] 설정 저장 완료');
-                    callback(config);
-                } else {
-                    console.error('[Auto Setup] [Chat] 설정 저장 실패:', saveResponse.data);
-                    callback(config);
-                }
-            }).fail(function(xhr, status, error) {
-                console.error('[Auto Setup] [Chat] 설정 저장 AJAX 실패:', { status, error });
-                callback(config);
-            });
-        } else {
-            console.warn('[Auto Setup] [Chat] API Key 조회 실패');
-            callback(config);
-        }
-    }).fail(function(xhr, status, error) {
-        console.error('[Auto Setup] [Chat] API Key 조회 AJAX 실패:', { status, error });
-        callback(config);
-    });
-}
-
-// Agent 정보 수집 (양방향용)
-function checkAndCreateAgentForBoth(resourceId, subscriptionId, rgName, config, existingResource, callback) {
-    console.log('[Auto Setup] [Agent] Agent 확인 중...');
-    console.log('[Auto Setup] [Agent] Resource ID:', resourceId);
-    
-    jQuery.post(ajaxurl, {
-        action: 'azure_oauth_get_agents',
-        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-        resource_id: resourceId
-    }, function(response) {
-        if (response.success && response.data.agents && response.data.agents.length > 0) {
-            var agents = response.data.agents;
-            console.log('[Auto Setup] [Agent] Agent 목록 조회 성공:', agents.length + '개');
-            
-            // OAuth credentials는 서버측에서 자동으로 사용됨 (보안을 위해 JavaScript에 노출하지 않음)
-            console.log('[Auto Setup] [Agent] OAuth credentials will be handled by server');
-            
-            // Agent 처리 함수
-            function processAgent(agent) {
-                console.log('[Auto Setup] [Agent] 선택된 Agent:', agent.name);
-                
-                // Agent 설정 구성
-                if (existingResource) {
-                    console.log('[Auto Setup] [Agent] 기존 리소스 설정 구성 중...');
-                    config = {
-                        agent_endpoint: 'https://' + existingResource.name + '.' + existingResource.location + '.services.ai.azure.com/agents/v1.0/projects/' + existingResource.name,
-                        project_name: existingResource.name,
-                        location: existingResource.location,
-                        agent_id: agent.id || agent.name,
-                        agent_name: agent.name
-                        // client_id, tenant_id, client_secret는 서버측에서 자동 처리
-                    };
-                    
-                    console.log('[Auto Setup] [Agent] Agent 모드 설정 구성:', config);
-                    
-                    var settings = {
-                        mode: 'agent',
-                        agent_endpoint: config.agent_endpoint,
-                        agent_id: config.agent_id
-                        // client_id, tenant_id, client_secret는 서버측에서 자동으로 추가됨
-                    };
-                    
-                    console.log('[Auto Setup] [Agent] 설정 저장 요청:', settings);
-                    
-                    jQuery.post(ajaxurl, {
-                        action: 'azure_oauth_save_existing_config',
-                        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-                        settings: settings
-                    }, function(saveResponse) {
-                        console.log('[Auto Setup] [Agent] 설정 저장 응답:', saveResponse);
-                        
-                        if (saveResponse.data && saveResponse.data.debug_logs) {
-                            console.log('========== PHP Debug Logs (Agent) ==========');
-                            saveResponse.data.debug_logs.forEach(function(log) {
-                                console.log(log);
-                            });
-                            console.log('============================================');
-                        }
-                        
-                        if (saveResponse.success) {
-                            console.log('[Auto Setup] [Agent] 설정 저장 완료');
-                            callback(config);
-                        } else {
-                            console.error('[Auto Setup] [Agent] 설정 저장 실패:', saveResponse.data);
-                            callback(config);
-                        }
-                    }).fail(function(xhr, status, error) {
-                        console.error('[Auto Setup] [Agent] 설정 저장 AJAX 실패:', { status, error });
-                        callback(config);
-                    });
-                }
-            }
-            
-            // Agent 선택 로직 (1개면 자동, 2개 이상이면 모달)
-            if (agents.length === 1) {
-                console.log('[Auto Setup] [Agent] Agent 자동 선택 (1개):', agents[0].name);
-                processAgent(agents[0]);
-            } else {
-                console.log('[Auto Setup] [Agent] Agent 선택 모달 표시 (' + agents.length + '개)');
-                var items = [];
-                for (var i = 0; i < agents.length; i++) {
-                    items.push({ 
-                        label: agents[i].name + ' (ID: ' + (agents[i].id || agents[i].name) + ')', 
-                        idx: i 
-                    });
-                }
-                
-                showSelectionModal('<?php echo esc_js(__('Agent 선택', 'azure-ai-chatbot')); ?>', items, false)
-                .then(function(res) {
-                    if (res && res.action === 'ok' && res.data && typeof res.data.azure_choice !== 'undefined') {
-                        var sel = parseInt(res.data.azure_choice, 10);
-                        if (!isNaN(sel) && sel >= 0 && sel < agents.length) {
-                            console.log('[Auto Setup] [Agent] 사용자 선택 Agent:', agents[sel].name);
-                            processAgent(agents[sel]);
-                        } else {
-                            console.warn('[Auto Setup] [Agent] 유효하지 않은 선택, 빈 설정으로 진행');
-                            callback({});
-                        }
-                    } else {
-                        console.warn('[Auto Setup] [Agent] Agent 선택 취소, 빈 설정으로 진행');
-                        callback({});
-                    }
-                }).catch(function() {
-                    console.warn('[Auto Setup] [Agent] Agent 선택 모달 오류, 빈 설정으로 진행');
-                    callback({});
-                });
-            }
-        } else {
-            // ✅ PHP에서 보낸 메시지 확인 및 표시
-            var message = response.data && response.data.message ? response.data.message : 'Agent 없음';
-            console.log('[Auto Setup] [Agent] ' + message);
-
-            // ✅ 사용자에게 명확한 메시지 표시
-            if (response.data && response.data.message) {
-                alert('ℹ️ Agent 정보: ' + response.data.message);
-            }
-
-            callback({});
-        }
-    }).fail(function(xhr, status, error) {
-        console.error('[Auto Setup] [Agent] Agent 조회 AJAX 실패:', { status, error });
-        callback({});
-    });
-}
-
-// 기존 리소스에서 설정 정보 가져오기 (Chat 모드)
-function getExistingResourceConfig(resource, subscriptionId, rgName) {
-    console.log('[Auto Setup] 기존 리소스 설정 정보 조회 중...', resource.name);
-    
-    // Chat 모드 설정 정보 구성 (endpoint는 API Key 조회 응답에서 가져옴)
-    var config = {
-        endpoint: '', // API Key 조회 응답에서 설정
-        deployment_name: '', // 배포 목록에서 선택하도록 함
-        model: '',
-        location: resource.location,
-        resource_name: resource.name
-    };
-    
-    // 배포 목록 조회
-    console.log('[Auto Setup] 배포 목록 조회 요청:', { 
-        resource_id: resource.id, 
-        subscription_id: subscriptionId, 
-        resource_group: rgName 
-    });
-    
-    jQuery.post(ajaxurl, {
-        action: 'azure_oauth_get_deployments',
-        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-        resource_id: resource.id,
-        subscription_id: subscriptionId,
-        resource_group: rgName
-    }, function(response) {
-        console.log('[Auto Setup] 배포 목록 조회 응답:', response);
-        console.log('[Auto Setup] response.success:', response.success);
-        console.log('[Auto Setup] response.data:', JSON.stringify(response.data, null, 2));
-        
-        if (response.success && response.data.deployments && response.data.deployments.length > 0) {
-            var deployments = response.data.deployments;
-            console.log('[Auto Setup] 배포 목록 조회 성공:', deployments.length + '개');
-            
-            if (deployments.length === 1) {
-                // 배포 하나만 있으면 자동 선택
-                config.deployment_name = deployments[0].name;
-                config.model = deployments[0].model;
-                console.log('[Auto Setup] 배포 자동 선택:', config.deployment_name);
-                
-                // API Key 조회
-                getResourceApiKey(resource, subscriptionId, rgName, config);
-            } else {
-                // 여러 배포가 있으면 선택
-                var items = [];
-                for (var i = 0; i < deployments.length; i++) {
-                    items.push({ 
-                        label: deployments[i].name + ' (' + (deployments[i].model || '') + ')', 
-                        idx: i 
-                    });
-                }
-                
-                showSelectionModal('<?php echo esc_js(__('배포 선택', 'azure-ai-chatbot')); ?>', items, false)
-                .then(function(res) {
-                    if (res && res.action === 'ok' && res.data && typeof res.data.azure_choice !== 'undefined') {
-                        var sel = parseInt(res.data.azure_choice, 10);
-                        if (!isNaN(sel) && sel >= 0 && sel < deployments.length) {
-                            config.deployment_name = deployments[sel].name;
-                            config.model = deployments[sel].model;
-                            console.log('[Auto Setup] 사용자 선택 배포:', config.deployment_name);
-                            
-                            // API Key 조회
-                            getResourceApiKey(resource, subscriptionId, rgName, config);
-                        } else {
-                            alert('<?php echo esc_js(__('유효하지 않은 선택입니다.', 'azure-ai-chatbot')); ?>');
-                        }
-                    } else {
-                        alert('<?php echo esc_js(__('배포를 선택해주세요.', 'azure-ai-chatbot')); ?>');
-                    }
-                }).catch(function() {
-                    alert('<?php echo esc_js(__('배포를 선택해주세요.', 'azure-ai-chatbot')); ?>');
-                });
-            }
-        } else {
-            console.warn('[Auto Setup] 배포 목록 조회 실패 또는 배포 없음');
-            console.warn('[Auto Setup] response.success:', response.success);
-            console.warn('[Auto Setup] response.data:', JSON.stringify(response.data, null, 2));
-            console.warn('[Auto Setup] response.data.deployments:', response.data ? response.data.deployments : 'undefined');
-            console.warn('[Auto Setup] response.data.deployments length:', response.data && response.data.deployments ? response.data.deployments.length : 'N/A');
-            
-            var errorMsg = '이 리소스에는 배포된 모델이 없습니다.';
-            if (response.data && response.data.message) {
-                errorMsg += '\n원인: ' + response.data.message;
-            }
-            alert(errorMsg + '\n\n다른 리소스를 선택하거나 새로 생성해주세요.');
-        }
-    }).fail(function(xhr, status, error) {
-        console.error('[Auto Setup] 배포 목록 조회 AJAX 실패:', { status, error });
-        console.error('[Auto Setup] XHR Response:', xhr.responseText);
-        alert('<?php echo esc_js(__('배포 목록 조회에 실패했습니다.', 'azure-ai-chatbot')); ?>\n상세: ' + error + '\n' + (xhr.responseText || ''));
-    });
-}
-
-// 리소스 API Key 조회
-function getResourceApiKey(resource, subscriptionId, rgName, config) {
-    console.log('[Auto Setup] API Key 조회 중...');
-    console.log('[Auto Setup] API Key 조회 요청:', {
-        resource_id: resource.id,
-        subscription_id: subscriptionId,
-        resource_group: rgName
-    });
-    
-    jQuery.post(ajaxurl, {
-        action: 'azure_oauth_get_keys',
-        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-        resource_id: resource.id,
-        subscription_id: subscriptionId,
-        resource_group: rgName
-    }, function(response) {
-        console.log('[Auto Setup] API Key 조회 응답:', response);
-        console.log('[Auto Setup] response.success:', response.success);
-        console.log('[Auto Setup] response.data:', JSON.stringify(response.data, null, 2));
-        
-        if (response.success && response.data.key) {
-            console.log('[Auto Setup] API Key 조회 성공');
-            config.api_key = response.data.key;
-            
-            // ✅ Azure OpenAI 엔드포인트 사용 (response.data.endpoint)
-            if (response.data.endpoint) {
-                config.endpoint = response.data.endpoint;
-                console.log('[Auto Setup] Azure OpenAI 엔드포인트 설정:', config.endpoint);
-            } else {
-                console.warn('[Auto Setup] 엔드포인트가 응답에 없습니다. 기본값 사용');
-            }
-            
-            // Chat 모드 설정에 API Key 포함하여 저장
-            var settings = {
-                mode: 'chat',
-                chat_endpoint: config.endpoint,
-                deployment_name: config.deployment_name,
-                api_key: config.api_key
-            };
-            
-            console.log('[Auto Setup] Chat 모드 설정 저장 요청:', settings);
-            
-            // WordPress 설정에 API Key 직접 저장
-            jQuery.post(ajaxurl, {
-                action: 'azure_oauth_save_existing_config',
-                nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-                settings: settings
-            }, function(saveResponse) {
-                console.log('[Auto Setup] Chat 모드 설정 저장 응답:', saveResponse);
-                console.log('[Auto Setup] saveResponse.success:', saveResponse.success);
-                console.log('[Auto Setup] saveResponse.data:', saveResponse.data);
-                
-                // PHP 디버그 로그 출력 👈 추가!
-                if (saveResponse.data && saveResponse.data.debug_logs) {
-                    console.log('========== PHP Debug Logs ==========');
-                    saveResponse.data.debug_logs.forEach(function(log) {
-                        console.log(log);
-                    });
-                    console.log('====================================');
-                }
-                
-                if (saveResponse.success) {
-                    console.log('[Auto Setup] Chat 모드 설정 완료 (API Key 포함)');
-                    console.log('[Auto Setup] 저장된 설정:', saveResponse.data.settings);
-                    console.log('[Auto Setup] save_result:', saveResponse.data.save_result);
-                    
-                    // 설정의 각 필드 개별 확인
-                    var settings = saveResponse.data.settings;
-                    console.log('[Auto Setup] 설정 필드 확인:');
-                    console.log('  - mode:', settings.mode);
-                    console.log('  - chat_endpoint:', settings.chat_endpoint || 'NOT SET');
-                    console.log('  - deployment_name:', settings.deployment_name || 'NOT SET');
-                    console.log('  - api_key_encrypted:', settings.api_key_encrypted ? 'YES (' + settings.api_key_encrypted.length + ' chars)' : 'NOT SET');
-                    console.log('  - chat_provider:', settings.chat_provider || 'NOT SET');
-                    console.log('  - agent_endpoint:', settings.agent_endpoint || 'NOT SET');
-                    console.log('  - agent_id:', settings.agent_id || 'NOT SET');
-                    console.log('  - client_id:', settings.client_id || 'NOT SET');
-                    console.log('  - tenant_id:', settings.tenant_id || 'NOT SET');
-                    
-                    completeSetup('chat', config);
-                } else {
-                    console.error('[Auto Setup] 설정 저장 실패:', saveResponse.data);
-                    console.warn('[Auto Setup] 설정 저장 실패, 기본 저장으로 대체');
-                    completeSetup('chat', config);
-                }
-            }).fail(function(xhr, status, error) {
-                console.error('[Auto Setup] 설정 저장 AJAX 실패:', { status, error });
-                console.error('[Auto Setup] XHR Response:', xhr.responseText);
-                console.warn('[Auto Setup] 설정 저장 AJAX 실패, 기본 저장으로 대체');
-                completeSetup('chat', config);
-            });
-        } else {
-            console.warn('[Auto Setup] API Key 조회 실패');
-            console.warn('[Auto Setup] response.success:', response.success);
-            console.warn('[Auto Setup] response.data:', JSON.stringify(response.data, null, 2));
-            console.warn('[Auto Setup] response.data.key:', response.data ? response.data.key : 'undefined');
-            
-            // API Key 없이도 설정 저장 (수동 입력 필요)
-            completeSetup('chat', config);
-        }
-    }).fail(function(xhr, status, error) {
-        console.error('[Auto Setup] API Key 조회 AJAX 실패:', { status, error });
-        console.error('[Auto Setup] XHR Response:', xhr.responseText);
-        // API Key 없이도 설정 저장 (수동 입력 필요)
-        completeSetup('chat', config);
-    });
-}
-
-// 기존 리소스에 새 Agent 생성
-function createNewAgentForExistingResource(resourceId, resource, subscriptionId, rgName) {
-    var agentName = 'agent-' + new Date().getTime();
-    
-    jQuery.post(ajaxurl, {
-        action: 'azure_oauth_create_agent',
-        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-        resource_id: resourceId,
-        agent_name: agentName,
-        description: 'Auto-created agent for WordPress chatbot'
-    }, function(agentResponse) {
-        if (agentResponse.success) {
-            console.log('[Auto Setup] 새 Agent 생성 완료');
-            
-            var client_id = '<?php echo esc_js(get_option('azure_chatbot_oauth_client_id', '')); ?>';
-            var tenant_id = '<?php echo esc_js(get_option('azure_chatbot_oauth_tenant_id', '')); ?>';
-            
-            var config = {
-                endpoint: 'https://' + resource.name + '.' + resource.location + '.services.ai.azure.com/api/projects/' + resource.name,
-                project_name: resource.name,
-                location: resource.location,
-                client_id: client_id,
-                tenant_id: tenant_id,
-                agent_id: agentResponse.data.agent_id,
-                agent_name: agentName
-            };
-            
-            completeSetup('agent', config);
-        } else {
-            console.error('[Auto Setup] Agent 생성 실패:', agentResponse.data.message);
-            alert('<?php esc_html_e('Agent 생성 실패:', 'azure-ai-chatbot'); ?> ' + agentResponse.data.message);
-        }
-    });
-}
-
-// Resource Group 생성 함수
-function createResourceGroup(subscriptionId, name, location, callback) {
-    console.log('[Auto Setup] Resource Group 생성 요청:', { subscriptionId, name, location });
-    
-    jQuery.post(ajaxurl, {
-        action: 'azure_oauth_create_resource_group',
-        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-        subscription_id: subscriptionId,
-        name: name,
-        location: location
-    }, function(response) {
-        console.log('[Auto Setup] Resource Group 생성 응답:', response);
-        
-        if (response.success) {
-            console.log('[Auto Setup] Resource Group 생성 성공:', name);
-            jQuery('#auto-setup-progress').append('<div class="notice notice-success"><p>✅ Resource Group 생성 완료: ' + name + '</p></div>');
-        } else {
-            console.error('[Auto Setup] Resource Group 생성 실패:', response.data);
-            var errorMsg = response.data && response.data.message ? response.data.message : 
-                          (response.data || '알 수 없는 오류');
-            jQuery('#auto-setup-progress').append(
-                '<div class="notice notice-error"><p>❌ Resource Group 생성 실패: ' + errorMsg + '</p></div>'
-            );
-            
-            // 토큰 만료 체크
-            if (response.data && response.data.code === 401) {
-                jQuery('#auto-setup-progress').append(
-                    '<div class="notice notice-warning"><p>⚠️ 인증이 만료되었습니다. "Azure 자동 설정 시작"을 다시 클릭하세요.</p></div>'
-                );
-                localStorage.removeItem('azure_oauth_token_flag');
-            }
-        }
-        
-        callback(response.success);
-    }).fail(function(xhr, status, error) {
-        console.error('[Auto Setup] Resource Group 생성 AJAX 실패:', { status, error });
-        console.error('[Auto Setup] XHR Response:', xhr.responseText);
-        
-        jQuery('#auto-setup-progress').append(
-            '<div class="notice notice-error"><p>❌ Resource Group 생성 요청 실패: ' + error + '</p>' +
-            '<p>상세 정보: ' + (xhr.responseText || 'No response') + '</p></div>'
-        );
-        
-        callback(false);
-    });
-}
-
-function createAIResource() {
-    var nameMode = jQuery('input[name="ai_name_mode"]:checked').val();
-    var name = nameMode === 'auto' ? 
-        jQuery('#new_ai_name_auto').val() : 
-        jQuery('#new_ai_name_manual').val();
-    var sku = jQuery('#new_ai_sku').val();
-    var location = jQuery('#new_ai_location').val();
-    var resourceGroup = jQuery('#oauth_resource_group').val();
-    var subscription = jQuery('#oauth_subscription').val();
-    var mode = jQuery('input[name="oauth_mode"]:checked').val();
-    
-    // Chat 모드일 때는 모델 정보도 필요
-    var model = mode === 'chat' ? jQuery('#new_ai_model').val() : '';
-    var deploymentName = mode === 'chat' ? jQuery('#new_ai_deployment_name').val() : '';
-    var capacity = mode === 'chat' ? jQuery('#new_ai_capacity').val() : '';
-    
-    if (!name || !sku || !location || !resourceGroup) {
-        alert('<?php esc_html_e('모든 필드를 입력하세요.', 'azure-ai-chatbot'); ?>');
-        return;
-    }
-    
-    // Chat 모드 추가 검증
-    if (mode === 'chat' && (!model || !deploymentName)) {
-        alert('<?php esc_html_e('모델과 배포 이름을 선택하세요.', 'azure-ai-chatbot'); ?>');
-        return;
-    }
-    
-    // 이름 유효성 검사
-    if (!/^[a-z0-9-]{3,64}$/.test(name)) {
-        alert('<?php esc_html_e('리소스 이름은 소문자, 숫자, 하이픈만 사용하며 3-64자여야 합니다.', 'azure-ai-chatbot'); ?>');
-        return;
-    }
-    
-    var chatProgressMsg = <?php echo json_encode(__('AI Foundry Project 생성 및 모델 배포 중... (2-3분 소요)', 'azure-ai-chatbot')); ?>;
-    var agentProgressMsg = <?php echo json_encode(__('AI Foundry Project 생성 중... (1-2분 소요)', 'azure-ai-chatbot')); ?>;
-    var progressMsg = mode === 'chat' ? chatProgressMsg : agentProgressMsg;
-    
-    jQuery('#new-ai-resource-form button').prop('disabled', true);
-    jQuery('#new-ai-resource-form').prepend('<p class="notice notice-info inline"><span class="dashicons dashicons-update spin"></span> ' + progressMsg + '</p>');
-    
-    jQuery.post(ajaxurl, {
-        action: 'azure_oauth_create_ai_resource',
-        nonce: '<?php echo wp_create_nonce("azure_oauth_nonce"); ?>',
-        name: name,
-        sku: sku,
-        location: location,
-        resource_group: resourceGroup,
-        subscription: subscription,
-        mode: mode,
-        model: model,
-        deployment_name: deploymentName,
-        capacity: capacity
-    }, function(response) {
-        jQuery('#new-ai-resource-form .notice').remove();
-        jQuery('#new-ai-resource-form button').prop('disabled', false);
-        
-        if (response.success) {
-            var chatSuccessMsg = <?php echo json_encode(__('AI Foundry Project와 모델이 성공적으로 배포되었습니다!', 'azure-ai-chatbot')); ?>;
-            var agentSuccessMsg = <?php echo json_encode(__('AI Foundry Project가 성공적으로 생성되었습니다!', 'azure-ai-chatbot')); ?>;
-            var successMsg = mode === 'chat' ? chatSuccessMsg : agentSuccessMsg;
-            
-            alert(successMsg);
-            
-            // 폼 숨기기
-            jQuery('#new-ai-resource-form').hide();
-            jQuery('#oauth_resource').val('');
-            
-            // 리소스 목록 새로고침
-            loadResources();
-        } else {
-            alert('<?php esc_html_e('생성 실패:', 'azure-ai-chatbot'); ?> ' + response.data.message);
-        }
-    });
-}
-
-function cancelNewAIResource() {
-    jQuery('#new-ai-resource-form').hide();
-    jQuery('#oauth_resource').val('');
-}
-
-// Resource Group 선택 이벤트 처리 수정
-jQuery(document).ready(function($) {
-    $('#oauth_resource_group').on('change', function() {
-        var value = $(this).val();
-        
-        if (value === '__CREATE_NEW__') {
-            $('#new-rg-form').slideDown(300);
-            generateResourceGroupName();
-        } else {
-            $('#new-rg-form').slideUp(300);
-            
-            if (value) {
-                // 선택된 Resource Group의 location 가져오기
-                var selectedOption = $(this).find('option:selected');
-                var location = selectedOption.data('location');
-                if (location) {
-                    $('#new_ai_location').val(location);
-                }
-            }
-            
-            loadResources();
-        }
-    });
-    
-    // AI 리소스 선택 이벤트 처리
-    $('#oauth_resource').on('change', function() {
-        var value = $(this).val();
-        
-        if (value === '__CREATE_NEW__') {
-            $('#new-ai-resource-form').slideDown(300);
-            generateAIResourceName();
-            
-            // Resource Group의 location 설정
-            var rgLocation = $('#new_ai_location').val();
-            if (!rgLocation) {
-                var selectedRg = $('#oauth_resource_group option:selected');
-                $('#new_ai_location').val(selectedRg.data('location') || 'koreacentral');
-            }
-        } else {
-            $('#new-ai-resource-form').slideUp(300);
-        }
-    });
-    
-    // 모드 변경 시 AI 리소스 이름 재생성
-    $('input[name="oauth_mode"]').on('change', function() {
-        generateAIResourceName();
-    });
-    
-    // Location 변경 시 Resource Group 이름 재생성
-    $('#new_rg_location').on('change', function() {
-        if ($('input[name="rg_name_mode"]:checked').val() === 'auto') {
-            generateResourceGroupName();
-        }
-    });
-});
+(function($) {
+	const autoSetup = {
+		state: {
+			hasToken: <?php echo $has_token ? 'true' : 'false'; ?>,
+			isConfigured: <?php echo $is_configured ? 'true' : 'false'; ?>,
+			mode: '<?php echo esc_js($operation_mode); ?>',
+			nonce: '<?php echo esc_js($nonce); ?>',
+			subscriptionId: null,
+			resourceGroup: null,
+			selectedResourceId: null,
+			selectedResource: null,
+			projectName: null,
+			hubId: null,
+			hubEndpoint: null,
+			deploymentName: null,
+			agentId: null,
+			resourcesByRg: {},
+			deploymentsByResource: {},
+			agentsByResource: {}
+		},
+		ui: {},
+
+		init() {
+			this.cacheDom();
+			this.bindEvents();
+			this.toggleModeCards();
+
+		},
+
+		cacheDom() {
+			this.ui.subscription   = $('#oauth_subscription');
+			this.ui.resourceGroup  = $('#oauth_resource_group');
+			this.ui.project        = $('#foundry_project');
+			this.ui.deployment     = $('#chat_deployment');
+			this.ui.agent          = $('#agent_selector');
+			this.ui.summary        = $('#auto-setup-summary');
+			this.ui.log            = $('#auto-setup-log');
+			this.ui.refreshSubBtn  = $('#refresh-subscriptions');
+			this.ui.chatCard       = $('#chat-deployment-card');
+			this.ui.agentCard      = $('#agent-card');
+			this.ui.resetSessionBtn = $('#reset-oauth-session');
+			this.ui.resetConfigBtn = $('#reset-oauth-config');
+		},
+
+		bindEvents() {
+			this.ui.refreshSubBtn.on('click', () => this.loadSubscriptions(true));
+			this.ui.subscription.on('change', () => this.handleSubscriptionChange());
+			this.ui.resourceGroup.on('change', () => this.handleResourceGroupChange());
+			this.ui.project.on('change', () => this.handleProjectChange());
+			this.ui.deployment.on('change', () => this.handleDeploymentChange());
+			this.ui.agent.on('change', () => this.handleAgentChange());
+			if (this.ui.resetSessionBtn.length) {
+				this.ui.resetSessionBtn.on('click', () => this.handleSessionReset());
+			}
+			if (this.ui.resetConfigBtn.length) {
+				this.ui.resetConfigBtn.on('click', () => this.handleConfigReset());
+			}
+		},
+
+		payload(action, extra = {}) {
+			return Object.assign({ action, nonce: this.state.nonce }, extra);
+		},
+
+		ajax(action, data) {
+			return $.post(window.ajaxurl || '<?php echo esc_js(admin_url('admin-ajax.php')); ?>', this.payload(action, data));
+		},
+
+		setSelectLoading($select, placeholder) {
+			$select.prop('disabled', true)
+				.empty()
+				.append($('<option>', { value: '', text: placeholder || '<?php echo esc_js(__('로딩 중...', 'azure-ai-chatbot')); ?>' }));
+		},
+
+		appendLog(message, meta) {
+			const timestamp = new Date().toISOString();
+			const line = `[${timestamp}] ${message}`;
+			this.ui.log.text((this.ui.log.text() + '\n' + line).trim());
+			if (meta) {
+				console.log('[Auto Setup]', message, meta);
+			} else {
+				console.log('[Auto Setup]', message);
+			}
+		},
+
+		updateSummary(status, title, description) {
+			this.ui.summary.attr('data-status', status || 'idle');
+			this.ui.summary.html(
+				`<strong>${title || '<?php echo esc_js(__('상태 업데이트', 'azure-ai-chatbot')); ?>'}</strong>` +
+				`<p style="margin:6px 0 0;">${description || ''}</p>`
+			);
+		},
+
+			handleSessionReset() {
+			if (!this.state.hasToken || this.ui.resetSessionBtn.prop('disabled')) {
+				return;
+			}
+
+			if (!window.confirm('<?php echo esc_js(__('현재 OAuth 인증을 초기화하고 다시 로그인하시겠습니까?', 'azure-ai-chatbot')); ?>')) {
+				return;
+			}
+
+			this.appendLog('Clearing OAuth session...');
+				const originalHtml = this.ui.resetSessionBtn.html();
+				this.ui.resetSessionBtn.prop('disabled', true).html('<span class="dashicons dashicons-update" style="margin-top:3px; animation: rotation 1.2s linear infinite;"></span> <?php echo esc_js(__('초기화 중...', 'azure-ai-chatbot')); ?>');
+
+			this.ajax('azure_oauth_clear_session').done(() => {
+				this.appendLog('OAuth session cleared. Reloading page.');
+				window.location.href = window.location.href.replace(/([&?])has_token=1/, '$1').replace(/([&?])oauth_success=1/, '$1');
+				window.location.reload();
+			}).fail((xhr, status, error) => {
+				this.appendLog('Failed to clear session', { status, error, response: xhr && xhr.responseText });
+					this.ui.resetSessionBtn.prop('disabled', false).html(originalHtml);
+				window.alert('<?php echo esc_js(__('세션 초기화에 실패했습니다. 다시 시도해주세요.', 'azure-ai-chatbot')); ?>');
+			});
+		},
+
+		handleConfigReset() {
+			if (!this.state.isConfigured || this.ui.resetConfigBtn.prop('disabled')) {
+				return;
+			}
+
+			if (!window.confirm('<?php echo esc_js(__('⚠️ 경고: 모든 OAuth 설정(Client ID, Secret, Tenant ID)이 완전히 삭제됩니다.\n\nAzure App Registration 자동 설정 안내가 다시 표시되며, 처음부터 다시 설정해야 합니다.\n\n정말로 초기화하시겠습니까?', 'azure-ai-chatbot')); ?>')) {
+				return;
+			}
+
+			this.appendLog('Resetting OAuth configuration completely...');
+			const originalHtml = this.ui.resetConfigBtn.html();
+			this.ui.resetConfigBtn.prop('disabled', true).html('<span class="dashicons dashicons-update" style="margin-top:3px; animation: rotation 1.2s linear infinite;"></span> <?php echo esc_js(__('초기화 중...', 'azure-ai-chatbot')); ?>');
+
+			this.ajax('azure_oauth_reset_config').done(() => {
+				this.appendLog('OAuth configuration reset complete. Reloading page...');
+				window.alert('<?php echo esc_js(__('모든 설정이 초기화되었습니다. 페이지가 새로고침됩니다.', 'azure-ai-chatbot')); ?>');
+				window.location.href = window.location.href.replace(/([&?])(has_token|oauth_success)=1/g, '$1').replace(/[&?]$/, '');
+				window.location.reload();
+			}).fail((xhr, status, error) => {
+				this.appendLog('Failed to reset configuration', { status, error, response: xhr && xhr.responseText });
+				this.ui.resetConfigBtn.prop('disabled', false).html(originalHtml);
+				window.alert('<?php echo esc_js(__('설정 초기화에 실패했습니다. 다시 시도해주세요.', 'azure-ai-chatbot')); ?>');
+			});
+		},
+
+		resetFrom(level) {
+			switch (level) {
+				case 'subscription':
+					this.state.subscriptionId = null;
+					this.state.resourceGroup = null;
+					this.state.selectedResourceId = null;
+					this.state.selectedResource = null;
+					this.state.projectName = null;
+					this.state.hubId = null;
+					this.state.hubEndpoint = null;
+					this.state.deploymentName = null;
+					this.state.agentId = null;
+					this.setSelectLoading(this.ui.resourceGroup, '<?php echo esc_js(__('Subscription을 먼저 선택하세요.', 'azure-ai-chatbot')); ?>');
+					this.setSelectLoading(this.ui.project, '<?php echo esc_js(__('Resource Group을 먼저 선택하세요.', 'azure-ai-chatbot')); ?>');
+					this.setSelectLoading(this.ui.deployment, '<?php echo esc_js(__('프로젝트를 먼저 선택하세요.', 'azure-ai-chatbot')); ?>');
+					this.setSelectLoading(this.ui.agent, '<?php echo esc_js(__('프로젝트를 먼저 선택하세요.', 'azure-ai-chatbot')); ?>');
+					break;
+				case 'resourceGroup':
+					this.state.resourceGroup = null;
+					this.state.selectedResourceId = null;
+					this.state.selectedResource = null;
+					this.state.projectName = null;
+					this.state.hubId = null;
+					this.state.hubEndpoint = null;
+					this.state.deploymentName = null;
+					this.state.agentId = null;
+					this.setSelectLoading(this.ui.project, '<?php echo esc_js(__('Resource Group을 먼저 선택하세요.', 'azure-ai-chatbot')); ?>');
+					this.setSelectLoading(this.ui.deployment, '<?php echo esc_js(__('프로젝트를 먼저 선택하세요.', 'azure-ai-chatbot')); ?>');
+					this.setSelectLoading(this.ui.agent, '<?php echo esc_js(__('프로젝트를 먼저 선택하세요.', 'azure-ai-chatbot')); ?>');
+					break;
+				case 'project':
+					this.state.selectedResourceId = null;
+					this.state.selectedResource = null;
+					this.state.projectName = null;
+					this.state.hubId = null;
+					this.state.hubEndpoint = null;
+					this.state.deploymentName = null;
+					this.state.agentId = null;
+					this.setSelectLoading(this.ui.deployment, '<?php echo esc_js(__('프로젝트를 먼저 선택하세요.', 'azure-ai-chatbot')); ?>');
+					this.setSelectLoading(this.ui.agent, '<?php echo esc_js(__('프로젝트를 먼저 선택하세요.', 'azure-ai-chatbot')); ?>');
+					break;
+				case 'deployment':
+					this.state.deploymentName = null;
+					break;
+				case 'agent':
+					this.state.agentId = null;
+					break;
+			}
+		},
+
+		loadSubscriptions(force) {
+			this.setSelectLoading(this.ui.subscription, '<?php echo esc_js(__('구독 목록을 불러오는 중...', 'azure-ai-chatbot')); ?>');
+			this.resetFrom('subscription');
+			this.updateSummary('loading', '<?php esc_html_e('구독 조회 중', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('Azure API에서 Subscription 정보를 가져오는 중입니다.', 'azure-ai-chatbot'); ?>');
+			this.appendLog('Requesting subscription list...');
+
+			this.ajax('azure_oauth_get_subscriptions').done((response) => {
+				if (!response || !response.success) {
+					throw new Error(response && response.data ? response.data.message : 'Unknown error');
+				}
+
+				const subs = response.data.subscriptions || [];
+				this.ui.subscription.empty();
+				this.ui.subscription.append($('<option>', { value: '', text: '<?php echo esc_js(__('Subscription을 선택하세요.', 'azure-ai-chatbot')); ?>' }));
+				subs.forEach((sub) => {
+					this.ui.subscription.append($('<option>', { value: sub.id, text: `${sub.name} (${sub.id})` }));
+				});
+				this.ui.subscription.prop('disabled', subs.length === 0);
+
+				this.updateSummary('idle', '<?php esc_html_e('구독 선택 대기', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('사용할 Subscription을 선택하세요.', 'azure-ai-chatbot'); ?>');
+				this.appendLog(`Loaded ${subs.length} subscription(s).`);
+
+				if (subs.length === 1 && force !== true) {
+					this.ui.subscription.val(subs[0].id).trigger('change');
+				}
+			}).fail((xhr, status, error) => {
+				this.updateSummary('error', '<?php esc_html_e('구독 조회 실패', 'azure-ai-chatbot'); ?>', error || status);
+				this.appendLog('Failed to load subscriptions', { status, error, response: xhr && xhr.responseText });
+			});
+		},
+
+		loadResourceGroups(subscriptionId) {
+			this.setSelectLoading(this.ui.resourceGroup, '<?php echo esc_js(__('Resource Group을 조회 중...', 'azure-ai-chatbot')); ?>');
+			this.resetFrom('resourceGroup');
+			this.updateSummary('loading', '<?php esc_html_e('Resource Group 조회', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('선택한 Subscription 안의 Resource Group을 확인합니다.', 'azure-ai-chatbot'); ?>');
+			this.appendLog(`Loading resource groups for subscription ${subscriptionId}...`);
+
+			this.ajax('azure_oauth_get_resource_groups', {
+				subscription_id: subscriptionId
+			}).done((response) => {
+				if (!response || !response.success) {
+					throw new Error(response && response.data ? response.data.message : 'Unknown error');
+				}
+
+				const groups = response.data.resource_groups || [];
+				this.ui.resourceGroup.empty();
+				this.ui.resourceGroup.append($('<option>', { value: '', text: '<?php echo esc_js(__('Resource Group을 선택하세요.', 'azure-ai-chatbot')); ?>' }));
+				groups.forEach((rg) => {
+					const label = `${rg.name} (${rg.location})`;
+					this.ui.resourceGroup.append(
+						$('<option>', { value: rg.name, text: label, 'data-location': rg.location })
+					);
+				});
+				this.ui.resourceGroup.prop('disabled', groups.length === 0);
+				this.appendLog(`Loaded ${groups.length} resource group(s).`);
+
+				if (groups.length === 1) {
+					this.ui.resourceGroup.val(groups[0].name).trigger('change');
+				} else {
+					this.updateSummary('idle', '<?php esc_html_e('Resource Group 선택 대기', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('사용할 Resource Group을 선택하세요.', 'azure-ai-chatbot'); ?>');
+				}
+			}).fail((xhr, status, error) => {
+				this.updateSummary('error', '<?php esc_html_e('Resource Group 조회 실패', 'azure-ai-chatbot'); ?>', error || status);
+				this.appendLog('Failed to load resource groups', { status, error, response: xhr && xhr.responseText });
+			});
+		},
+
+		loadProjects() {
+			if (!this.state.subscriptionId || !this.state.resourceGroup) {
+				return;
+			}
+
+			if (this.state.mode === 'agent') {
+				this.loadAgentProjects();
+				return;
+			}
+
+			this.setSelectLoading(this.ui.project, '<?php echo esc_js(__('AI Foundry 프로젝트를 조회 중...', 'azure-ai-chatbot')); ?>');
+			this.resetFrom('project');
+			this.updateSummary('loading', '<?php esc_html_e('AI Foundry 프로젝트 조회', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('선택한 Resource Group 안의 프로젝트를 가져옵니다.', 'azure-ai-chatbot'); ?>');
+			this.appendLog(`Loading projects for RG ${this.state.resourceGroup}...`);
+
+			this.ajax('azure_oauth_get_resources', {
+				subscription_id: this.state.subscriptionId,
+				resource_group: this.state.resourceGroup,
+				mode: this.state.mode
+			}).done((response) => {
+				if (!response || !response.success) {
+					throw new Error(response && response.data ? response.data.message : 'Unknown error');
+				}
+
+				const resources = response.data.resources || [];
+				this.state.resourcesByRg[this.state.resourceGroup] = resources;
+				this.ui.project.empty();
+				this.ui.project.append($('<option>', { value: '', text: '<?php echo esc_js(__('프로젝트를 선택하세요.', 'azure-ai-chatbot')); ?>' }));
+
+				resources.forEach((resource) => {
+					const label = `${resource.name} (${resource.location})`;
+					this.ui.project.append(
+						$('<option>', {
+							value: resource.id,
+							text: label,
+							'data-kind': resource.kind || '',
+							'data-endpoint': resource.endpoint || ''
+						})
+					);
+				});
+
+				this.ui.project.prop('disabled', resources.length === 0);
+				this.appendLog(`Loaded ${resources.length} project/resource item(s).`);
+
+				if (resources.length === 1) {
+					this.ui.project.val(resources[0].id).trigger('change');
+				} else {
+					this.updateSummary('idle', '<?php esc_html_e('프로젝트 선택 대기', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('사용할 AI Foundry 프로젝트를 선택하세요.', 'azure-ai-chatbot'); ?>');
+				}
+			}).fail((xhr, status, error) => {
+				this.updateSummary('error', '<?php esc_html_e('프로젝트 조회 실패', 'azure-ai-chatbot'); ?>', error || status);
+				this.appendLog('Failed to load projects', { status, error, response: xhr && xhr.responseText });
+			});
+		},
+
+		loadAgentProjects() {
+			this.setSelectLoading(this.ui.project, '<?php echo esc_js(__('AI 프로젝트 목록을 조회 중...', 'azure-ai-chatbot')); ?>');
+			this.resetFrom('project');
+			this.updateSummary('loading', '<?php esc_html_e('AI Foundry 프로젝트 조회', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('허브에서 생성된 프로젝트를 불러옵니다.', 'azure-ai-chatbot'); ?>');
+			this.appendLog(`Loading AI projects for RG ${this.state.resourceGroup}...`);
+
+			this.ajax('azure_oauth_get_ai_projects', {
+				subscription_id: this.state.subscriptionId,
+				resource_group: this.state.resourceGroup
+			}).done((response) => {
+				if (!response || !response.success) {
+					throw new Error(response && response.data ? response.data.message : 'Unknown error');
+				}
+
+				const projects = response.data.projects || [];
+				this.state.resourcesByRg[this.state.resourceGroup] = projects;
+				this.ui.project.empty();
+				this.ui.project.append($('<option>', { value: '', text: '<?php echo esc_js(__('프로젝트를 선택하세요.', 'azure-ai-chatbot')); ?>' }));
+
+				projects.forEach((project) => {
+					const label = `${project.display_name || project.name} (${project.hub_name || project.location || '<?php echo esc_js(__('AI Hub', 'azure-ai-chatbot')); ?>'})`;
+					this.ui.project.append(
+						$('<option>', {
+							value: project.id,
+							text: label,
+							'data-project': project.name,
+							'data-hub-id': project.hub_id,
+							'data-hub-endpoint': project.hub_endpoint,
+							'data-description': project.description || ''
+						})
+					);
+				});
+
+				this.ui.project.prop('disabled', projects.length === 0);
+				this.appendLog(`Loaded ${projects.length} AI project(s).`);
+
+				if (projects.length === 1) {
+					this.ui.project.val(projects[0].id).trigger('change');
+				} else if (projects.length === 0) {
+					this.updateSummary('error', '<?php esc_html_e('프로젝트 없음', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('선택한 허브에 프로젝트가 없습니다. Azure AI Foundry에서 프로젝트를 생성하세요.', 'azure-ai-chatbot'); ?>');
+				} else {
+					this.updateSummary('idle', '<?php esc_html_e('프로젝트 선택 대기', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('사용할 프로젝트를 선택하세요.', 'azure-ai-chatbot'); ?>');
+				}
+			}).fail((xhr, status, error) => {
+				this.updateSummary('error', '<?php esc_html_e('프로젝트 조회 실패', 'azure-ai-chatbot'); ?>', error || status);
+				this.appendLog('Failed to load AI projects', { status, error, response: xhr && xhr.responseText });
+			});
+		},
+
+		loadDeployments(resourceId) {
+			this.setSelectLoading(this.ui.deployment, '<?php echo esc_js(__('배포 목록을 조회 중...', 'azure-ai-chatbot')); ?>');
+			this.resetFrom('deployment');
+			this.appendLog(`Loading deployments for resource ${resourceId}...`);
+
+			this.ajax('azure_oauth_get_deployments', {
+				resource_id: resourceId,
+				subscription_id: this.state.subscriptionId,
+				resource_group: this.state.resourceGroup
+			}).done((response) => {
+				if (!response || !response.success) {
+					throw new Error(response && response.data ? response.data.message : 'Unknown error');
+				}
+
+				const deployments = response.data.deployments || [];
+				this.state.deploymentsByResource[resourceId] = deployments;
+
+				this.ui.deployment.empty();
+				this.ui.deployment.append($('<option>', { value: '', text: '<?php echo esc_js(__('모델 배포를 선택하세요.', 'azure-ai-chatbot')); ?>' }));
+				deployments.forEach((deployment) => {
+					const label = `${deployment.name} (${deployment.model || 'model'})`;
+					this.ui.deployment.append(
+						$('<option>', { value: deployment.name, text: label, 'data-model': deployment.model || '' })
+					);
+				});
+				this.ui.deployment.prop('disabled', deployments.length === 0);
+				this.appendLog(`Loaded ${deployments.length} deployment(s).`);
+
+				if (deployments.length === 1) {
+					this.ui.deployment.val(deployments[0].name).trigger('change');
+				} else if (deployments.length === 0) {
+					this.updateSummary('error', '<?php esc_html_e('배포 없음', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('선택한 리소스에 배포된 모델이 없습니다.', 'azure-ai-chatbot'); ?>');
+				} else {
+					this.updateSummary('idle', '<?php esc_html_e('배포 선택 대기', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('사용할 모델 배포를 선택하세요.', 'azure-ai-chatbot'); ?>');
+				}
+			}).fail((xhr, status, error) => {
+				this.updateSummary('error', '<?php esc_html_e('배포 조회 실패', 'azure-ai-chatbot'); ?>', error || status);
+				this.appendLog('Failed to load deployments', { status, error, response: xhr && xhr.responseText });
+			});
+		},
+
+		loadAgents(context) {
+			this.setSelectLoading(this.ui.agent, '<?php echo esc_js(__('Agent 목록을 조회 중...', 'azure-ai-chatbot')); ?>');
+			this.resetFrom('agent');
+
+			const payload = {};
+			if (context && typeof context === 'object') {
+				payload.resource_id = context.hubId;
+				if (context.projectName) {
+					payload.project_name = context.projectName;
+				}
+				if (context.hubEndpoint) {
+					payload.hub_endpoint = context.hubEndpoint;
+				}
+				this.appendLog(`Loading agents for project ${context.projectName} (hub ${context.hubId})...`);
+			} else {
+				payload.resource_id = context;
+				this.appendLog(`Loading agents for resource ${context}...`);
+			}
+
+			this.ajax('azure_oauth_get_agents', payload).done((response) => {
+				if (!response || !response.success) {
+					throw new Error(response && response.data ? response.data.message : 'Unknown error');
+				}
+
+				const agents = response.data.agents || [];
+				this.state.agentsByResource[resourceId] = agents;
+
+				this.ui.agent.empty();
+				this.ui.agent.append($('<option>', { value: '', text: '<?php echo esc_js(__('Agent를 선택하세요.', 'azure-ai-chatbot')); ?>' }));
+				agents.forEach((agent) => {
+					const label = `${agent.name} (${agent.id || agent.name})`;
+					this.ui.agent.append($('<option>', { value: agent.id || agent.name, text: label }));
+				});
+				this.ui.agent.prop('disabled', agents.length === 0);
+				this.appendLog(`Loaded ${agents.length} agent(s).`);
+
+				if (agents.length === 1) {
+					this.ui.agent.val(agents[0].id || agents[0].name).trigger('change');
+				} else if (agents.length === 0) {
+					const message = response.data && response.data.message ? response.data.message : '<?php echo esc_js(__('Agent를 찾을 수 없습니다.', 'azure-ai-chatbot')); ?>';
+					this.updateSummary('error', '<?php esc_html_e('Agent 없음', 'azure-ai-chatbot'); ?>', message);
+				} else {
+					this.updateSummary('idle', '<?php esc_html_e('Agent 선택 대기', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('사용할 Agent를 선택하세요.', 'azure-ai-chatbot'); ?>');
+				}
+			}).fail((xhr, status, error) => {
+				this.updateSummary('error', '<?php esc_html_e('Agent 조회 실패', 'azure-ai-chatbot'); ?>', error || status);
+				this.appendLog('Failed to load agents', { status, error, response: xhr && xhr.responseText });
+			});
+		},
+
+		handleSubscriptionChange() {
+			const value = this.ui.subscription.val();
+			this.resetFrom('subscription');
+
+			if (!value) {
+				this.updateSummary('idle', '<?php esc_html_e('구독 선택 대기', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('Subscription을 선택하세요.', 'azure-ai-chatbot'); ?>');
+				return;
+			}
+
+			this.state.subscriptionId = value;
+			this.appendLog(`Subscription selected: ${value}`);
+			this.loadResourceGroups(value);
+		},
+
+		handleResourceGroupChange() {
+			const value = this.ui.resourceGroup.val();
+			this.resetFrom('resourceGroup');
+
+			if (!value) {
+				this.updateSummary('idle', '<?php esc_html_e('Resource Group 선택 대기', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('Resource Group을 선택하세요.', 'azure-ai-chatbot'); ?>');
+				return;
+			}
+
+			this.state.resourceGroup = value;
+			this.appendLog(`Resource Group selected: ${value}`);
+			this.loadProjects();
+		},
+
+		handleProjectChange() {
+			const resourceId = this.ui.project.val();
+			this.resetFrom('project');
+
+			if (!resourceId) {
+				this.updateSummary('idle', '<?php esc_html_e('프로젝트 선택 대기', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('프로젝트를 선택하세요.', 'azure-ai-chatbot'); ?>');
+				return;
+			}
+
+			const resources = this.state.resourcesByRg[this.state.resourceGroup] || [];
+			const selected = resources.find((res) => res.id === resourceId);
+			this.state.selectedResourceId = resourceId;
+			this.state.selectedResource = selected || null;
+			const $selectedOption = this.ui.project.find('option:selected');
+
+			this.appendLog('Project selected', selected);
+			this.updateSummary('loading', '<?php esc_html_e('세부 정보 로드', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('선택한 프로젝트의 정보를 가져오는 중입니다.', 'azure-ai-chatbot'); ?>');
+
+			if (this.state.mode === 'chat') {
+				this.loadDeployments(resourceId);
+			} else {
+				this.state.projectName = (selected && (selected.name || selected.display_name)) || $selectedOption.data('project') || resourceId;
+				this.state.hubId = (selected && selected.hub_id) || $selectedOption.data('hub-id') || resourceId;
+				this.state.hubEndpoint = (selected && selected.hub_endpoint) || $selectedOption.data('hub-endpoint') || '';
+
+				if (!this.state.projectName || !this.state.hubId) {
+					this.updateSummary('error', '<?php esc_html_e('프로젝트 정보 누락', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('프로젝트 이름 또는 허브 정보를 찾을 수 없습니다.', 'azure-ai-chatbot'); ?>');
+					return;
+				}
+
+				this.loadAgents({
+					hubId: this.state.hubId,
+					projectName: this.state.projectName,
+					hubEndpoint: this.state.hubEndpoint
+				});
+			}
+		},
+
+		handleDeploymentChange() {
+			const deployment = this.ui.deployment.val();
+			if (!deployment) {
+				this.state.deploymentName = null;
+				this.updateSummary('idle', '<?php esc_html_e('배포 선택 대기', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('모델 배포를 선택하세요.', 'azure-ai-chatbot'); ?>');
+				return;
+			}
+
+			this.state.deploymentName = deployment;
+			this.appendLog(`Deployment selected: ${deployment}`);
+			this.autoFillChatSettings();
+		},
+
+		handleAgentChange() {
+			const agentId = this.ui.agent.val();
+			if (!agentId) {
+				this.state.agentId = null;
+				this.updateSummary('idle', '<?php esc_html_e('Agent 선택 대기', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('Agent를 선택하세요.', 'azure-ai-chatbot'); ?>');
+				return;
+			}
+
+			this.state.agentId = agentId;
+			const agents = this.state.agentsByResource[this.state.selectedResourceId] || [];
+			const agent = agents.find((item) => (item.id || item.name) === agentId) || null;
+			this.appendLog('Agent selected', agent);
+			this.autoFillAgentSettings(agent);
+		},
+
+		autoFillChatSettings() {
+			if (!this.state.selectedResource || !this.state.deploymentName) {
+				return;
+			}
+
+			this.updateSummary('loading', '<?php esc_html_e('API Key 조회 중', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('선택한 리소스의 Endpoint와 Key를 불러옵니다.', 'azure-ai-chatbot'); ?>');
+			this.appendLog('Fetching API key for chat mode...');
+
+			this.ajax('azure_oauth_get_keys', {
+				resource_id: this.state.selectedResourceId,
+				subscription_id: this.state.subscriptionId,
+				resource_group: this.state.resourceGroup
+			}).done((response) => {
+				if (!response || !response.success || !response.data || !response.data.key) {
+					throw new Error(response && response.data ? (response.data.message || 'API key missing') : 'Unknown error');
+				}
+
+				const endpoint = response.data.endpoint || (this.state.selectedResource && this.state.selectedResource.endpoint)
+					|| `https://${this.state.selectedResource.name}.openai.azure.com`;
+
+				const settings = {
+					mode: 'chat',
+					chat_endpoint: endpoint,
+					deployment_name: this.state.deploymentName,
+					api_key: response.data.key
+				};
+
+				this.appendLog('Saving chat settings...', settings);
+				this.ajax('azure_oauth_save_existing_config', { settings })
+					.done((saveResponse) => {
+						if (!saveResponse || !saveResponse.success) {
+							throw new Error(saveResponse && saveResponse.data ? saveResponse.data.message : 'Unknown error');
+						}
+
+						this.updateSummary('success', '<?php esc_html_e('Chat 설정 완료', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('Endpoint, Deployment, API Key가 자동 저장되었습니다.', 'azure-ai-chatbot'); ?>');
+						this.appendLog('Chat configuration saved successfully.', saveResponse.data);
+					})
+					.fail((xhr, status, error) => {
+						this.updateSummary('error', '<?php esc_html_e('Chat 설정 저장 실패', 'azure-ai-chatbot'); ?>', error || status);
+						this.appendLog('Failed to save chat settings', { status, error, response: xhr && xhr.responseText });
+					});
+			}).fail((xhr, status, error) => {
+				this.updateSummary('error', '<?php esc_html_e('API Key 조회 실패', 'azure-ai-chatbot'); ?>', error || status);
+				this.appendLog('Failed to fetch API key', { status, error, response: xhr && xhr.responseText });
+			});
+		},
+
+		autoFillAgentSettings(agent) {
+			if (!this.state.selectedResource || !agent || !this.state.agentId) {
+				return;
+			}
+
+			const resource = this.state.selectedResource;
+			const baseEndpoint = (this.state.hubEndpoint || resource.endpoint || '').replace(/\/$/, '')
+				|| `https://${resource.name}.${resource.location}.services.ai.azure.com`;
+			const projectSegment = this.state.projectName || resource.name;
+			const agentEndpoint = `${baseEndpoint}/api/projects/${projectSegment}`;
+
+			const settings = {
+				mode: 'agent',
+				agent_endpoint: agentEndpoint,
+				agent_id: agent.id || agent.name
+			};
+
+			this.updateSummary('loading', '<?php esc_html_e('Agent 설정 저장 중', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('선택한 Agent 정보를 저장합니다.', 'azure-ai-chatbot'); ?>');
+			this.appendLog('Saving agent settings...', settings);
+
+			this.ajax('azure_oauth_save_existing_config', { settings })
+				.done((saveResponse) => {
+					if (!saveResponse || !saveResponse.success) {
+						throw new Error(saveResponse && saveResponse.data ? saveResponse.data.message : 'Unknown error');
+					}
+
+					this.updateSummary('success', '<?php esc_html_e('Agent 설정 완료', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('Project / Agent ID / Endpoint가 자동 저장되었습니다.', 'azure-ai-chatbot'); ?>');
+					this.appendLog('Agent configuration saved successfully.', saveResponse.data);
+				})
+				.fail((xhr, status, error) => {
+					this.updateSummary('error', '<?php esc_html_e('Agent 설정 저장 실패', 'azure-ai-chatbot'); ?>', error || status);
+					this.appendLog('Failed to save agent settings', { status, error, response: xhr && xhr.responseText });
+				});
+		}
+	};
+
+	$(function() {
+		autoSetup.init();
+	});
+})(jQuery);
 </script>
 
+<script>
+function openOAuthPopup(url) {
+	var width = 720;
+	var height = 840;
+	var left = (window.screenX || window.screenLeft || 0) + (window.innerWidth - width) / 2;
+	var top = (window.screenY || window.screenTop || 0) + (window.innerHeight - height) / 2;
+	var popup = window.open(url, 'azure-oauth', 'width=' + width + ',height=' + height + ',left=' + left + ',top=' + top + ',resizable=yes,scrollbars=yes');
+
+	if (!popup) {
+		alert('<?php echo esc_js(__('팝업이 차단되었습니다. 팝업을 허용한 뒤 다시 시도하세요.', 'azure-ai-chatbot')); ?>');
+		return false;
+	}
+
+	popup.focus();
+	return false;
+}
+</script>

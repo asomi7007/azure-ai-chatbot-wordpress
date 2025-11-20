@@ -138,6 +138,79 @@ class Azure_Chatbot_OAuth {
     }
 
     /**
+     * Acquire Azure AI data-plane access token using client credentials.
+     */
+    private function get_ai_service_access_token() {
+        $oauth_client_id        = get_option('azure_chatbot_oauth_client_id', '');
+        $oauth_tenant_id        = get_option('azure_chatbot_oauth_tenant_id', '');
+        $oauth_secret_encrypted = get_option('azure_chatbot_oauth_client_secret', '');
+
+        if (empty($oauth_client_id) || empty($oauth_tenant_id) || empty($oauth_secret_encrypted)) {
+            return new WP_Error('missing_oauth_config', __('OAuth 설정(Client ID / Secret / Tenant ID)을 완료한 뒤 다시 시도하세요.', 'azure-ai-chatbot'));
+        }
+
+        require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-encryption-manager.php';
+        $encryption_manager = Azure_AI_Chatbot_Encryption_Manager::get_instance();
+
+        $client_secret = $encryption_manager->decrypt($oauth_secret_encrypted);
+        if (empty($client_secret)) {
+            $migrated = $encryption_manager->migrate_encrypted_value($oauth_secret_encrypted);
+            if (!empty($migrated)) {
+                $client_secret = $encryption_manager->decrypt($migrated);
+                if (!empty($client_secret)) {
+                    update_option('azure_chatbot_oauth_client_secret', $migrated);
+                }
+            }
+        }
+
+        if (empty($client_secret)) {
+            return new WP_Error('secret_decrypt_failed', __('Client Secret을 복호화하지 못했습니다. OAuth 설정에서 Secret을 다시 저장해주세요.', 'azure-ai-chatbot'));
+        }
+
+        $cache_key    = 'azure_chatbot_access_token_' . md5($oauth_client_id . $oauth_tenant_id);
+        $cached_token = get_transient($cache_key);
+
+        if ($cached_token && !empty($cached_token['token']) && time() < ($cached_token['expiry'] - 300)) {
+            return $cached_token['token'];
+        }
+
+        $token_url = "https://login.microsoftonline.com/{$oauth_tenant_id}/oauth2/v2.0/token";
+        $token_response = wp_remote_post($token_url, array(
+            'body' => array(
+                'grant_type' => 'client_credentials',
+                'client_id' => $oauth_client_id,
+                'client_secret' => $client_secret,
+                'scope' => 'https://ai.azure.com/.default'
+            ),
+            'timeout' => 30
+        ));
+
+        if (is_wp_error($token_response)) {
+            return new WP_Error('token_request_failed', __('Azure AI 토큰을 요청하지 못했습니다: ', 'azure-ai-chatbot') . $token_response->get_error_message());
+        }
+
+        $token_body = wp_remote_retrieve_body($token_response);
+        $token_data = json_decode($token_body, true);
+
+        if (empty($token_data['access_token'])) {
+            $error_desc = isset($token_data['error_description']) ? $token_data['error_description'] : __('알 수 없는 오류', 'azure-ai-chatbot');
+            $error_code = isset($token_data['error']) ? $token_data['error'] : 'unknown';
+
+            if (strpos($error_desc, 'AADSTS7000215') !== false || strpos($error_desc, 'Invalid client secret') !== false) {
+                return new WP_Error('invalid_client_secret', __('Client Secret이 올바르지 않습니다. Azure Portal에서 Secret의 Value 값을 다시 복사해 저장해주세요.', 'azure-ai-chatbot'));
+            }
+
+            return new WP_Error($error_code, __('Entra ID 인증 실패: ', 'azure-ai-chatbot') . $error_desc);
+        }
+
+        $access_token = $token_data['access_token'];
+        $expires_in   = isset($token_data['expires_in']) ? intval($token_data['expires_in']) : 3600;
+        set_transient($cache_key, array('token' => $access_token, 'expiry' => time() + $expires_in), $expires_in);
+
+        return $access_token;
+    }
+
+    /**
      * Hooks 초기??
      */
     private function init_hooks() {
@@ -145,17 +218,6 @@ class Azure_Chatbot_OAuth {
         add_action('admin_init', array($this, 'handle_oauth_callback'));
         
         // AJAX ?�들??
-        add_action('wp_ajax_azure_oauth_get_subscriptions', array($this, 'ajax_get_subscriptions'));
-        add_action('wp_ajax_azure_oauth_get_resource_groups', array($this, 'ajax_get_resource_groups'));
-        add_action('wp_ajax_azure_oauth_get_resources', array($this, 'ajax_get_resources'));
-        add_action('wp_ajax_azure_oauth_get_agents', array($this, 'ajax_get_agents'));
-    add_action('wp_ajax_azure_oauth_set_operation_mode', array($this, 'ajax_set_operation_mode'));
-        add_action('wp_ajax_azure_oauth_get_keys', array($this, 'ajax_get_keys'));
-        add_action('wp_ajax_save_oauth_settings', array($this, 'ajax_save_oauth_settings'));
-        add_action('wp_ajax_azure_oauth_clear_session', array($this, 'ajax_clear_session'));
-        add_action('wp_ajax_azure_oauth_reset_config', array($this, 'ajax_reset_config'));
-        add_action('wp_ajax_azure_oauth_reset_all_settings', array($this, 'ajax_reset_all_settings'));
-        
         // 리소스 생성 관련 AJAX
         add_action('wp_ajax_azure_oauth_get_available_locations', array($this, 'ajax_get_available_locations'));
         add_action('wp_ajax_azure_oauth_get_available_models', array($this, 'ajax_get_available_models'));
@@ -770,6 +832,204 @@ class Azure_Chatbot_OAuth {
         
         wp_send_json_success(array('resources' => $resources));
     }
+
+    /**
+     * AJAX: AI Foundry 프로젝트 목록 조회 (데이터 플레인)
+     */
+    /**
+     * AJAX: AI Foundry 프로젝트 목록 조회 (데이터 플레인)
+     */
+    public function ajax_get_ai_projects() {
+        check_ajax_referer('azure_oauth_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('권한이 없습니다.', 'azure-ai-chatbot')));
+        }
+
+        $subscription_id = isset($_POST['subscription_id']) ? sanitize_text_field($_POST['subscription_id']) : '';
+        $resource_group  = isset($_POST['resource_group']) ? sanitize_text_field($_POST['resource_group']) : '';
+
+        if (empty($subscription_id) || empty($resource_group)) {
+            wp_send_json_error(array('message' => __('Subscription ID와 Resource Group을 모두 선택하세요.', 'azure-ai-chatbot')));
+        }
+
+        // 1. Microsoft.CognitiveServices/accounts 조회
+        $endpoint_cog = "/subscriptions/{$subscription_id}/resourceGroups/{$resource_group}/providers/Microsoft.CognitiveServices/accounts";
+        $result_cog   = $this->call_azure_api($endpoint_cog, '2023-05-01');
+
+        // 2. Microsoft.MachineLearningServices/workspaces 조회 (추가됨)
+        $endpoint_ml = "/subscriptions/{$subscription_id}/resourceGroups/{$resource_group}/providers/Microsoft.MachineLearningServices/workspaces";
+        $result_ml   = $this->call_azure_api($endpoint_ml, '2023-04-01');
+
+        // 디버깅: API 호출 결과 로깅
+        error_log('[Azure OAuth Debug] CognitiveServices API result: ' . (is_wp_error($result_cog) ? $result_cog->get_error_message() : 'Success - ' . count($result_cog['value'] ?? []) . ' resources'));
+        error_log('[Azure OAuth Debug] MachineLearning API result: ' . (is_wp_error($result_ml) ? $result_ml->get_error_message() : 'Success - ' . count($result_ml['value'] ?? []) . ' resources'));
+
+        $all_resources = array();
+
+        if (!is_wp_error($result_cog) && !empty($result_cog['value'])) {
+            $all_resources = array_merge($all_resources, $result_cog['value']);
+            error_log('[Azure OAuth Debug] Added ' . count($result_cog['value']) . ' CognitiveServices resources');
+        }
+
+        if (!is_wp_error($result_ml) && !empty($result_ml['value'])) {
+            $all_resources = array_merge($all_resources, $result_ml['value']);
+            error_log('[Azure OAuth Debug] Added ' . count($result_ml['value']) . ' MachineLearningServices resources');
+        }
+
+        if (empty($all_resources)) {
+            error_log('[Azure OAuth Debug] No resources found in resource group: ' . $resource_group);
+            wp_send_json_error(array('message' => __('AI Foundry 리소스를 찾을 수 없습니다. Azure Portal에서 허브를 먼저 생성하세요.', 'azure-ai-chatbot')));
+        }
+
+        error_log('[Azure OAuth Debug] Total resources to process: ' . count($all_resources));
+
+        $hubs = array();
+        $direct_projects = array();
+
+        foreach ($all_resources as $resource) {
+            $resource_name = $resource['name'] ?? 'unknown';
+            
+            // 디버깅: 각 리소스의 전체 구조 로깅
+            error_log('[Azure OAuth Debug] Processing resource: ' . $resource_name);
+            error_log('[Azure OAuth Debug] Resource type: ' . ($resource['type'] ?? 'N/A'));
+            error_log('[Azure OAuth Debug] Resource kind: ' . ($resource['kind'] ?? 'N/A'));
+            error_log('[Azure OAuth Debug] Has endpoint: ' . (isset($resource['properties']['endpoint']) ? 'Yes - ' . $resource['properties']['endpoint'] : 'No'));
+            error_log('[Azure OAuth Debug] Has discoveryUrl: ' . (isset($resource['properties']['discoveryUrl']) ? 'Yes - ' . $resource['properties']['discoveryUrl'] : 'No'));
+            
+            $endpoint_url = '';
+            if (isset($resource['properties']['endpoint'])) {
+                $endpoint_url = rtrim($resource['properties']['endpoint'], '/');
+            } elseif (isset($resource['properties']['discoveryUrl'])) {
+                $endpoint_url = rtrim($resource['properties']['discoveryUrl'], '/');
+            }
+
+            $kind         = isset($resource['kind']) ? strtolower($resource['kind']) : '';
+            $type         = isset($resource['type']) ? $resource['type'] : '';
+            
+            $is_openai    = strpos($endpoint_url, '.openai.azure.com') !== false;
+            
+            error_log('[Azure OAuth Debug] Endpoint URL: ' . ($endpoint_url ?: 'EMPTY'));
+            error_log('[Azure OAuth Debug] Is OpenAI: ' . ($is_openai ? 'Yes' : 'No'));
+            
+            // 1. Hub 식별 (AIServices 또는 Hub)
+            if (!$is_openai && ($kind === 'aiservices' || $kind === 'hub')) {
+                if (!empty($endpoint_url)) {
+                    error_log('[Azure OAuth Debug] ✓ Identified as Hub: ' . $resource_name);
+                    $hubs[] = array(
+                        'id'       => $resource['id'],
+                        'name'     => $resource['name'],
+                        'location' => $resource['location'],
+                        'endpoint' => $endpoint_url,
+                        'kind'     => $kind
+                    );
+                } else {
+                    error_log('[Azure OAuth Debug] ✗ Skipped as Hub (no endpoint): ' . $resource_name);
+                }
+            }
+            // 2. Project 식별 (MachineLearningServices 워크스페이스 중 Hub가 아닌 것)
+            elseif (strpos($type, 'Microsoft.MachineLearningServices/workspaces') !== false) {
+                // Hub가 아니면 Project로 간주 (kind='project' 또는 null)
+                // endpoint가 없으면 discoveryUrl 사용, 그것도 없으면 스킵
+                if (!empty($endpoint_url)) {
+                    error_log('[Azure OAuth Debug] ✓ Identified as Direct Project: ' . $resource_name);
+                    $direct_projects[] = array(
+                        'id'            => $resource['id'],
+                        'name'          => $resource['name'],
+                        'display_name'  => $resource['name'],
+                        'description'   => 'Direct Project Resource',
+                        'hub_id'        => $resource['id'], // 자체를 참조
+                        'hub_name'      => $resource['name'],
+                        'hub_endpoint'  => $endpoint_url,
+                        'location'      => $resource['location']
+                    );
+                } else {
+                    error_log('[Azure OAuth Debug] ✗ Skipped ML workspace (no endpoint/discoveryUrl): ' . $resource_name);
+                }
+            } else {
+                error_log('[Azure OAuth Debug] ✗ Skipped (not Hub or Project): ' . $resource_name . ' (type: ' . $type . ', kind: ' . $kind . ')');
+            }
+        }
+
+        error_log('[Azure OAuth Debug] Found ' . count($hubs) . ' Hubs and ' . count($direct_projects) . ' Direct Projects');
+
+        $projects = $direct_projects;
+        
+        // Hub가 있으면 하위 프로젝트 조회 시도
+        if (!empty($hubs)) {
+            $access_token = $this->get_ai_service_access_token();
+            
+            if (!is_wp_error($access_token)) {
+                foreach ($hubs as $hub) {
+                    $projects_url = $hub['endpoint'] . '/agents/v1.0/projects';
+                    
+                    $response = wp_remote_get($projects_url, array(
+                        'headers' => array(
+                            'Authorization' => 'Bearer ' . $access_token,
+                            'Content-Type'  => 'application/json'
+                        ),
+                        'timeout' => 30
+                    ));
+
+                    if (is_wp_error($response)) {
+                        error_log('[Azure OAuth] 프로젝트 조회 실패 - ' . $hub['name'] . ': ' . $response->get_error_message());
+                        continue;
+                    }
+
+                    $status_code = wp_remote_retrieve_response_code($response);
+                    $body        = wp_remote_retrieve_body($response);
+                    
+                    if ($status_code !== 200) {
+                        error_log('[Azure OAuth] 프로젝트 조회 HTTP 오류 - ' . $hub['name'] . ': ' . $status_code);
+                        continue;
+                    }
+
+                    $data  = json_decode($body, true);
+                    $items = array();
+                    if (isset($data['value']) && is_array($data['value'])) {
+                        $items = $data['value'];
+                    } elseif (isset($data['data']) && is_array($data['data'])) {
+                        $items = $data['data'];
+                    }
+
+                    foreach ($items as $item) {
+                        $project_name = isset($item['name']) ? $item['name'] : (isset($item['id']) ? $item['id'] : '');
+                        if (empty($project_name)) {
+                            continue;
+                        }
+
+                        // 중복 방지 (이미 Direct Project로 추가되었을 수 있음)
+                        $exists = false;
+                        foreach ($projects as $p) {
+                            if ($p['name'] === $project_name) {
+                                $exists = true;
+                                break;
+                            }
+                        }
+
+                        if (!$exists) {
+                            $projects[] = array(
+                                'id'            => isset($item['id']) ? $item['id'] : $project_name,
+                                'name'          => $project_name,
+                                'display_name'  => isset($item['displayName']) ? $item['displayName'] : $project_name,
+                                'description'   => isset($item['description']) ? $item['description'] : '',
+                                'hub_id'        => $hub['id'],
+                                'hub_name'      => $hub['name'],
+                                'hub_endpoint'  => $hub['endpoint'],
+                                'location'      => $hub['location']
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        if (empty($projects)) {
+            wp_send_json_error(array('message' => __('AI Foundry 프로젝트를 찾지 못했습니다. 허브 안에 프로젝트가 있는지 확인하세요.', 'azure-ai-chatbot')));
+        }
+
+        wp_send_json_success(array('projects' => $projects));
+    }
     
     /**
      * AJAX: Agent ID 목록 조회 (Agent 모드 전용)
@@ -785,6 +1045,8 @@ class Azure_Chatbot_OAuth {
         }
         
         $resource_id = isset($_POST['resource_id']) ? sanitize_text_field($_POST['resource_id']) : '';
+        $project_name_override = isset($_POST['project_name']) ? sanitize_text_field($_POST['project_name']) : '';
+        $hub_endpoint_override = isset($_POST['hub_endpoint']) ? esc_url_raw($_POST['hub_endpoint']) : '';
         
         if (empty($resource_id)) {
             wp_send_json_error(array('message' => 'Resource ID가 필요합니다.'));
@@ -803,6 +1065,9 @@ class Azure_Chatbot_OAuth {
         $project_endpoint_host = isset($resource_info['properties']['endpoint'])
             ? $resource_info['properties']['endpoint']
             : '';
+        if (!empty($hub_endpoint_override)) {
+            $project_endpoint_host = $hub_endpoint_override;
+        }
 
         error_log('[Azure OAuth] ajax_get_agents - Resource Type: ' . $resource_type . ' / Kind: ' . $resource_kind);
 
@@ -822,7 +1087,9 @@ class Azure_Chatbot_OAuth {
         }
 
         $project_name = '';
-        if (isset($resource_info['properties']['projectId']) && !empty($resource_info['properties']['projectId'])) {
+        if (!empty($project_name_override)) {
+            $project_name = $project_name_override;
+        } elseif (isset($resource_info['properties']['projectId']) && !empty($resource_info['properties']['projectId'])) {
             $project_name = $resource_info['properties']['projectId'];
         } elseif (isset($resource_info['name'])) {
             $project_name = $resource_info['name'];
@@ -835,148 +1102,25 @@ class Azure_Chatbot_OAuth {
             wp_send_json_error(array('message' => 'Project Endpoint 또는 이름을 찾을 수 없습니다.'));
         }
 
-        // ✅ Microsoft Learn 문서 기준 Agent API 엔드포인트
-        // https://learn.microsoft.com/en-us/rest/api/aifoundry/aiagents/get-agent/get-agent
-        $agents_url = rtrim($project_endpoint_host, '/') . "/agents/v1.0/projects/{$project_name}/agents";
+        // ✅ Azure AI Foundry Agent API 올바른 엔드포인트
+        // 문서 출처: https://learn.microsoft.com/azure/ai-services/agents/
+        // 형식: /api/projects/{project_name}/assistants?api-version=v1
+        // Domain: .services.ai.azure.com (cognitiveservices -> services.ai 변환 필요)
+        
+        // Domain transformation: cognitiveservices.azure.com -> services.ai.azure.com
+        $agent_endpoint = str_replace('.cognitiveservices.azure.com', '.services.ai.azure.com', $project_endpoint_host);
+        
+        $agents_url = rtrim($agent_endpoint, '/') . "/api/projects/{$project_name}/assistants?api-version=v1";
 
+        error_log('[Azure OAuth] ajax_get_agents - Original endpoint: ' . $project_endpoint_host);
+        error_log('[Azure OAuth] ajax_get_agents - Transformed endpoint: ' . $agent_endpoint);
         error_log('[Azure OAuth] ajax_get_agents - Agent API URL: ' . $agents_url);
-        
-        // 2. [수정] OAuth 2.0 Bearer Token 획득
-        $plugin = Azure_AI_Chatbot::get_instance();
-        
-        $oauth_client_id = get_option('azure_chatbot_oauth_client_id', '');
-        $oauth_tenant_id = get_option('azure_chatbot_oauth_tenant_id', '');
-        $oauth_secret_encrypted = get_option('azure_chatbot_oauth_client_secret', '');
-        
-        if (empty($oauth_client_id) || empty($oauth_tenant_id) || empty($oauth_secret_encrypted)) {
-            wp_send_json_error(array('message' => 'OAuth 설정(Client ID, Secret, Tenant ID)이 완료되지 않았습니다.'));
-        }
-        
-        // Client Secret 복호화 (마이그레이션 지원)
-        require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-encryption-manager.php';
-        $encryption_manager = Azure_AI_Chatbot_Encryption_Manager::get_instance();
-        
-        error_log('[Azure OAuth] ajax_get_agents - Client Secret 복호화 시도');
-        error_log('[Azure OAuth] 암호화된 값 길이: ' . strlen($oauth_secret_encrypted));
-        error_log('[Azure OAuth] 암호화된 값 형식: ' . substr($oauth_secret_encrypted, 0, 20) . '...');
-        
-        $client_secret = $encryption_manager->decrypt($oauth_secret_encrypted);
-        
-        // 복호화 실패 시 마이그레이션 시도
-        if (empty($client_secret)) {
-            error_log('[Azure OAuth] Client Secret 복호화 실패, 마이그레이션 시도');
-            $migrated = $encryption_manager->migrate_encrypted_value($oauth_secret_encrypted);
-            if (!empty($migrated)) {
-                $client_secret = $encryption_manager->decrypt($migrated);
-                if (!empty($client_secret)) {
-                    // 마이그레이션 성공, 새 형식으로 저장
-                    update_option('azure_chatbot_oauth_client_secret', $migrated);
-                    error_log('[Azure OAuth] Client Secret 마이그레이션 성공');
-                } else {
-                    error_log('[Azure OAuth] 마이그레이션 후에도 복호화 실패');
-                }
-            } else {
-                error_log('[Azure OAuth] 마이그레이션 실패 - 형식 인식 불가');
-            }
-        }
-        
-        error_log('[Azure OAuth] 복호화 결과: ' . ($client_secret ? 'SUCCESS (길이: ' . strlen($client_secret) . ')' : 'FAILED (empty)'));
-        
-        if (empty($client_secret)) {
-            error_log('[Azure OAuth] Client Secret 복호화 최종 실패 - OAuth 설정을 다시 저장 필요');
-            wp_send_json_error(array(
-                'message' => 'Client Secret을 복호화할 수 없습니다. OAuth 설정을 다시 저장해주세요.',
-                'debug' => array(
-                    'encrypted_length' => strlen($oauth_secret_encrypted),
-                    'decrypted' => 'EMPTY',
-                    'recommendation' => '설정 페이지에서 OAuth Client Secret을 다시 입력하고 저장해주세요.'
-                )
-            ));
-        }
-        
-        // 토큰 캐시 시도
-        $cache_key = 'azure_chatbot_access_token_' . md5($oauth_client_id . $oauth_tenant_id);
-        $cached_token = get_transient($cache_key);
-        $access_token = '';
-        
-        if ($cached_token && !empty($cached_token['token']) && time() < ($cached_token['expiry'] - 300)) {
-            $access_token = $cached_token['token'];
-            error_log('[Azure OAuth] Using cached access token');
-        } else {
-            // 새 토큰 발급
-            $token_url = "https://login.microsoftonline.com/{$oauth_tenant_id}/oauth2/v2.0/token";
-            
-            error_log('[Azure OAuth] Bearer Token 요청 시작');
-            error_log('[Azure OAuth] Token URL: ' . $token_url);
-            error_log('[Azure OAuth] Client ID: ' . $oauth_client_id);
-            error_log('[Azure OAuth] Client Secret 길이: ' . strlen($client_secret));
-            error_log('[Azure OAuth] Client Secret (첫 4자): ' . substr($client_secret, 0, 4) . '...');
-            error_log('[Azure OAuth] Tenant ID: ' . $oauth_tenant_id);
-            error_log('[Azure OAuth] Scope: https://ai.azure.com/.default');
-            
-            $token_response = wp_remote_post($token_url, array(
-                'body' => array(
-                    'grant_type' => 'client_credentials',
-                    'client_id' => $oauth_client_id,
-                    'client_secret' => $client_secret,
-                    'scope' => 'https://ai.azure.com/.default'
-                ),
-                'timeout' => 30
-            ));
-            
-            if (is_wp_error($token_response)) {
-                wp_send_json_error(array('message' => '토큰 요청 실패: ' . $token_response->get_error_message()));
-            }
-            
-            $token_body = wp_remote_retrieve_body($token_response);
-            $token_data = json_decode($token_body, true);
-            
-            error_log('[Azure OAuth] Token 응답 수신');
-            error_log('[Azure OAuth] Response Body: ' . $token_body);
-            
-            if (empty($token_data['access_token'])) {
-                $error_desc = isset($token_data['error_description']) ? $token_data['error_description'] : 'Unknown error';
-                $error_code = isset($token_data['error']) ? $token_data['error'] : 'unknown';
 
-                error_log('[Azure OAuth] Token 발급 실패 - Error Code: ' . $error_code);
-                error_log('[Azure OAuth] Token 발급 실패 - Error Description: ' . $error_desc);
-
-                // ✅ AADSTS7000215 에러 특별 처리 (Client Secret ID 오류)
-                if (strpos($error_desc, 'AADSTS7000215') !== false ||
-                    strpos($error_desc, 'Invalid client secret') !== false) {
-                    wp_send_json_error(array(
-                        'message' => '❌ Client Secret 오류: Azure Portal의 "Certificates & secrets"에서 Secret의 "Value" 값을 복사하여 다시 저장하세요. (Secret ID가 아닌 Value를 입력해야 합니다)
-
-상세 오류: ' . $error_desc,
-                        'error_code' => $error_code,
-                        'fix_guide' => [
-                            '1. Azure Portal → App registrations → 앱 선택',
-                            '2. Certificates & secrets 메뉴 클릭',
-                            '3. Client secrets 섹션에서 "+ New client secret" 클릭',
-                            '4. Description 입력 후 Add 클릭',
-                            '5. 생성된 Secret의 "Value" 컬럼 값을 즉시 복사 (한 번만 표시됨)',
-                            '6. WordPress OAuth 설정에 Value 붙여넣기 후 저장'
-                        ]
-                    ));
-                }
-
-                wp_send_json_error(array(
-                    'message' => 'Entra ID 인증 실패: ' . $error_desc,
-                    'error_code' => $error_code,
-                    'debug' => array(
-                        'client_id_length' => strlen($oauth_client_id),
-                        'client_secret_length' => strlen($client_secret),
-                        'tenant_id_length' => strlen($oauth_tenant_id)
-                    )
-                ));
-            }
-            
-            $access_token = $token_data['access_token'];
-            $expires_in = isset($token_data['expires_in']) ? $token_data['expires_in'] : 3600;
-            set_transient($cache_key, array('token' => $access_token, 'expiry' => time() + $expires_in), $expires_in);
-            error_log('[Azure OAuth] New access token acquired');
+        $access_token = $this->get_ai_service_access_token();
+        if (is_wp_error($access_token)) {
+            wp_send_json_error(array('message' => $access_token->get_error_message()));
         }
-        
+
         // 3. [수정] Bearer Token으로 Agent 목록 조회
         $response = wp_remote_get($agents_url, array(
             'headers' => array(

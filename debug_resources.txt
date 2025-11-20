@@ -1,0 +1,16 @@
+Debug Log for RG: rg-eduelden04-2296
+==================================================
+Total Resources: 2
+
+Name: eduelden04-2296-resource
+Type: Microsoft.CognitiveServices/accounts
+Kind: AIServices
+Location: swedencentral
+ID: /subscriptions/3d56f885-63f4-4e57-86bb-fe73c761b46e/resourceGroups/rg-eduelden04-2296/providers/Microsoft.CognitiveServices/accounts/eduelden04-2296-resource
+----------------------------------------
+Name: eduelden04-2296-resource/eduelden04-2296
+Type: Microsoft.CognitiveServices/accounts/projects
+Kind: AIServices
+Location: swedencentral
+ID: /subscriptions/3d56f885-63f4-4e57-86bb-fe73c761b46e/resourceGroups/rg-eduelden04-2296/providers/Microsoft.CognitiveServices/accounts/eduelden04-2296-resource/projects/eduelden04-2296
+----------------------------------------

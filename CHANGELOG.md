@@ -1,5 +1,144 @@
 # 변경 이력
 
+## [3.0.62] - 2025-11-20
+
+### 🐛 **Agent API 및 OAuth 설정 개선**
+
+#### 1. Agent API 엔드포인트 수정
+- **도메인 변경**: `.cognitiveservices.azure.com` -> `.services.ai.azure.com` (Azure AI Foundry 표준 준수)
+- **API 경로 수정**: `/openai/assistants` -> `/api/projects/{project_name}/assistants?api-version=v1`
+- **결과**: Agent 목록이 0개로 나오는 문제 해결
+
+#### 2. OAuth 설정 완전 초기화 기능 추가
+- **UI**: "OAuth 설정 완전 초기화" 버튼 추가 (빨간색 휴지통 아이콘)
+- **기능**: Client ID, Secret, Tenant ID를 포함한 모든 OAuth 설정을 삭제하고 초기 상태로 복구
+- **목적**: 잘못된 설정이나 권한 문제 발생 시 처음부터 다시 설정할 수 있도록 지원
+
+#### 3. 자동 설정 스크립트 업데이트 (`setup-oauth-app.sh`)
+- **권한 추가**: `Azure AI User` 역할 할당 로직 추가 (Agent API 접근 필수 권한)
+- **안내 개선**: 역할 할당 실패 시 수동 명령어 안내 메시지 강화
+
+---
+
+## [3.0.61] - 2025-11-19
+
+### 🎨 **대화형 Python 설정 도구 개선**
+
+#### 변경 사항
+- `test/test_azure_auth.py`를 대화형 설정 도구로 전면 개편
+- Cloud Shell `setup-oauth-app.sh` 스크립트와 동일한 워크플로우 제공
+- 사용자 인증 정보 입력 (Tenant ID, Client ID, Client Secret)
+- 단계별 리소스 선택:
+  1. Subscription 선택
+  2. Resource Group 선택
+  3. AI Foundry Project 선택
+  4. Agent 선택 (선택 사항)
+- 최종 설정 값 확인 및 JSON 파일로 저장
+- 암호화 없이 평문 저장 (테스트 용도)
+
+#### 사용 방법
+```bash
+cd test
+python test_azure_auth.py
+```
+
+#### 목적
+- WordPress 없이 빠르게 Azure AI Foundry 설정 테스트
+- Service Principal 자격 증명으로 전체 워크플로우 검증
+- 선택한 Subscription, Resource Group, Project, Agent 값 확인
+
+#### 참고
+- `test/` 폴더는 ZIP 배포에서 자동 제외
+- 실제 프로덕션에서는 Client Secret을 AES-256으로 암호화해야 함
+
+---
+
+## [3.0.60] - 2025-11-19
+
+### 🧪 **개발 도구 추가: 독립형 Python 테스트 스크립트**
+
+#### 추가 사항
+- `test/test_azure_auth.py`: Azure OAuth 인증 및 AI Foundry 프로젝트 검색 로직을 WordPress와 독립적으로 테스트할 수 있는 Python 스크립트 추가
+- `test/README.md`: 테스트 스크립트 사용 방법 및 환경 설정 가이드
+- 상세한 디버깅 출력 (API 응답, 리소스 타입, 분류 과정 등)
+- 결과를 JSON 파일로 저장하는 기능
+
+#### 목적
+- WordPress 환경 없이도 Azure API 호출 및 리소스 검색 로직을 빠르게 테스트
+- 실제 Azure API 응답 구조 확인 및 분석
+- 프로젝트 검색 실패 원인을 정확히 진단
+
+#### 참고
+- `test/` 폴더는 ZIP 배포 파일에 자동으로 제외됨 (개발 용도만 사용)
+- v3.0.59의 디버깅 로그와 함께 사용하여 문제 해결
+
+---
+
+## [3.0.59] - 2025-11-19
+
+### 🔍 **디버깅: 프로젝트 조회 로깅 강화**
+
+#### 변경 사항
+- `ajax_get_ai_projects` 함수에 상세한 디버깅 로그 추가 ([includes/class-azure-oauth.php](includes/class-azure-oauth.php))
+    - Azure API 호출 결과 (성공/실패, 리소스 개수)
+    - 각 리소스의 type, kind, endpoint, discoveryUrl 정보
+    - Hub/Project 식별 과정 및 스킵 사유
+- WordPress 에러 로그를 통해 실제 리소스 구조 확인 가능
+
+#### 목적
+- `rg-eduelden04-2296` 리소스 그룹에서 프로젝트가 감지되지 않는 원인을 정확히 파악하기 위한 진단용 릴리스
+- 로그 확인 후 근본 원인에 맞는 해결책 적용 예정
+
+---
+
+## [3.0.58] - 2025-11-19
+
+### 🐛 **AI Foundry 프로젝트 목록 조회 로직 재수정 (Best Practice 적용)**
+
+#### 문제 상황
+- v3.0.57 수정 후에도 여전히 "AI Foundry 프로젝트를 찾지 못했습니다" 오류 발생.
+- 원인: 일부 AI Foundry Project 리소스가 Hub를 통해 조회되지 않거나, Hub API 호출이 실패하는 경우 목록에 나타나지 않음.
+- 분석: Azure 리소스 그룹 내의 `Microsoft.MachineLearningServices/workspaces` 리소스 자체가 Project인 경우가 많으므로, 이를 직접 목록에 추가해야 함.
+
+#### 해결 방법
+- **Direct Project Listing**: `ajax_get_ai_projects` 함수 로직 변경 ([includes/class-azure-oauth.php](includes/class-azure-oauth.php))
+    - `Microsoft.MachineLearningServices/workspaces` 리소스를 순회할 때, `kind`가 'hub'가 아닌 경우(예: 'project' 또는 null) **즉시 프로젝트 목록에 추가**.
+    - 이후 Hub(`kind`='hub')에 대해서만 추가적으로 하위 프로젝트 조회를 시도하고, 중복되지 않는 경우 목록에 병합.
+- **안정성 확보**:
+    - Hub API 호출이 실패하더라도, 이미 감지된 Direct Project가 있다면 오류를 반환하지 않고 목록을 표시하도록 개선.
+    - `discoveryUrl`을 활용하여 엔드포인트가 명시되지 않은 리소스도 최대한 감지.
+
+#### 개선 효과
+- Azure Portal에서 생성된 AI Foundry Project가 리소스 그룹 내에 존재하기만 하면 즉시 감지됨.
+- Hub API 의존성을 줄여 프로젝트 목록 조회 성공률 대폭 향상.
+
+---
+
+## [3.0.57] - 2025-11-19
+
+### 🐛 **AI Foundry 프로젝트 목록 조회 오류 수정**
+
+#### 문제 상황
+- 사용자가 "OAuth 자동 설정"에서 AI Foundry 프로젝트를 조회할 때 `Uncaught Error: AI Foundry 프로젝트를 찾지 못했습니다.` 오류 발생.
+- 특정 리소스 그룹(`rg-eduelden04-2296`)에서 프로젝트 목록을 불러오지 못함.
+- 원인: `ajax_get_ai_projects` 함수가 `Microsoft.CognitiveServices/accounts` 리소스만 조회하고, `Microsoft.MachineLearningServices/workspaces` (AI Foundry Hub/Project)를 누락함.
+
+#### 해결 방법
+- **리소스 조회 확장**: `ajax_get_ai_projects` 함수 수정 ([includes/class-azure-oauth.php](includes/class-azure-oauth.php))
+    - `Microsoft.MachineLearningServices/workspaces` 리소스 타입 조회 추가.
+    - 두 리소스 타입(`CognitiveServices`, `MachineLearningServices`)의 결과를 병합하여 처리.
+- **Hub 식별 로직 개선**:
+    - `kind` 속성(`aiservices`, `hub`) 뿐만 아니라 엔드포인트 패턴(`.services.ai.azure.com`) 및 리소스 타입(`MachineLearningServices/workspaces`)을 기반으로 Hub 식별.
+    - Hub 자체가 Project 타입인 경우(`kind === 'project'`) 직접 프로젝트 목록에 추가.
+- **안정성 강화**:
+    - 리소스가 없거나 프로젝트를 찾지 못한 경우에 대한 에러 처리 및 메시지 개선.
+
+#### 개선 효과
+- 이제 `Microsoft.MachineLearningServices/workspaces` 타입으로 생성된 AI Foundry Hub 및 Project도 정상적으로 감지됩니다.
+- "AI Foundry 프로젝트를 찾지 못했습니다" 오류가 해결되어 사용자가 정상적으로 Agent 모드를 설정할 수 있습니다.
+
+---
+
 ## [3.0.56] - 2025-11-18
 
 ### 🎯 **UX 개선 + AI Foundry 리소스 감지 강화**

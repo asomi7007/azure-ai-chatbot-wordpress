@@ -749,6 +749,37 @@ if [ -n "$SERVICE_PRINCIPAL_ID" ]; then
         msg "role_assignment_failed_detail"
     fi
     echo ""
+
+    # 4-2. Azure AI User 역할 할당 (Agent API용)
+    if [ "$LANG" = "ko" ]; then
+        echo "4️⃣-2 Azure AI User 역할 할당 중... (Agent API 필수)"
+    else
+        echo "4️⃣-2 Assigning Azure AI User role... (Required for Agent API)"
+    fi
+
+    set +e
+    timeout 30s az role assignment create \
+        --role "Azure AI User" \
+        --assignee "$SERVICE_PRINCIPAL_ID" \
+        --scope "/subscriptions/$SUBSCRIPTION_ID" \
+        > /dev/null 2>&1
+    EXIT_CODE=$?
+    set -e
+
+    if [ $EXIT_CODE -eq 0 ]; then
+        if [ "$LANG" = "ko" ]; then
+             echo "   ✅ Azure AI User 역할 할당 완료"
+        else
+             echo "   ✅ Azure AI User role assigned successfully"
+        fi
+    else
+        if [ "$LANG" = "ko" ]; then
+             echo "   ⚠️  Azure AI User 역할 할당 실패 (수동 할당 필요)"
+        else
+             echo "   ⚠️  Azure AI User role assignment failed (Manual assignment required)"
+        fi
+    fi
+    echo ""
 else
     msg "role_assignment_skipped"
     echo ""
