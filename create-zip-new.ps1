@@ -161,7 +161,7 @@ $CriticalFiles = @(
     @{
         ZipPath = "azure-ai-chatbot-wordpress/templates/oauth-auto-setup.php"
         LocalPath = "templates\oauth-auto-setup.php"
-        CheckPattern = "json_encode\(__\("
+        CheckPattern = "azure_oauth_save_credentials"
     },
     @{
         ZipPath = "azure-ai-chatbot-wordpress/templates/settings-page.php"
