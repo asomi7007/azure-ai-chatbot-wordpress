@@ -4,7 +4,7 @@
 
 Azure AI Foundry 에이전트와 OpenAI 호환 채팅 모델을 완전한 Assistants API 통합과 OAuth 2.0 자동 설정으로 WordPress 웹사이트에 제공하는 현대적인 플러그인입니다.
 
-[![Version](https://img.shields.io/badge/version-3.0.61-blue.svg)](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/latest)
+[![Version](https://img.shields.io/badge/version-3.0.67-blue.svg)](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/latest)
 [![WordPress](https://img.shields.io/badge/wordpress-6.0%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/php-7.4%2B-purple.svg)](https://www.php.net/)
 [![License](https://img.shields.io/badge/license-GPL--2.0%2B-green.svg)](LICENSE)
@@ -399,7 +399,14 @@ define('WP_DEBUG_DISPLAY', false);
 
 ## 버전 히스토리
 
-### 최신 릴리즈: v3.0.54 (2025-11-14)
+### 최신 릴리즈: v3.0.67 (2025-11-22)
+
+**⚡ Quick Start 및 자동 설정 개선:**
+- ✅ **Quick Start UX 강화**: Cloud Shell 바로가기, 명령어 복사 버튼, 자격 증명 직접 입력 폼을 추가하여 초기 설정 과정을 간소화했습니다.
+- 🔄 **즉시 UI 동기화**: 자동 설정된 값(Endpoint, Deployment, API Key, Agent 정보)이 수동 입력 필드에도 즉시 반영되도록 개선했습니다.
+- 🤖 **강력한 Agent 탐지**: `test_azure_auth.py`와 동일한 방식으로 Hub 및 하위 리소스를 순회하여 Agent 목록이 항상 올바르게 표시되도록 로직을 개선했습니다.
+
+### v3.0.54 (2025-11-14)
 
 **🔁 Agent 모드 유지 & AI Foundry 탐지 강화:**
 - ✅ **안정적인 모드 선택**: OAuth 자동 설정을 시작할 때마다 선택한 모드를 localStorage와 sessionStorage에 동시에 기록해, 새로고침이나 팝업 리다이렉트 후에도 Agent 모드가 Chat으로 바뀌지 않습니다.

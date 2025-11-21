@@ -211,13 +211,13 @@ class Azure_Chatbot_OAuth {
     }
 
     /**
-     * Hooks 초기??
+     * Hooks 초기화
      */
     private function init_hooks() {
         // OAuth 콜백 처리
         add_action('admin_init', array($this, 'handle_oauth_callback'));
         
-        // AJAX ?�들??
+        // AJAX 핸들러
         // 리소스 생성 관련 AJAX
         add_action('wp_ajax_azure_oauth_get_available_locations', array($this, 'ajax_get_available_locations'));
         add_action('wp_ajax_azure_oauth_get_available_models', array($this, 'ajax_get_available_models'));
@@ -226,6 +226,51 @@ class Azure_Chatbot_OAuth {
         add_action('wp_ajax_azure_oauth_save_final_config', array($this, 'ajax_save_final_config'));
         add_action('wp_ajax_azure_oauth_get_deployments', array($this, 'ajax_get_deployments'));
         add_action('wp_ajax_azure_oauth_save_existing_config', array($this, 'ajax_save_existing_config'));
+        add_action('wp_ajax_azure_oauth_save_credentials', array($this, 'ajax_save_oauth_credentials'));
+
+        // Auto Setup 관련 AJAX
+        add_action('wp_ajax_azure_oauth_get_subscriptions', array($this, 'ajax_get_subscriptions'));
+        add_action('wp_ajax_azure_oauth_get_resource_groups', array($this, 'ajax_get_resource_groups'));
+        add_action('wp_ajax_azure_oauth_get_resources', array($this, 'ajax_get_resources'));
+        add_action('wp_ajax_azure_oauth_get_ai_projects', array($this, 'ajax_get_ai_projects'));
+        add_action('wp_ajax_azure_oauth_get_keys', array($this, 'ajax_get_keys'));
+        add_action('wp_ajax_azure_oauth_get_agents', array($this, 'ajax_get_agents'));
+        add_action('wp_ajax_azure_oauth_reset_config', array($this, 'ajax_reset_config'));
+        add_action('wp_ajax_azure_oauth_clear_session', array($this, 'ajax_clear_session'));
+    }
+
+    /**
+     * AJAX: OAuth 자격 증명 직접 저장 (Quick Start)
+     */
+    public function ajax_save_oauth_credentials() {
+        check_ajax_referer('azure_oauth_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => '권한이 없습니다.'));
+        }
+
+        $client_id = isset($_POST['client_id']) ? sanitize_text_field($_POST['client_id']) : '';
+        $client_secret = isset($_POST['client_secret']) ? sanitize_text_field($_POST['client_secret']) : '';
+        $tenant_id = isset($_POST['tenant_id']) ? sanitize_text_field($_POST['tenant_id']) : '';
+
+        if (empty($client_id) || empty($client_secret) || empty($tenant_id)) {
+            wp_send_json_error(array('message' => '모든 필드(Client ID, Client Secret, Tenant ID)를 입력해주세요.'));
+        }
+
+        // 옵션 저장
+        update_option('azure_chatbot_oauth_client_id', $client_id);
+        update_option('azure_chatbot_oauth_tenant_id', $tenant_id);
+
+        // Client Secret 암호화 저장
+        require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-encryption-manager.php';
+        $encryption_manager = Azure_AI_Chatbot_Encryption_Manager::get_instance();
+        $encrypted_secret = $encryption_manager->encrypt($client_secret);
+        update_option('azure_chatbot_oauth_client_secret', $encrypted_secret);
+
+        // 설정 완료 후 캐시 초기화
+        $this->delete_transients_by_pattern('azure_chatbot_access_token_');
+
+        wp_send_json_success(array('message' => 'OAuth 자격 증명이 저장되었습니다.'));
     }
     
     /**
@@ -836,9 +881,6 @@ class Azure_Chatbot_OAuth {
     /**
      * AJAX: AI Foundry 프로젝트 목록 조회 (데이터 플레인)
      */
-    /**
-     * AJAX: AI Foundry 프로젝트 목록 조회 (데이터 플레인)
-     */
     public function ajax_get_ai_projects() {
         check_ajax_referer('azure_oauth_nonce', 'nonce');
 
@@ -853,116 +895,164 @@ class Azure_Chatbot_OAuth {
             wp_send_json_error(array('message' => __('Subscription ID와 Resource Group을 모두 선택하세요.', 'azure-ai-chatbot')));
         }
 
-        // 1. Microsoft.CognitiveServices/accounts 조회
         $endpoint_cog = "/subscriptions/{$subscription_id}/resourceGroups/{$resource_group}/providers/Microsoft.CognitiveServices/accounts";
         $result_cog   = $this->call_azure_api($endpoint_cog, '2023-05-01');
 
-        // 2. Microsoft.MachineLearningServices/workspaces 조회 (추가됨)
         $endpoint_ml = "/subscriptions/{$subscription_id}/resourceGroups/{$resource_group}/providers/Microsoft.MachineLearningServices/workspaces";
-        $result_ml   = $this->call_azure_api($endpoint_ml, '2023-04-01');
+        $result_ml   = $this->call_azure_api($endpoint_ml, '2023-10-01');
 
-        // 디버깅: API 호출 결과 로깅
-        error_log('[Azure OAuth Debug] CognitiveServices API result: ' . (is_wp_error($result_cog) ? $result_cog->get_error_message() : 'Success - ' . count($result_cog['value'] ?? []) . ' resources'));
-        error_log('[Azure OAuth Debug] MachineLearning API result: ' . (is_wp_error($result_ml) ? $result_ml->get_error_message() : 'Success - ' . count($result_ml['value'] ?? []) . ' resources'));
+        $all_resources_endpoint = "/subscriptions/{$subscription_id}/resourceGroups/{$resource_group}/resources";
+        $all_resources_result   = $this->call_azure_api($all_resources_endpoint, '2021-04-01');
 
-        $all_resources = array();
+        $hub_resources = array();
+        $project_subresources = array();
 
         if (!is_wp_error($result_cog) && !empty($result_cog['value'])) {
-            $all_resources = array_merge($all_resources, $result_cog['value']);
-            error_log('[Azure OAuth Debug] Added ' . count($result_cog['value']) . ' CognitiveServices resources');
+            foreach ($result_cog['value'] as $resource) {
+                $resource_name = $resource['name'] ?? '';
+                $resource['properties'] = $resource['properties'] ?? array();
+                if (isset($resource['properties']['endpoint'])) {
+                    $resource['properties']['endpoint'] = rtrim($resource['properties']['endpoint'], '/');
+                }
+                $hub_resources[$resource_name] = $resource;
+            }
         }
+
+        if (!is_wp_error($all_resources_result) && !empty($all_resources_result['value'])) {
+            foreach ($all_resources_result['value'] as $resource) {
+                $type = $resource['type'] ?? '';
+                if (stripos($type, 'Microsoft.CognitiveServices/accounts/projects') !== false) {
+                    $project_subresources[] = $resource;
+                }
+            }
+        }
+
+        $projects = array();
+        $project_index = array();
+        $hub_endpoint_cache = array();
+
+        $push_project = function(array $project) use (&$projects, &$project_index) {
+            $unique_key = !empty($project['id'])
+                ? strtolower($project['id'])
+                : strtolower(($project['hub_id'] ?? '') . '|' . ($project['name'] ?? ''));
+            if (isset($project_index[$unique_key])) {
+                return;
+            }
+            $project_index[$unique_key] = true;
+            $projects[] = $project;
+        };
+
+        $get_hub_endpoint = function($hub_id, $fallback = '') use (&$hub_endpoint_cache) {
+            if (empty($hub_id)) {
+                return $fallback;
+            }
+            if (isset($hub_endpoint_cache[$hub_id])) {
+                return $hub_endpoint_cache[$hub_id];
+            }
+            $endpoint = $fallback;
+            $detail = $this->call_azure_api($hub_id, '2023-05-01');
+            if (!is_wp_error($detail) && isset($detail['properties']['endpoint'])) {
+                $endpoint = rtrim($detail['properties']['endpoint'], '/');
+            }
+            $hub_endpoint_cache[$hub_id] = $endpoint;
+            return $endpoint;
+        };
 
         if (!is_wp_error($result_ml) && !empty($result_ml['value'])) {
-            $all_resources = array_merge($all_resources, $result_ml['value']);
-            error_log('[Azure OAuth Debug] Added ' . count($result_ml['value']) . ' MachineLearningServices resources');
+            foreach ($result_ml['value'] as $resource) {
+                $props = $resource['properties'] ?? array();
+                $endpoint_url = '';
+                if (!empty($props['endpoint'])) {
+                    $endpoint_url = rtrim($props['endpoint'], '/');
+                } elseif (!empty($props['discoveryUrl'])) {
+                    $endpoint_url = rtrim($props['discoveryUrl'], '/');
+                }
+
+                if (empty($endpoint_url)) {
+                    continue;
+                }
+
+                $push_project(array(
+                    'id' => $resource['id'],
+                    'name' => $resource['name'],
+                    'display_name' => $resource['name'],
+                    'description' => 'Azure AI Foundry Workspace',
+                    'hub_id' => $resource['id'],
+                    'hub_name' => $resource['name'],
+                    'hub_endpoint' => $endpoint_url,
+                    'project_endpoint' => $endpoint_url,
+                    'location' => $resource['location'] ?? ''
+                ));
+            }
         }
 
-        if (empty($all_resources)) {
-            error_log('[Azure OAuth Debug] No resources found in resource group: ' . $resource_group);
-            wp_send_json_error(array('message' => __('AI Foundry 리소스를 찾을 수 없습니다. Azure Portal에서 허브를 먼저 생성하세요.', 'azure-ai-chatbot')));
-        }
+        foreach ($project_subresources as $project_resource) {
+            $project_id = $project_resource['id'];
+            $raw_name   = $project_resource['name'] ?? '';
+            $segments   = explode('/', $raw_name);
+            $project_name = array_pop($segments);
+            $hub_name   = $segments ? $segments[0] : '';
 
-        error_log('[Azure OAuth Debug] Total resources to process: ' . count($all_resources));
-
-        $hubs = array();
-        $direct_projects = array();
-
-        foreach ($all_resources as $resource) {
-            $resource_name = $resource['name'] ?? 'unknown';
-            
-            // 디버깅: 각 리소스의 전체 구조 로깅
-            error_log('[Azure OAuth Debug] Processing resource: ' . $resource_name);
-            error_log('[Azure OAuth Debug] Resource type: ' . ($resource['type'] ?? 'N/A'));
-            error_log('[Azure OAuth Debug] Resource kind: ' . ($resource['kind'] ?? 'N/A'));
-            error_log('[Azure OAuth Debug] Has endpoint: ' . (isset($resource['properties']['endpoint']) ? 'Yes - ' . $resource['properties']['endpoint'] : 'No'));
-            error_log('[Azure OAuth Debug] Has discoveryUrl: ' . (isset($resource['properties']['discoveryUrl']) ? 'Yes - ' . $resource['properties']['discoveryUrl'] : 'No'));
-            
-            $endpoint_url = '';
-            if (isset($resource['properties']['endpoint'])) {
-                $endpoint_url = rtrim($resource['properties']['endpoint'], '/');
-            } elseif (isset($resource['properties']['discoveryUrl'])) {
-                $endpoint_url = rtrim($resource['properties']['discoveryUrl'], '/');
+            $project_detail = $this->call_azure_api($project_id, '2025-09-01');
+            if (is_wp_error($project_detail)) {
+                $project_detail = array();
+            }
+            $project_props = $project_detail['properties'] ?? array();
+            $project_endpoint = '';
+            if (!empty($project_props['endpoint'])) {
+                $project_endpoint = rtrim($project_props['endpoint'], '/');
             }
 
-            $kind         = isset($resource['kind']) ? strtolower($resource['kind']) : '';
-            $type         = isset($resource['type']) ? $resource['type'] : '';
-            
-            $is_openai    = strpos($endpoint_url, '.openai.azure.com') !== false;
-            
-            error_log('[Azure OAuth Debug] Endpoint URL: ' . ($endpoint_url ?: 'EMPTY'));
-            error_log('[Azure OAuth Debug] Is OpenAI: ' . ($is_openai ? 'Yes' : 'No'));
-            
-            // 1. Hub 식별 (AIServices 또는 Hub)
-            if (!$is_openai && ($kind === 'aiservices' || $kind === 'hub')) {
-                if (!empty($endpoint_url)) {
-                    error_log('[Azure OAuth Debug] ✓ Identified as Hub: ' . $resource_name);
-                    $hubs[] = array(
-                        'id'       => $resource['id'],
-                        'name'     => $resource['name'],
-                        'location' => $resource['location'],
-                        'endpoint' => $endpoint_url,
-                        'kind'     => $kind
-                    );
-                } else {
-                    error_log('[Azure OAuth Debug] ✗ Skipped as Hub (no endpoint): ' . $resource_name);
+            $hub_id = '';
+            if ($hub_name && isset($hub_resources[$hub_name])) {
+                $hub_id = $hub_resources[$hub_name]['id'];
+                if (empty($project_endpoint)) {
+                    $from_hub = $hub_resources[$hub_name]['properties']['endpoint'] ?? '';
+                    $project_endpoint = $from_hub ? rtrim($from_hub, '/') : '';
                 }
             }
-            // 2. Project 식별 (MachineLearningServices 워크스페이스 중 Hub가 아닌 것)
-            elseif (strpos($type, 'Microsoft.MachineLearningServices/workspaces') !== false) {
-                // Hub가 아니면 Project로 간주 (kind='project' 또는 null)
-                // endpoint가 없으면 discoveryUrl 사용, 그것도 없으면 스킵
-                if (!empty($endpoint_url)) {
-                    error_log('[Azure OAuth Debug] ✓ Identified as Direct Project: ' . $resource_name);
-                    $direct_projects[] = array(
-                        'id'            => $resource['id'],
-                        'name'          => $resource['name'],
-                        'display_name'  => $resource['name'],
-                        'description'   => 'Direct Project Resource',
-                        'hub_id'        => $resource['id'], // 자체를 참조
-                        'hub_name'      => $resource['name'],
-                        'hub_endpoint'  => $endpoint_url,
-                        'location'      => $resource['location']
-                    );
-                } else {
-                    error_log('[Azure OAuth Debug] ✗ Skipped ML workspace (no endpoint/discoveryUrl): ' . $resource_name);
-                }
-            } else {
-                error_log('[Azure OAuth Debug] ✗ Skipped (not Hub or Project): ' . $resource_name . ' (type: ' . $type . ', kind: ' . $kind . ')');
+
+            if (empty($hub_id)) {
+                $hub_id = $project_props['hubId'] ?? '';
             }
+
+            if (empty($project_endpoint) && !empty($hub_id)) {
+                $project_endpoint = $get_hub_endpoint($hub_id);
+            }
+
+            if (empty($project_endpoint)) {
+                continue;
+            }
+
+            $push_project(array(
+                'id' => $project_id,
+                'name' => $project_name,
+                'display_name' => $project_props['displayName'] ?? $project_name,
+                'description' => $project_props['description'] ?? '',
+                'hub_id' => $hub_id ?: $project_id,
+                'hub_name' => $hub_name ?: ($project_props['hubDisplayName'] ?? $project_name),
+                'hub_endpoint' => $project_endpoint,
+                'project_endpoint' => $project_endpoint,
+                'location' => $project_resource['location'] ?? ''
+            ));
         }
 
-        error_log('[Azure OAuth Debug] Found ' . count($hubs) . ' Hubs and ' . count($direct_projects) . ' Direct Projects');
-
-        $projects = $direct_projects;
-        
-        // Hub가 있으면 하위 프로젝트 조회 시도
-        if (!empty($hubs)) {
+        if (!empty($hub_resources)) {
             $access_token = $this->get_ai_service_access_token();
-            
             if (!is_wp_error($access_token)) {
-                foreach ($hubs as $hub) {
-                    $projects_url = $hub['endpoint'] . '/agents/v1.0/projects';
-                    
+                foreach ($hub_resources as $hub_name => $hub_resource) {
+                    $hub_id = $hub_resource['id'];
+                    $hub_endpoint = $hub_resource['properties']['endpoint'] ?? '';
+                    $hub_endpoint = $hub_endpoint ? rtrim($hub_endpoint, '/') : '';
+                    if (empty($hub_endpoint)) {
+                        $hub_endpoint = $get_hub_endpoint($hub_id);
+                    }
+
+                    if (empty($hub_endpoint)) {
+                        continue;
+                    }
+
+                    $projects_url = $hub_endpoint . '/agents/v1.0/projects';
                     $response = wp_remote_get($projects_url, array(
                         'headers' => array(
                             'Authorization' => 'Bearer ' . $access_token,
@@ -972,19 +1062,16 @@ class Azure_Chatbot_OAuth {
                     ));
 
                     if (is_wp_error($response)) {
-                        error_log('[Azure OAuth] 프로젝트 조회 실패 - ' . $hub['name'] . ': ' . $response->get_error_message());
                         continue;
                     }
 
                     $status_code = wp_remote_retrieve_response_code($response);
-                    $body        = wp_remote_retrieve_body($response);
-                    
                     if ($status_code !== 200) {
-                        error_log('[Azure OAuth] 프로젝트 조회 HTTP 오류 - ' . $hub['name'] . ': ' . $status_code);
                         continue;
                     }
 
-                    $data  = json_decode($body, true);
+                    $body = wp_remote_retrieve_body($response);
+                    $data = json_decode($body, true);
                     $items = array();
                     if (isset($data['value']) && is_array($data['value'])) {
                         $items = $data['value'];
@@ -993,32 +1080,22 @@ class Azure_Chatbot_OAuth {
                     }
 
                     foreach ($items as $item) {
-                        $project_name = isset($item['name']) ? $item['name'] : (isset($item['id']) ? $item['id'] : '');
+                        $project_name = $item['name'] ?? ($item['id'] ?? '');
                         if (empty($project_name)) {
                             continue;
                         }
 
-                        // 중복 방지 (이미 Direct Project로 추가되었을 수 있음)
-                        $exists = false;
-                        foreach ($projects as $p) {
-                            if ($p['name'] === $project_name) {
-                                $exists = true;
-                                break;
-                            }
-                        }
-
-                        if (!$exists) {
-                            $projects[] = array(
-                                'id'            => isset($item['id']) ? $item['id'] : $project_name,
-                                'name'          => $project_name,
-                                'display_name'  => isset($item['displayName']) ? $item['displayName'] : $project_name,
-                                'description'   => isset($item['description']) ? $item['description'] : '',
-                                'hub_id'        => $hub['id'],
-                                'hub_name'      => $hub['name'],
-                                'hub_endpoint'  => $hub['endpoint'],
-                                'location'      => $hub['location']
-                            );
-                        }
+                        $push_project(array(
+                            'id' => $item['id'] ?? ($hub_id . '::' . $project_name),
+                            'name' => $project_name,
+                            'display_name' => $item['displayName'] ?? $project_name,
+                            'description' => $item['description'] ?? '',
+                            'hub_id' => $hub_id,
+                            'hub_name' => $hub_name,
+                            'hub_endpoint' => $hub_endpoint,
+                            'project_endpoint' => $hub_endpoint,
+                            'location' => $hub_resource['location'] ?? ''
+                        ));
                     }
                 }
             }
@@ -1045,28 +1122,49 @@ class Azure_Chatbot_OAuth {
         }
         
         $resource_id = isset($_POST['resource_id']) ? sanitize_text_field($_POST['resource_id']) : '';
+        $project_resource_id = isset($_POST['project_resource_id']) ? sanitize_text_field($_POST['project_resource_id']) : '';
+        $hub_resource_id = isset($_POST['hub_resource_id']) ? sanitize_text_field($_POST['hub_resource_id']) : '';
         $project_name_override = isset($_POST['project_name']) ? sanitize_text_field($_POST['project_name']) : '';
         $hub_endpoint_override = isset($_POST['hub_endpoint']) ? esc_url_raw($_POST['hub_endpoint']) : '';
+        $project_endpoint_override = isset($_POST['project_endpoint']) ? esc_url_raw($_POST['project_endpoint']) : '';
         
         if (empty($resource_id)) {
             wp_send_json_error(array('message' => 'Resource ID가 필요합니다.'));
         }
         
-        // 1. 리소스 정보에서 Endpoint 및 프로젝트명 추출
-        $resource_info = $this->call_azure_api($resource_id, '2023-05-01');
-
-        if (is_wp_error($resource_info)) {
-            wp_send_json_error(array('message' => $resource_info->get_error_message()));
+        $resource_lookup_id = !empty($project_resource_id) ? $project_resource_id : $resource_id;
+        $resource_api_version = (strpos($resource_lookup_id, '/Microsoft.CognitiveServices/accounts/') !== false && strpos($resource_lookup_id, '/projects/') !== false)
+            ? '2025-09-01'
+            : '2023-05-01';
+        $resource_info = array();
+        if (!empty($resource_lookup_id)) {
+            $resource_info = $this->call_azure_api($resource_lookup_id, $resource_api_version);
+            if (is_wp_error($resource_info)) {
+                if (empty($project_endpoint_override) && empty($hub_endpoint_override)) {
+                    wp_send_json_error(array('message' => $resource_info->get_error_message()));
+                }
+                $resource_info = array();
+            }
         }
 
-        // ✅ 리소스 타입 및 엔드포인트 확인 (AI Foundry 프로젝트 식별)
         $resource_type = isset($resource_info['type']) ? $resource_info['type'] : '';
         $resource_kind = isset($resource_info['kind']) ? strtolower($resource_info['kind']) : '';
-        $project_endpoint_host = isset($resource_info['properties']['endpoint'])
-            ? $resource_info['properties']['endpoint']
-            : '';
-        if (!empty($hub_endpoint_override)) {
-            $project_endpoint_host = $hub_endpoint_override;
+        $project_endpoint_host = '';
+        if (!empty($project_endpoint_override)) {
+            $project_endpoint_host = rtrim($project_endpoint_override, '/');
+        } elseif (!empty($hub_endpoint_override)) {
+            $project_endpoint_host = rtrim($hub_endpoint_override, '/');
+        } elseif (isset($resource_info['properties']['endpoint'])) {
+            $project_endpoint_host = rtrim($resource_info['properties']['endpoint'], '/');
+        } elseif (isset($resource_info['properties']['discoveryUrl'])) {
+            $project_endpoint_host = rtrim($resource_info['properties']['discoveryUrl'], '/');
+        }
+
+        if (empty($project_endpoint_host) && !empty($hub_resource_id)) {
+            $hub_info = $this->call_azure_api($hub_resource_id, '2023-05-01');
+            if (!is_wp_error($hub_info) && isset($hub_info['properties']['endpoint'])) {
+                $project_endpoint_host = rtrim($hub_info['properties']['endpoint'], '/');
+            }
         }
 
         error_log('[Azure OAuth] ajax_get_agents - Resource Type: ' . $resource_type . ' / Kind: ' . $resource_kind);
@@ -1093,6 +1191,9 @@ class Azure_Chatbot_OAuth {
             $project_name = $resource_info['properties']['projectId'];
         } elseif (isset($resource_info['name'])) {
             $project_name = $resource_info['name'];
+        } elseif (!empty($resource_lookup_id)) {
+            $segments = explode('/', trim($resource_lookup_id, '/'));
+            $project_name = end($segments);
         }
 
         error_log('[Azure OAuth] ajax_get_agents - Project endpoint: ' . $project_endpoint_host);

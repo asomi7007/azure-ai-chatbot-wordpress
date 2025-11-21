@@ -78,14 +78,56 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 				$shell_command = "bash <(curl -s https://raw.githubusercontent.com/asomi7007/azure-ai-chatbot-wordpress/main/scripts/setup-oauth-app.sh) " . esc_url($site_url);
 				?>
 				<ol style="margin-left: 20px;">
-					<li><?php esc_html_e('Azure Cloud Shell을 연 뒤 아래 명령을 실행하세요.', 'azure-ai-chatbot'); ?></li>
 					<li>
-						<code style="display:block; background:#111827; color:#f8fafc; padding:10px; border-radius:4px;">
-							<?php echo esc_html($shell_command); ?>
-						</code>
+						<?php esc_html_e('Azure Cloud Shell을 연 뒤 아래 명령을 실행하세요.', 'azure-ai-chatbot'); ?>
+						<a href="https://shell.azure.com" target="_blank" class="button button-small" style="margin-left: 10px; vertical-align: middle;">
+							<span class="dashicons dashicons-external"></span> <?php esc_html_e('Cloud Shell 열기', 'azure-ai-chatbot'); ?>
+						</a>
 					</li>
-					<li><?php esc_html_e('생성된 Client ID / Client Secret / Tenant ID를 입력하고 저장합니다.', 'azure-ai-chatbot'); ?></li>
+					<li style="margin-top: 10px;">
+						<div style="position: relative;">
+							<code id="setup-cmd" style="display:block; background:#111827; color:#f8fafc; padding:15px; padding-right: 80px; border-radius:4px; overflow-x: auto; font-family: Consolas, Monaco, 'Andale Mono', monospace;">
+								<?php echo esc_html($shell_command); ?>
+							</code>
+							<button type="button" class="button button-small" onclick="copyToClipboard('setup-cmd')" style="position: absolute; top: 10px; right: 10px;">
+								<span class="dashicons dashicons-clipboard" style="margin-top: 2px;"></span> <?php esc_html_e('복사', 'azure-ai-chatbot'); ?>
+							</button>
+						</div>
+					</li>
 					<li>
+						<?php esc_html_e('생성된 Client ID / Client Secret / Tenant ID를 입력하고 저장합니다.', 'azure-ai-chatbot'); ?>
+						<div style="margin-top: 15px; background: #fff; padding: 15px; border: 1px solid #dcdcde; border-radius: 4px;">
+							<table class="form-table" role="presentation" style="margin-top: 0;">
+								<tbody>
+									<tr>
+										<th scope="row" style="padding: 10px 0; width: 120px;"><label for="quick_client_id">Client ID</label></th>
+										<td style="padding: 10px 0;">
+											<input name="quick_client_id" type="text" id="quick_client_id" value="" class="regular-text" style="width: 100%;" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+										</td>
+									</tr>
+									<tr>
+										<th scope="row" style="padding: 10px 0;"><label for="quick_client_secret">Client Secret</label></th>
+										<td style="padding: 10px 0;">
+											<input name="quick_client_secret" type="password" id="quick_client_secret" value="" class="regular-text" style="width: 100%;" placeholder="Value (not Secret ID)">
+										</td>
+									</tr>
+									<tr>
+										<th scope="row" style="padding: 10px 0;"><label for="quick_tenant_id">Tenant ID</label></th>
+										<td style="padding: 10px 0;">
+											<input name="quick_tenant_id" type="text" id="quick_tenant_id" value="" class="regular-text" style="width: 100%;" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+										</td>
+									</tr>
+								</tbody>
+							</table>
+							<p class="submit" style="padding: 10px 0 0; margin: 0;">
+								<button type="button" id="save-quick-credentials" class="button button-primary">
+									<?php esc_html_e('OAuth 설정 저장', 'azure-ai-chatbot'); ?>
+								</button>
+								<span id="quick-save-spinner" class="spinner" style="float: none; margin-top: 4px;"></span>
+							</p>
+						</div>
+					</li>
+					<li style="margin-top: 15px;">
 						<?php esc_html_e('Redirect URI', 'azure-ai-chatbot'); ?>:
 						<code><?php echo esc_html($redirect_uri); ?></code>
 					</li>
@@ -120,18 +162,22 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 				<p class="description" style="margin-bottom: 20px;">
 					<?php esc_html_e('아래 순서대로 값을 선택하면 Chat/Agent 설정이 자동으로 채워집니다.', 'azure-ai-chatbot'); ?>
 				</p>
-				<div class="cascade-actions">
-					<button type="button" class="button" id="reset-oauth-session" <?php if (!$has_token) echo 'disabled'; ?>>
-						<span class="dashicons dashicons-image-rotate" style="margin-top:3px;"></span>
-						<?php esc_html_e('인증 초기화', 'azure-ai-chatbot'); ?>
-					</button>
-					<button type="button" class="button button-secondary" id="reset-oauth-config" <?php if (!$is_configured) echo 'disabled'; ?>>
-						<span class="dashicons dashicons-trash" style="margin-top:3px;"></span>
-						<?php esc_html_e('OAuth 설정 완전 초기화', 'azure-ai-chatbot'); ?>
-					</button>
-					<span class="description">
-						<?php esc_html_e('인증 문제 시: "인증 초기화" | OAuth 재설정 시: "OAuth 설정 완전 초기화"', 'azure-ai-chatbot'); ?>
-					</span>
+
+				<div class="azure-cascade-card" style="flex: 0 0 100%; max-width: 100%; background: #f8fafc; border: 1px solid #e2e8f0; margin-bottom: 16px;">
+					<div class="cascade-actions" style="justify-content: space-between; margin: 0;">
+						<div style="display: flex; align-items: center; gap: 10px;">
+							<span class="dashicons dashicons-info" style="color: #64748b;"></span>
+							<span style="font-size: 13px; color: #475569;">
+								<?php esc_html_e('설정에 문제가 있거나 처음부터 다시 설정하려면 초기화를 진행하세요.', 'azure-ai-chatbot'); ?>
+							</span>
+						</div>
+						<div style="display: flex; gap: 10px;">
+							<button type="button" id="reset-oauth-config" class="button button-link-delete" style="text-decoration: none;">
+								<span class="dashicons dashicons-trash" style="margin-top: 3px;"></span>
+								<?php esc_html_e('설정 초기화', 'azure-ai-chatbot'); ?>
+							</button>
+						</div>
+					</div>
 				</div>
 
 				<div class="azure-cascade-grid">
@@ -283,6 +329,7 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 			selectedResourceId: null,
 			selectedResource: null,
 			projectName: null,
+			projectEndpoint: null,
 			hubId: null,
 			hubEndpoint: null,
 			deploymentName: null,
@@ -296,9 +343,9 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 		init() {
 			this.cacheDom();
 			this.bindEvents();
-			this.toggleModeCards();
-
 		},
+
+
 
 		cacheDom() {
 			this.ui.subscription   = $('#oauth_subscription');
@@ -311,7 +358,6 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 			this.ui.refreshSubBtn  = $('#refresh-subscriptions');
 			this.ui.chatCard       = $('#chat-deployment-card');
 			this.ui.agentCard      = $('#agent-card');
-			this.ui.resetSessionBtn = $('#reset-oauth-session');
 			this.ui.resetConfigBtn = $('#reset-oauth-config');
 		},
 
@@ -322,12 +368,11 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 			this.ui.project.on('change', () => this.handleProjectChange());
 			this.ui.deployment.on('change', () => this.handleDeploymentChange());
 			this.ui.agent.on('change', () => this.handleAgentChange());
-			if (this.ui.resetSessionBtn.length) {
-				this.ui.resetSessionBtn.on('click', () => this.handleSessionReset());
-			}
+
 			if (this.ui.resetConfigBtn.length) {
 				this.ui.resetConfigBtn.on('click', () => this.handleConfigReset());
 			}
+			$('#save-quick-credentials').on('click', () => this.handleQuickSave());
 		},
 
 		payload(action, extra = {}) {
@@ -363,54 +408,102 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 			);
 		},
 
-			handleSessionReset() {
-			if (!this.state.hasToken || this.ui.resetSessionBtn.prop('disabled')) {
-				return;
+		maskSecret(value) {
+			if (!value || typeof value !== 'string') {
+				return '';
 			}
-
-			if (!window.confirm('<?php echo esc_js(__('현재 OAuth 인증을 초기화하고 다시 로그인하시겠습니까?', 'azure-ai-chatbot')); ?>')) {
-				return;
+			const length = value.length;
+			if (length <= 8) {
+				return '•'.repeat(length);
 			}
-
-			this.appendLog('Clearing OAuth session...');
-				const originalHtml = this.ui.resetSessionBtn.html();
-				this.ui.resetSessionBtn.prop('disabled', true).html('<span class="dashicons dashicons-update" style="margin-top:3px; animation: rotation 1.2s linear infinite;"></span> <?php echo esc_js(__('초기화 중...', 'azure-ai-chatbot')); ?>');
-
-			this.ajax('azure_oauth_clear_session').done(() => {
-				this.appendLog('OAuth session cleared. Reloading page.');
-				window.location.href = window.location.href.replace(/([&?])has_token=1/, '$1').replace(/([&?])oauth_success=1/, '$1');
-				window.location.reload();
-			}).fail((xhr, status, error) => {
-				this.appendLog('Failed to clear session', { status, error, response: xhr && xhr.responseText });
-					this.ui.resetSessionBtn.prop('disabled', false).html(originalHtml);
-				window.alert('<?php echo esc_js(__('세션 초기화에 실패했습니다. 다시 시도해주세요.', 'azure-ai-chatbot')); ?>');
-			});
+			return `${value.slice(0, 4)}${'•'.repeat(Math.max(0, length - 8))}${value.slice(-4)}`;
 		},
+
+		reflectManualFields(mode, payload = {}) {
+			if (mode === 'chat') {
+				if (payload.endpoint) {
+					$('#chat_endpoint').val(payload.endpoint).trigger('change');
+				}
+				if (payload.deployment) {
+					$('#deployment_name').val(payload.deployment).trigger('change');
+				}
+				if (payload.apiKeyMasked) {
+					$('#api_key')
+						.val(payload.apiKeyMasked)
+						.attr('placeholder', '<?php echo esc_js(__('자동 저장됨', 'azure-ai-chatbot')); ?>')
+						.trigger('change');
+				}
+			} else if (mode === 'agent') {
+				if (payload.endpoint) {
+					$('#agent_endpoint').val(payload.endpoint).trigger('change');
+				}
+				if (payload.agentId) {
+					$('#agent_id').val(payload.agentId).trigger('change');
+				}
+			}
+		},
+
+
 
 		handleConfigReset() {
 			if (!this.state.isConfigured || this.ui.resetConfigBtn.prop('disabled')) {
 				return;
 			}
 
-			if (!window.confirm('<?php echo esc_js(__('⚠️ 경고: 모든 OAuth 설정(Client ID, Secret, Tenant ID)이 완전히 삭제됩니다.\n\nAzure App Registration 자동 설정 안내가 다시 표시되며, 처음부터 다시 설정해야 합니다.\n\n정말로 초기화하시겠습니까?', 'azure-ai-chatbot')); ?>')) {
+			if (!window.confirm('<?php echo esc_js(__('정말로 모든 설정을 초기화하시겠습니까? Client ID, Secret, Tenant ID 및 모든 연결 정보가 삭제됩니다.', 'azure-ai-chatbot')); ?>')) {
 				return;
 			}
 
-			this.appendLog('Resetting OAuth configuration completely...');
+			this.appendLog('Resetting OAuth configuration...');
 			const originalHtml = this.ui.resetConfigBtn.html();
 			this.ui.resetConfigBtn.prop('disabled', true).html('<span class="dashicons dashicons-update" style="margin-top:3px; animation: rotation 1.2s linear infinite;"></span> <?php echo esc_js(__('초기화 중...', 'azure-ai-chatbot')); ?>');
 
 			this.ajax('azure_oauth_reset_config').done(() => {
-				this.appendLog('OAuth configuration reset complete. Reloading page...');
-				window.alert('<?php echo esc_js(__('모든 설정이 초기화되었습니다. 페이지가 새로고침됩니다.', 'azure-ai-chatbot')); ?>');
-				window.location.href = window.location.href.replace(/([&?])(has_token|oauth_success)=1/g, '$1').replace(/[&?]$/, '');
+				this.appendLog('Configuration reset complete. Reloading page.');
 				window.location.reload();
 			}).fail((xhr, status, error) => {
 				this.appendLog('Failed to reset configuration', { status, error, response: xhr && xhr.responseText });
 				this.ui.resetConfigBtn.prop('disabled', false).html(originalHtml);
-				window.alert('<?php echo esc_js(__('설정 초기화에 실패했습니다. 다시 시도해주세요.', 'azure-ai-chatbot')); ?>');
+				window.alert('<?php echo esc_js(__('설정 초기화에 실패했습니다.', 'azure-ai-chatbot')); ?>');
 			});
 		},
+
+		handleQuickSave() {
+			const clientId = $('#quick_client_id').val().trim();
+			const clientSecret = $('#quick_client_secret').val().trim();
+			const tenantId = $('#quick_tenant_id').val().trim();
+
+			if (!clientId || !clientSecret || !tenantId) {
+				alert('<?php echo esc_js(__('모든 필드(Client ID, Client Secret, Tenant ID)를 입력해주세요.', 'azure-ai-chatbot')); ?>');
+				return;
+			}
+
+			const $btn = $('#save-quick-credentials');
+			const $spinner = $('#quick-save-spinner');
+
+			$btn.prop('disabled', true);
+			$spinner.addClass('is-active');
+
+			this.ajax('azure_oauth_save_credentials', {
+				client_id: clientId,
+				client_secret: clientSecret,
+				tenant_id: tenantId
+			}).done((response) => {
+				if (response.success) {
+					alert(response.data.message);
+					window.location.reload();
+				} else {
+					alert(response.data.message || '<?php echo esc_js(__('저장 실패', 'azure-ai-chatbot')); ?>');
+					$btn.prop('disabled', false);
+					$spinner.removeClass('is-active');
+				}
+			}).fail((xhr, status, error) => {
+				alert('<?php echo esc_js(__('서버 통신 오류가 발생했습니다.', 'azure-ai-chatbot')); ?>');
+				$btn.prop('disabled', false);
+				$spinner.removeClass('is-active');
+			});
+		},
+
 
 		resetFrom(level) {
 			switch (level) {
@@ -420,6 +513,7 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 					this.state.selectedResourceId = null;
 					this.state.selectedResource = null;
 					this.state.projectName = null;
+					this.state.projectEndpoint = null;
 					this.state.hubId = null;
 					this.state.hubEndpoint = null;
 					this.state.deploymentName = null;
@@ -434,6 +528,7 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 					this.state.selectedResourceId = null;
 					this.state.selectedResource = null;
 					this.state.projectName = null;
+					this.state.projectEndpoint = null;
 					this.state.hubId = null;
 					this.state.hubEndpoint = null;
 					this.state.deploymentName = null;
@@ -446,6 +541,7 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 					this.state.selectedResourceId = null;
 					this.state.selectedResource = null;
 					this.state.projectName = null;
+					this.state.projectEndpoint = null;
 					this.state.hubId = null;
 					this.state.hubEndpoint = null;
 					this.state.deploymentName = null;
@@ -612,6 +708,7 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 							'data-project': project.name,
 							'data-hub-id': project.hub_id,
 							'data-hub-endpoint': project.hub_endpoint,
+							'data-project-endpoint': project.project_endpoint || project.hub_endpoint || '',
 							'data-description': project.description || ''
 						})
 					);
@@ -679,18 +776,34 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 			this.resetFrom('agent');
 
 			const payload = {};
+			let cacheKey = this.state.selectedResourceId;
 			if (context && typeof context === 'object') {
-				payload.resource_id = context.hubId;
+				const projectId = context.projectId || this.state.selectedResourceId;
+				cacheKey = context.projectCacheKey || projectId || context.hubId;
+				payload.resource_id = projectId || context.hubId;
+				if (context.hubId) {
+					payload.hub_resource_id = context.hubId;
+				}
 				if (context.projectName) {
 					payload.project_name = context.projectName;
 				}
 				if (context.hubEndpoint) {
 					payload.hub_endpoint = context.hubEndpoint;
 				}
-				this.appendLog(`Loading agents for project ${context.projectName} (hub ${context.hubId})...`);
+				if (context.projectEndpoint) {
+					payload.project_endpoint = context.projectEndpoint;
+				}
+				payload.project_resource_id = projectId;
+				this.appendLog(`Loading agents for project ${context.projectName || projectId} (hub ${context.hubId || 'n/a'})...`);
 			} else {
-				payload.resource_id = context;
-				this.appendLog(`Loading agents for resource ${context}...`);
+				payload.resource_id = context || this.state.selectedResourceId;
+				cacheKey = payload.resource_id;
+				this.appendLog(`Loading agents for resource ${payload.resource_id}...`);
+			}
+
+			if (!payload.resource_id) {
+				this.updateSummary('error', '<?php esc_html_e('Agent 조회 실패', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('선택된 프로젝트 정보가 없습니다.', 'azure-ai-chatbot'); ?>');
+				return;
 			}
 
 			this.ajax('azure_oauth_get_agents', payload).done((response) => {
@@ -699,7 +812,9 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 				}
 
 				const agents = response.data.agents || [];
-				this.state.agentsByResource[resourceId] = agents;
+				if (cacheKey) {
+					this.state.agentsByResource[cacheKey] = agents;
+				}
 
 				this.ui.agent.empty();
 				this.ui.agent.append($('<option>', { value: '', text: '<?php echo esc_js(__('Agent를 선택하세요.', 'azure-ai-chatbot')); ?>' }));
@@ -776,6 +891,7 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 				this.state.projectName = (selected && (selected.name || selected.display_name)) || $selectedOption.data('project') || resourceId;
 				this.state.hubId = (selected && selected.hub_id) || $selectedOption.data('hub-id') || resourceId;
 				this.state.hubEndpoint = (selected && selected.hub_endpoint) || $selectedOption.data('hub-endpoint') || '';
+				this.state.projectEndpoint = (selected && selected.project_endpoint) || $selectedOption.data('project-endpoint') || '';
 
 				if (!this.state.projectName || !this.state.hubId) {
 					this.updateSummary('error', '<?php esc_html_e('프로젝트 정보 누락', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('프로젝트 이름 또는 허브 정보를 찾을 수 없습니다.', 'azure-ai-chatbot'); ?>');
@@ -784,8 +900,11 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 
 				this.loadAgents({
 					hubId: this.state.hubId,
+					projectId: this.state.selectedResourceId,
 					projectName: this.state.projectName,
-					hubEndpoint: this.state.hubEndpoint
+					hubEndpoint: this.state.hubEndpoint,
+					projectEndpoint: this.state.projectEndpoint,
+					projectCacheKey: this.state.selectedResourceId
 				});
 			}
 		},
@@ -812,7 +931,8 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 			}
 
 			this.state.agentId = agentId;
-			const agents = this.state.agentsByResource[this.state.selectedResourceId] || [];
+			const cacheKey = this.state.selectedResourceId || this.state.hubId;
+			const agents = this.state.agentsByResource[cacheKey] || [];
 			const agent = agents.find((item) => (item.id || item.name) === agentId) || null;
 			this.appendLog('Agent selected', agent);
 			this.autoFillAgentSettings(agent);
@@ -853,6 +973,11 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 						}
 
 						this.updateSummary('success', '<?php esc_html_e('Chat 설정 완료', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('Endpoint, Deployment, API Key가 자동 저장되었습니다.', 'azure-ai-chatbot'); ?>');
+						this.reflectManualFields('chat', {
+							endpoint,
+							deployment: this.state.deploymentName,
+							apiKeyMasked: this.maskSecret(response.data.key)
+						});
 						this.appendLog('Chat configuration saved successfully.', saveResponse.data);
 					})
 					.fail((xhr, status, error) => {
@@ -871,10 +996,14 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 			}
 
 			const resource = this.state.selectedResource;
-			const baseEndpoint = (this.state.hubEndpoint || resource.endpoint || '').replace(/\/$/, '')
-				|| `https://${resource.name}.${resource.location}.services.ai.azure.com`;
+			const projectBase = (this.state.projectEndpoint || '').replace(/\/$/, '');
+			const hubBase = (this.state.hubEndpoint || '').replace(/\/$/, '');
+			const resourceBase = (resource && resource.endpoint ? resource.endpoint : '').replace(/\/$/, '');
+			const baseEndpoint = projectBase || hubBase || resourceBase || `https://${resource.name}.${resource.location}.services.ai.azure.com`;
 			const projectSegment = this.state.projectName || resource.name;
-			const agentEndpoint = `${baseEndpoint}/api/projects/${projectSegment}`;
+			const agentEndpoint = baseEndpoint.includes('/api/projects/')
+				? baseEndpoint
+				: `${baseEndpoint}/api/projects/${projectSegment}`;
 
 			const settings = {
 				mode: 'agent',
@@ -892,6 +1021,10 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 					}
 
 					this.updateSummary('success', '<?php esc_html_e('Agent 설정 완료', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('Project / Agent ID / Endpoint가 자동 저장되었습니다.', 'azure-ai-chatbot'); ?>');
+					this.reflectManualFields('agent', {
+						endpoint: agentEndpoint,
+						agentId: this.state.agentId
+					});
 					this.appendLog('Agent configuration saved successfully.', saveResponse.data);
 				})
 				.fail((xhr, status, error) => {
@@ -908,6 +1041,45 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 </script>
 
 <script>
+function copyToClipboard(elementId) {
+	var node = document.getElementById(elementId);
+	var copyText = node.textContent || node.innerText;
+	copyText = copyText.trim();
+
+	if (navigator.clipboard && window.isSecureContext) {
+		navigator.clipboard.writeText(copyText).then(function() {
+			alert('<?php echo esc_js(__('명령어가 클립보드에 복사되었습니다.', 'azure-ai-chatbot')); ?>');
+		}, function(err) {
+			console.error('Async: Could not copy text: ', err);
+			fallbackCopyTextToClipboard(copyText);
+		});
+	} else {
+		fallbackCopyTextToClipboard(copyText);
+	}
+}
+
+function fallbackCopyTextToClipboard(text) {
+	var textArea = document.createElement("textarea");
+	textArea.value = text;
+	textArea.style.position = "fixed";  // Avoid scrolling to bottom
+	document.body.appendChild(textArea);
+	textArea.focus();
+	textArea.select();
+
+	try {
+		var successful = document.execCommand('copy');
+		if (successful) {
+			alert('<?php echo esc_js(__('명령어가 클립보드에 복사되었습니다.', 'azure-ai-chatbot')); ?>');
+		} else {
+			console.error('Fallback: Oops, unable to copy');
+		}
+	} catch (err) {
+		console.error('Fallback: Oops, unable to copy', err);
+	}
+
+	document.body.removeChild(textArea);
+}
+
 function openOAuthPopup(url) {
 	var width = 720;
 	var height = 840;

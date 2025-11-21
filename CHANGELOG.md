@@ -1,5 +1,33 @@
 # 변경 이력
 
+## [3.0.67] - 2025-11-22
+- Feature: Quick Start 패널에 Cloud Shell 바로가기, 명령어 복사 버튼, 자격 증명 직접 입력 폼을 추가해 최초 설정 UX를 간소화.
+- Fix: 자동 설정이 저장한 Endpoint/Deployment/API Key/Agent 정보가 수동 입력 필드에도 즉시 반영되도록 동기화 로직 추가.
+- Fix: AI 프로젝트/Agent 조회 로직이 `test_azure_auth.py`와 동일한 방식으로 Hub·Sub-resource를 순회해 Agent 목록이 항상 표시되도록 개선.
+
+## [3.0.66] - 2025-02-21
+- Fix: Resolved critical issue where "-1" was displayed on site load due to misplaced security check.
+- Fix: Correctly registered all AJAX hooks for OAuth auto-setup.
+
+## [3.0.65] - 2025-02-21
+- Fix: Registered missing AJAX hooks for OAuth auto-setup (subscriptions, resources, reset).
+
+## [3.0.64] - 2025-02-21
+- Fix: Resolved JavaScript syntax error in Auto Setup UI preventing page rendering.
+- Fix: Consolidated OAuth reset functionality into a single "Reset Settings" button.
+
+## [3.0.63] - 2025-02-210
+
+### ⚡ **Quick Start UI 개선 (사용자 피드백 반영)**
+
+#### 1. 편의 기능 추가 (`oauth-auto-setup.php`)
+- **Cloud Shell 바로가기**: "Cloud Shell 열기" 버튼 추가 (새 탭에서 `shell.azure.com` 열기)
+- **명령어 복사**: 설정 스크립트 실행 명령어 원클릭 복사 버튼 추가
+- **자격 증명 직접 입력**: 스크립트 실행 결과(Client ID, Secret, Tenant ID)를 바로 붙여넣고 저장할 수 있는 입력 폼 추가
+- **UX 개선**: 복잡한 설정 과정을 "스크립트 실행 -> 값 복사 -> 붙여넣기 -> 저장"의 단순한 흐름으로 개선
+
+---
+
 ## [3.0.62] - 2025-11-20
 
 ### 🐛 **Agent API 및 OAuth 설정 개선**

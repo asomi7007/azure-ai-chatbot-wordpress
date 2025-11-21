@@ -1,6 +1,6 @@
 # Azure AI Chatbot for WordPress
 
-[![Version](https://img.shields.io/badge/version-3.0.61-blue.svg)](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/latest)
+[![Version](https://img.shields.io/badge/version-3.0.67-blue.svg)](https://github.com/asomi7007/azure-ai-chatbot-wordpress/releases/latest)
 [![WordPress](https://img.shields.io/badge/wordpress-6.0%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/php-7.4%2B-purple.svg)](https://www.php.net/)
 [![License](https://img.shields.io/badge/license-GPL--2.0%2B-green.svg)](LICENSE)
@@ -457,7 +457,14 @@ Log location: `/wp-content/debug.log`
 
 ## Version History
 
-### Latest Release: v3.0.54 (2025-11-14)
+### Latest Release: v3.0.67 (2025-11-22)
+
+**⚡ Quick Start & Auto-Setup Improvements:**
+- ✅ **Enhanced Quick Start UX**: Added Cloud Shell shortcut, command copy button, and manual credential input form to simplify initial setup.
+- 🔄 **Instant UI Sync**: Auto-setup values (Endpoint, Deployment, API Key, Agent info) are now immediately reflected in manual input fields.
+- 🤖 **Robust Agent Discovery**: Improved logic to traverse Hubs and Sub-resources (matching `test_azure_auth.py`), ensuring Agents are always listed correctly.
+
+### v3.0.54 (2025-11-14)
 
 **🔁 Agent Mode Persistence & AI Foundry Discovery:**
 - ✅ **Stable Mode Selection**: The OAuth auto-setup wizard now writes the selected mode to both localStorage and sessionStorage before every popup, so Agent mode never silently flips back to Chat after refresh.
