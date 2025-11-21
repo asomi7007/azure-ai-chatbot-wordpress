@@ -1,5 +1,104 @@
 # 변경 이력
 
+## [3.0.68] - 2025-02-22
+
+### 🎯 **Sub-resource Projects 검색 구현 (Critical Fix)**
+
+#### 문제 상황
+- OAuth Auto Setup에서 AI Foundry 프로젝트가 "찾을 수 없습니다" 오류 발생
+- test_azure_auth.py는 같은 Resource Group에서 프로젝트와 Agent 목록을 정상적으로 로드
+- 근본 원인: 최신 Azure AI Foundry는 프로젝트를 **Hub의 sub-resource**로 생성 (`Microsoft.CognitiveServices/accounts/projects` 타입)
+
+#### 해결 방법
+
+##### 1. **전체 리소스 목록 조회 추가** ([class-azure-oauth.php:916-919](includes/class-azure-oauth.php#L916-L919))
+```php
+// [NEW] 모든 리소스 조회로 sub-resource projects 검색 가능
+$endpoint_all = "/subscriptions/{$subscription_id}/resourceGroups/{$resource_group}/resources";
+$result_all = $this->call_azure_api($endpoint_all, '2021-04-01');
+```
+
+##### 2. **Sub-resource Projects 검색** ([class-azure-oauth.php:935-959](includes/class-azure-oauth.php#L935-L959))
+```php
+// Microsoft.CognitiveServices/accounts/projects 타입 필터링
+if (strpos($type, 'Microsoft.CognitiveServices/accounts/projects') !== false) {
+    $project_subresources[] = $resource;
+}
+```
+
+##### 3. **API 버전 업데이트**
+- MachineLearningServices: `2023-04-01` → `2023-10-01`
+- Project 상세 조회: `2024-10-01-preview` (최신 API 사용)
+
+##### 4. **Hub Endpoint 폴백** ([class-azure-oauth.php:1103-1138](includes/class-azure-oauth.php#L1103-L1138))
+```php
+// Project endpoint가 없으면 Hub의 endpoint 사용
+if (empty($endpoint_url) && $hub_name && isset($hub_resources[$hub_name])) {
+    $hub_detail = $this->call_azure_api($hub_detail_id, '2023-05-01');
+    $endpoint_url = $hub_detail['properties']['endpoint'] ?? '';
+}
+```
+
+##### 5. **포괄적인 디버그 로깅**
+- Resource 스캔 과정 상세 로깅
+- Sub-resource projects 발견/처리 단계별 추적
+- Hub endpoint 폴백 성공/실패 로깅
+
+#### 개선 효과
+
+**이전 (v3.0.67):**
+```
+CognitiveServices API: 2 resources
+MachineLearningServices API: 0 resources
+→ Hub 검색: kind='aiservices' 불일치
+❌ 에러: "AI Foundry 프로젝트를 찾지 못했습니다"
+```
+
+**개선 (v3.0.68):**
+```
+CognitiveServices API: 2 resources
+MachineLearningServices API: 0 resources
+All Resources API: 10 resources
+→ Sub-resource projects: 2개 발견
+→ Processing: my-hub/my-project
+→ Endpoint: https://my-hub.services.ai.azure.com
+✅ 2개 프로젝트 로드 성공 → Agent 목록 조회 가능
+```
+
+#### 참고
+- test_azure_auth.py의 성공 로직과 100% 일치하도록 구현
+- 최신 Azure AI Foundry의 리소스 계층 구조 완벽 지원
+- 이전 버전과 완전 호환 (기존 Direct Projects 감지도 유지)
+
+---
+
+## [3.0.67] - 2025-02-21
+- Fix: Improved AI Project discovery logic to correctly identify projects even without explicit endpoints.
+- Fix: Subscription list now loads automatically when the setup page is opened.
+
+## [3.0.66] - 2025-02-21
+- Fix: Resolved critical issue where "-1" was displayed on site load due to misplaced security check.
+- Fix: Correctly registered all AJAX hooks for OAuth auto-setup.
+
+## [3.0.65] - 2025-02-21
+- Fix: Registered missing AJAX hooks for OAuth auto-setup (subscriptions, resources, reset).
+
+## [3.0.64] - 2025-02-21
+- Fix: Resolved JavaScript syntax error in Auto Setup UI preventing page rendering.
+- Fix: Consolidated OAuth reset functionality into a single "Reset Settings" button.
+
+## [3.0.63] - 2025-02-210
+
+### ⚡ **Quick Start UI 개선 (사용자 피드백 반영)**
+
+#### 1. 편의 기능 추가 (`oauth-auto-setup.php`)
+- **Cloud Shell 바로가기**: "Cloud Shell 열기" 버튼 추가 (새 탭에서 `shell.azure.com` 열기)
+- **명령어 복사**: 설정 스크립트 실행 명령어 원클릭 복사 버튼 추가
+- **자격 증명 직접 입력**: 스크립트 실행 결과(Client ID, Secret, Tenant ID)를 바로 붙여넣고 저장할 수 있는 입력 폼 추가
+- **UX 개선**: 복잡한 설정 과정을 "스크립트 실행 -> 값 복사 -> 붙여넣기 -> 저장"의 단순한 흐름으로 개선
+
+---
+
 ## [3.0.62] - 2025-11-20
 
 ### 🐛 **Agent API 및 OAuth 설정 개선**

@@ -330,6 +330,17 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 			}
 		},
 
+		toggleModeCards() {
+			console.log('Toggling mode cards for mode:', this.state.mode);
+			if (this.state.mode === 'agent') {
+				this.ui.chatCard.hide();
+				this.ui.agentCard.show();
+			} else {
+				this.ui.chatCard.show();
+				this.ui.agentCard.hide();
+			}
+		},
+
 		payload(action, extra = {}) {
 			return Object.assign({ action, nonce: this.state.nonce }, extra);
 		},
@@ -351,22 +362,6 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 			if (meta) {
 				console.log('[Auto Setup]', message, meta);
 			} else {
-				console.log('[Auto Setup]', message);
-			}
-		},
-
-		updateSummary(status, title, description) {
-			this.ui.summary.attr('data-status', status || 'idle');
-			this.ui.summary.html(
-				`<strong>${title || '<?php echo esc_js(__('상태 업데이트', 'azure-ai-chatbot')); ?>'}</strong>` +
-				`<p style="margin:6px 0 0;">${description || ''}</p>`
-			);
-		},
-
-			handleSessionReset() {
-			if (!this.state.hasToken || this.ui.resetSessionBtn.prop('disabled')) {
-				return;
-			}
 
 			if (!window.confirm('<?php echo esc_js(__('현재 OAuth 인증을 초기화하고 다시 로그인하시겠습니까?', 'azure-ai-chatbot')); ?>')) {
 				return;
@@ -594,8 +589,44 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 				subscription_id: this.state.subscriptionId,
 				resource_group: this.state.resourceGroup
 			}).done((response) => {
+				// ✅ 디버그 정보 로깅
+				if (response && response.data && response.data.debug) {
+					this.appendLog('=== Debug Info from Server ===');
+					console.log('[Auto Setup] Server Debug Info:', response.data.debug);
+					
+					// Display resource scan results in table format
+					if (response.data.debug.resources_scan && response.data.debug.resources_scan.length > 0) {
+						this.appendLog(`Scanned ${response.data.debug.resources_scan.length} resource(s) in RG`);
+						console.table(response.data.debug.resources_scan);
+						
+						// Log summary
+						const hubCount = response.data.debug.hubs_found || 0;
+						const projectCount = response.data.debug.direct_projects_found || 0;
+						this.appendLog(`Found: ${hubCount} hub(s), ${projectCount} direct project(s)`);
+					}
+					
+					// Log API call steps
+					if (response.data.debug.steps && response.data.debug.steps.length > 0) {
+						response.data.debug.steps.forEach(step => {
+							this.appendLog('  ' + step);
+						});
+					}
+				}
+
+				// ✅ 에러 응답 처리 개선: throw 대신 UI 업데이트
 				if (!response || !response.success) {
-					throw new Error(response && response.data ? response.data.message : 'Unknown error');
+					const errorMsg = (response && response.data && response.data.message) 
+						? response.data.message 
+						: 'Unknown error';
+					this.updateSummary('error', '<?php esc_html_e('프로젝트 조회 실패', 'azure-ai-chatbot'); ?>', errorMsg);
+					this.appendLog('Failed to load AI projects: ' + errorMsg);
+					this.ui.project.empty();
+					this.ui.project.append($('<option>', { 
+						value: '', 
+						text: '<?php echo esc_js(__("프로젝트를 찾을 수 없습니다.", "azure-ai-chatbot")); ?>' 
+					}));
+					this.ui.project.prop('disabled', true);
+					return;
 				}
 
 				const projects = response.data.projects || [];
