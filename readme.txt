@@ -3,7 +3,7 @@ Contributors: eldensolution
 Tags: azure, ai, chatbot, chat, ai-assistant
 Requires at least: 6.0
 Tested up to: 6.8
-Stable tag: 3.0.56
+Stable tag: 3.0.70
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -160,6 +160,10 @@ Agent 모드: 고급 기능 지원 (Function Calling, RAG, 파일 업로드 등,
 4. 사용 가이드 - 편집 가능한 마크다운 가이드
 
 == Changelog ==
+
+= 3.0.70 - 2025-11-22 =
+* 수정: OAuth 자동 설정 후에도 선택한 Chat/Agent 모드가 유지되도록 localStorage 복원 로직 추가
+* 수정: 프로젝트 이름/엔드포인트/허브 정보를 함께 전달해 Agent 목록이 정상적으로 표시되도록 개선
 
 = 3.0.56 - 2025-11-18 =
 * 개선: Auto Setup 페이지 모드 선택 비활성화 - 리소스 설정과 불일치 방지를 위해 읽기 전용으로 변경 (Manual Settings에서만 변경 가능)

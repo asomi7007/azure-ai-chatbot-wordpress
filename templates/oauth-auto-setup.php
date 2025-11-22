@@ -34,8 +34,8 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 		<div class="notice notice-info inline" style="margin: 15px 0; padding: 15px; background: #f5f5f5; border-left: 4px solid #2271b1;">
 			<h3 style="margin: 0 0 10px;">📍 <?php esc_html_e('선택된 모드', 'azure-ai-chatbot'); ?></h3>
 			<p style="margin: 0; color: #333;">
-				<strong><?php echo esc_html($operation_mode === 'agent' ? __('Agent 모드', 'azure-ai-chatbot') : __('Chat 모드', 'azure-ai-chatbot')); ?></strong>
-				<span style="color:#777; margin-left:6px;">
+				<strong id="oauth-selected-mode-label"><?php echo esc_html($operation_mode === 'agent' ? __('Agent 모드', 'azure-ai-chatbot') : __('Chat 모드', 'azure-ai-chatbot')); ?></strong>
+				<span id="oauth-selected-mode-desc" style="color:#777; margin-left:6px;">
 					<?php echo esc_html($operation_mode === 'agent'
 						? __('AI Foundry Agent (Assistants API)', 'azure-ai-chatbot')
 						: __('Azure OpenAI (GPT 계열)', 'azure-ai-chatbot'));
@@ -318,6 +318,17 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 
 <script>
 (function($) {
+	const MODE_TEXT = {
+		chat: {
+			label: '<?php echo esc_js(__('Chat 모드', 'azure-ai-chatbot')); ?>',
+			desc: '<?php echo esc_js(__('Azure OpenAI (GPT 계열)', 'azure-ai-chatbot')); ?>'
+		},
+		agent: {
+			label: '<?php echo esc_js(__('Agent 모드', 'azure-ai-chatbot')); ?>',
+			desc: '<?php echo esc_js(__('AI Foundry Agent (Assistants API)', 'azure-ai-chatbot')); ?>'
+		}
+	};
+
 	const autoSetup = {
 		state: {
 			hasToken: <?php echo $has_token ? 'true' : 'false'; ?>,
@@ -343,6 +354,12 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 		init() {
 			this.cacheDom();
 			this.bindEvents();
+			this.resolveOperationMode();
+			this.toggleModeCards();
+
+			if (this.state.hasToken) {
+				this.loadSubscriptions();
+			}
 		},
 
 
@@ -359,6 +376,9 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 			this.ui.chatCard       = $('#chat-deployment-card');
 			this.ui.agentCard      = $('#agent-card');
 			this.ui.resetConfigBtn = $('#reset-oauth-config');
+			this.ui.modeRadios     = $('input[name="azure_chatbot_settings[mode]"]');
+			this.ui.modeLabel      = $('#oauth-selected-mode-label');
+			this.ui.modeDesc       = $('#oauth-selected-mode-desc');
 		},
 
 		bindEvents() {
@@ -369,6 +389,9 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 			this.ui.deployment.on('change', () => this.handleDeploymentChange());
 			this.ui.agent.on('change', () => this.handleAgentChange());
 
+			if (this.ui.modeRadios && this.ui.modeRadios.length) {
+				this.ui.modeRadios.on('change', (event) => this.handleModeChange(event));
+			}
 			if (this.ui.resetConfigBtn.length) {
 				this.ui.resetConfigBtn.on('click', () => this.handleConfigReset());
 			}
@@ -417,6 +440,46 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 				`<strong>${title || '<?php echo esc_js(__('상태 업데이트', 'azure-ai-chatbot')); ?>'}</strong>` +
 				`<p style="margin:6px 0 0;">${description || ''}</p>`
 			);
+		},
+
+		updateModeNotice() {
+			const modeCopy = MODE_TEXT[this.state.mode] || MODE_TEXT.chat;
+			if (this.ui.modeLabel && this.ui.modeLabel.length) {
+				this.ui.modeLabel.text(modeCopy.label);
+			}
+			if (this.ui.modeDesc && this.ui.modeDesc.length) {
+				this.ui.modeDesc.text(modeCopy.desc);
+			}
+		},
+
+		resolveOperationMode() {
+			let resolved = this.state.mode || 'chat';
+
+			if (this.ui.modeRadios && this.ui.modeRadios.length) {
+				const domMode = this.ui.modeRadios.filter(':checked').val();
+				if (domMode) {
+					resolved = domMode;
+				}
+			}
+
+			try {
+				const savedMode = window.localStorage.getItem('azure_oauth_operation_mode');
+				if (savedMode) {
+					resolved = savedMode;
+					window.localStorage.removeItem('azure_oauth_operation_mode');
+					this.appendLog(`Operation mode loaded from localStorage: ${savedMode}`);
+				}
+			} catch (e) {
+				console.warn('[Auto Setup] Failed to access localStorage', e);
+			}
+
+			this.state.mode = resolved === 'agent' ? 'agent' : 'chat';
+
+			if (this.ui.modeRadios && this.ui.modeRadios.length) {
+				this.ui.modeRadios.filter(`[value="${this.state.mode}"]`).prop('checked', true);
+			}
+
+			this.updateModeNotice();
 		},
 
 		maskSecret(value) {
@@ -513,6 +576,37 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 				$btn.prop('disabled', false);
 				$spinner.removeClass('is-active');
 			});
+		},
+
+		handleModeChange(event) {
+			const selected = this.ui.modeRadios.filter(':checked').val() || 'chat';
+			if (selected === this.state.mode) {
+				return;
+			}
+
+			this.state.mode = selected;
+			this.updateModeNotice();
+			this.toggleModeCards();
+			this.appendLog(`Operation mode changed to ${selected}`);
+
+			try {
+				window.localStorage.setItem('azure_oauth_operation_mode', selected);
+			} catch (e) {
+				console.warn('[Auto Setup] Failed to persist mode', e);
+			}
+
+			this.resetFrom('subscription');
+			this.setSelectLoading(this.ui.subscription, '<?php echo esc_js(__('OAuth 인증 후 불러와주세요.', 'azure-ai-chatbot')); ?>');
+			this.setSelectLoading(this.ui.resourceGroup, '<?php echo esc_js(__('먼저 Subscription을 선택해주세요.', 'azure-ai-chatbot')); ?>');
+			this.setSelectLoading(this.ui.project, '<?php echo esc_js(__('Resource Group을 먼저 선택하세요.', 'azure-ai-chatbot')); ?>');
+			this.setSelectLoading(this.ui.deployment, '<?php echo esc_js(__('프로젝트를 먼저 선택하세요.', 'azure-ai-chatbot')); ?>');
+			this.setSelectLoading(this.ui.agent, '<?php echo esc_js(__('프로젝트를 먼저 선택하세요.', 'azure-ai-chatbot')); ?>');
+
+			if (this.state.hasToken) {
+				this.loadSubscriptions(true);
+			} else {
+				this.updateSummary('idle', '<?php esc_html_e('OAuth 인증 필요', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('OAuth 인증 후 목록을 불러옵니다.', 'azure-ai-chatbot'); ?>');
+			}
 		},
 
 
@@ -1132,6 +1226,15 @@ function openOAuthPopup(url) {
 	var height = 840;
 	var left = (window.screenX || window.screenLeft || 0) + (window.innerWidth - width) / 2;
 	var top = (window.screenY || window.screenTop || 0) + (window.innerHeight - height) / 2;
+
+	try {
+		var selectedModeInput = document.querySelector('input[name="azure_chatbot_settings[mode]"]:checked');
+		var selectedMode = selectedModeInput ? selectedModeInput.value : 'chat';
+		localStorage.setItem('azure_oauth_operation_mode', selectedMode);
+	} catch (e) {
+		console.warn('[Auto Setup] Unable to persist mode before OAuth popup', e);
+	}
+
 	var popup = window.open(url, 'azure-oauth', 'width=' + width + ',height=' + height + ',left=' + left + ',top=' + top + ',resizable=yes,scrollbars=yes');
 
 	if (!popup) {
