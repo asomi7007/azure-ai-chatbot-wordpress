@@ -237,6 +237,7 @@ class Azure_Chatbot_OAuth {
         add_action('wp_ajax_azure_oauth_get_agents', array($this, 'ajax_get_agents'));
         add_action('wp_ajax_azure_oauth_reset_config', array($this, 'ajax_reset_config'));
         add_action('wp_ajax_azure_oauth_clear_session', array($this, 'ajax_clear_session'));
+        add_action('wp_ajax_azure_oauth_get_oauth_credentials', array($this, 'ajax_get_oauth_credentials'));
     }
 
     /**
@@ -2179,6 +2180,55 @@ class Azure_Chatbot_OAuth {
         ));
     }
     
+    /**
+     * AJAX: OAuth 자격 정보 조회 (Client ID / Tenant ID / Client Secret 복호화)
+     */
+    public function ajax_get_oauth_credentials() {
+        check_ajax_referer('azure_oauth_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => '권한이 없습니다.'));
+        }
+
+        $client_id    = get_option('azure_chatbot_oauth_client_id', '');
+        $tenant_id    = get_option('azure_chatbot_oauth_tenant_id', '');
+        $secret_enc   = get_option('azure_chatbot_oauth_client_secret', '');
+        $secret_plain = '';
+        $secret_mask  = '';
+
+        if (!empty($secret_enc)) {
+            require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-encryption-manager.php';
+            $manager = Azure_AI_Chatbot_Encryption_Manager::get_instance();
+
+            $secret_plain = $manager->decrypt($secret_enc);
+            if (empty($secret_plain)) {
+                $migrated = $manager->migrate_encrypted_value($secret_enc);
+                if (!empty($migrated)) {
+                    $secret_plain = $manager->decrypt($migrated);
+                    if (!empty($secret_plain)) {
+                        update_option('azure_chatbot_oauth_client_secret', $migrated);
+                    }
+                }
+            }
+
+            if (!empty($secret_plain)) {
+                $len = strlen($secret_plain);
+                if ($len > 8) {
+                    $secret_mask = substr($secret_plain, 0, 4) . str_repeat('•', max(0, $len - 8)) . substr($secret_plain, -4);
+                } else {
+                    $secret_mask = str_repeat('•', $len);
+                }
+            }
+        }
+
+        wp_send_json_success(array(
+            'client_id'          => $client_id,
+            'tenant_id'          => $tenant_id,
+            'client_secret'      => $secret_plain,
+            'client_secret_mask' => $secret_mask,
+        ));
+    }
+
     /**
      * AJAX: AI Foundry Project의 배포 목록 조회
      */

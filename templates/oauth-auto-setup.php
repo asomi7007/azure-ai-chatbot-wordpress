@@ -356,6 +356,7 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 			this.bindEvents();
 			this.resolveOperationMode();
 			this.toggleModeCards();
+			this.loadSavedCredentials();
 
 			if (this.state.hasToken) {
 				this.loadSubscriptions();
@@ -379,6 +380,9 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 			this.ui.modeRadios     = $('input[name="azure_chatbot_settings[mode]"]');
 			this.ui.modeLabel      = $('#oauth-selected-mode-label');
 			this.ui.modeDesc       = $('#oauth-selected-mode-desc');
+			this.ui.clientId       = $('#client_id');
+			this.ui.clientSecret   = $('#client_secret');
+			this.ui.tenantId       = $('#tenant_id');
 		},
 
 		bindEvents() {
@@ -440,6 +444,33 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 				`<strong>${title || '<?php echo esc_js(__('상태 업데이트', 'azure-ai-chatbot')); ?>'}</strong>` +
 				`<p style="margin:6px 0 0;">${description || ''}</p>`
 			);
+		},
+
+		loadSavedCredentials() {
+			if (this.state.mode !== 'agent') {
+				return;
+			}
+
+			this.ajax('azure_oauth_get_oauth_credentials', {})
+				.done((response) => {
+					if (!response || !response.success || !response.data) {
+						return;
+					}
+
+					const data = response.data;
+					this.reflectManualFields('agent', {
+						clientId: data.client_id || '',
+						tenantId: data.tenant_id || '',
+						clientSecret: data.client_secret || ''
+					});
+
+					if (data.client_secret_mask) {
+						this.appendLog('Loaded stored OAuth credentials (masked secret)');
+					}
+				})
+				.fail((xhr, status, error) => {
+					this.appendLog('Failed to load stored OAuth credentials', { status, error, response: xhr && xhr.responseText });
+				});
 		},
 
 		updateModeNotice() {
@@ -513,6 +544,18 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 				}
 				if (payload.agentId) {
 					$('#agent_id').val(payload.agentId).trigger('change');
+				}
+				if (payload.clientId && this.ui.clientId && this.ui.clientId.length) {
+					this.ui.clientId.val(payload.clientId).trigger('change');
+				}
+				if (payload.tenantId && this.ui.tenantId && this.ui.tenantId.length) {
+					this.ui.tenantId.val(payload.tenantId).trigger('change');
+				}
+				if (payload.clientSecret && this.ui.clientSecret && this.ui.clientSecret.length) {
+					this.ui.clientSecret
+						.val(payload.clientSecret)
+						.attr('placeholder', '<?php echo esc_js(__('OAuth에서 자동 입력됨', 'azure-ai-chatbot')); ?>')
+						.trigger('change');
 				}
 			}
 		},
@@ -606,6 +649,10 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 				this.loadSubscriptions(true);
 			} else {
 				this.updateSummary('idle', '<?php esc_html_e('OAuth 인증 필요', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('OAuth 인증 후 목록을 불러옵니다.', 'azure-ai-chatbot'); ?>');
+			}
+
+			if (this.state.mode === 'agent') {
+				this.loadSavedCredentials();
 			}
 		},
 
@@ -1164,9 +1211,12 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 					this.updateSummary('success', '<?php esc_html_e('Agent 설정 완료', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('Project / Agent ID / Endpoint가 자동 저장되었습니다.', 'azure-ai-chatbot'); ?>');
 					this.reflectManualFields('agent', {
 						endpoint: agentEndpoint,
-						agentId: this.state.agentId
+						agentId: this.state.agentId,
+						clientId: this.ui.clientId && this.ui.clientId.length ? this.ui.clientId.val() : '',
+						tenantId: this.ui.tenantId && this.ui.tenantId.length ? this.ui.tenantId.val() : ''
 					});
 					this.appendLog('Agent configuration saved successfully.', saveResponse.data);
+					this.loadSavedCredentials();
 				})
 				.fail((xhr, status, error) => {
 					this.updateSummary('error', '<?php esc_html_e('Agent 설정 저장 실패', 'azure-ai-chatbot'); ?>', error || status);
