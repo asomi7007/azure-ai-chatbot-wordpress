@@ -718,7 +718,10 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 
 			this.ajax('azure_oauth_get_subscriptions').done((response) => {
 				if (!response || !response.success) {
-					throw new Error(response && response.data ? response.data.message : 'Unknown error');
+					const msg = (response && response.data && response.data.message) ? response.data.message : 'Unknown error';
+					this.updateSummary('error', '<?php esc_html_e('구독 조회 실패', 'azure-ai-chatbot'); ?>', msg);
+					this.appendLog('Failed to load subscriptions', { response });
+					return;
 				}
 
 				const subs = response.data.subscriptions || [];
@@ -751,7 +754,10 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 				subscription_id: subscriptionId
 			}).done((response) => {
 				if (!response || !response.success) {
-					throw new Error(response && response.data ? response.data.message : 'Unknown error');
+					const msg = (response && response.data && response.data.message) ? response.data.message : 'Unknown error';
+					this.updateSummary('error', '<?php esc_html_e('Resource Group 조회 실패', 'azure-ai-chatbot'); ?>', msg);
+					this.appendLog('Failed to load resource groups', { response });
+					return;
 				}
 
 				const groups = response.data.resource_groups || [];
@@ -798,7 +804,10 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 				mode: this.state.mode
 			}).done((response) => {
 				if (!response || !response.success) {
-					throw new Error(response && response.data ? response.data.message : 'Unknown error');
+					const msg = (response && response.data && response.data.message) ? response.data.message : 'Unknown error';
+					this.updateSummary('error', '<?php esc_html_e('프로젝트 조회 실패', 'azure-ai-chatbot'); ?>', msg);
+					this.appendLog('Failed to load projects', { response });
+					return;
 				}
 
 				const resources = response.data.resources || [];
@@ -929,7 +938,10 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 				resource_group: this.state.resourceGroup
 			}).done((response) => {
 				if (!response || !response.success) {
-					throw new Error(response && response.data ? response.data.message : 'Unknown error');
+					const msg = (response && response.data && response.data.message) ? response.data.message : 'Unknown error';
+					this.updateSummary('error', '<?php esc_html_e('배포 조회 실패', 'azure-ai-chatbot'); ?>', msg);
+					this.appendLog('Failed to load deployments', { response });
+					return;
 				}
 
 				const deployments = response.data.deployments || [];
@@ -996,7 +1008,10 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 
 			this.ajax('azure_oauth_get_agents', payload).done((response) => {
 				if (!response || !response.success) {
-					throw new Error(response && response.data ? response.data.message : 'Unknown error');
+					const msg = (response && response.data && response.data.message) ? response.data.message : 'Unknown error';
+					this.updateSummary('error', '<?php esc_html_e('Agent 조회 실패', 'azure-ai-chatbot'); ?>', msg);
+					this.appendLog('Failed to load agents', { response });
+					return;
 				}
 
 				const agents = response.data.agents || [];
@@ -1140,7 +1155,10 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 				resource_group: this.state.resourceGroup
 			}).done((response) => {
 				if (!response || !response.success || !response.data || !response.data.key) {
-					throw new Error(response && response.data ? (response.data.message || 'API key missing') : 'Unknown error');
+					const msg = (response && response.data && (response.data.message || response.data.error)) ? (response.data.message || response.data.error) : 'API key missing';
+					this.updateSummary('error', '<?php esc_html_e('API Key 조회 실패', 'azure-ai-chatbot'); ?>', msg);
+					this.appendLog('Failed to fetch API key', { response });
+					return;
 				}
 
 				const endpoint = response.data.endpoint || (this.state.selectedResource && this.state.selectedResource.endpoint)
@@ -1157,7 +1175,10 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 				this.ajax('azure_oauth_save_existing_config', { settings })
 					.done((saveResponse) => {
 						if (!saveResponse || !saveResponse.success) {
-							throw new Error(saveResponse && saveResponse.data ? saveResponse.data.message : 'Unknown error');
+							const msg = (saveResponse && saveResponse.data && saveResponse.data.message) ? saveResponse.data.message : 'Unknown error';
+							this.updateSummary('error', '<?php esc_html_e('Chat 설정 저장 실패', 'azure-ai-chatbot'); ?>', msg);
+							this.appendLog('Failed to save chat settings', { response: saveResponse });
+							return;
 						}
 
 						this.updateSummary('success', '<?php esc_html_e('Chat 설정 완료', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('Endpoint, Deployment, API Key가 자동 저장되었습니다.', 'azure-ai-chatbot'); ?>');
@@ -1202,11 +1223,14 @@ $nonce          = wp_create_nonce('azure_oauth_nonce');
 			this.updateSummary('loading', '<?php esc_html_e('Agent 설정 저장 중', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('선택한 Agent 정보를 저장합니다.', 'azure-ai-chatbot'); ?>');
 			this.appendLog('Saving agent settings...', settings);
 
-			this.ajax('azure_oauth_save_existing_config', { settings })
-				.done((saveResponse) => {
-					if (!saveResponse || !saveResponse.success) {
-						throw new Error(saveResponse && saveResponse.data ? saveResponse.data.message : 'Unknown error');
-					}
+				this.ajax('azure_oauth_save_existing_config', { settings })
+					.done((saveResponse) => {
+						if (!saveResponse || !saveResponse.success) {
+							const msg = (saveResponse && saveResponse.data && saveResponse.data.message) ? saveResponse.data.message : 'Unknown error';
+							this.updateSummary('error', '<?php esc_html_e('Agent 설정 저장 실패', 'azure-ai-chatbot'); ?>', msg);
+							this.appendLog('Failed to save agent settings', { response: saveResponse });
+							return;
+						}
 
 					this.updateSummary('success', '<?php esc_html_e('Agent 설정 완료', 'azure-ai-chatbot'); ?>', '<?php esc_html_e('Project / Agent ID / Endpoint가 자동 저장되었습니다.', 'azure-ai-chatbot'); ?>');
 					this.reflectManualFields('agent', {

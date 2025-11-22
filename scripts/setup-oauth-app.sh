@@ -395,6 +395,18 @@ if [ "$EXISTING_APPS" != "[]" ] && [ -n "$EXISTING_APPS" ]; then
                 fi
             done
             
+            # 삭제 전파 대기 및 확인 (2초 후 2회 확인)
+            sleep 2
+            CHECK_COUNT=0
+            while [ $CHECK_COUNT -lt 2 ]; do
+                REMAINING=$(az ad app list --filter "web.redirectUris/any(r:r eq '$REDIRECT_URI')" --query "length([])" -o tsv 2>/dev/null || echo 0)
+                if [ "$REMAINING" = "0" ]; then
+                    break
+                fi
+                CHECK_COUNT=$((CHECK_COUNT+1))
+                sleep 2
+            done
+
             msg "deletion_complete"
             echo ""
             
