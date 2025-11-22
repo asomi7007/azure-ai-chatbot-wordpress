@@ -10,7 +10,6 @@
 - 저장된 OAuth Client ID/Secret/Tenant ID를 복호화해 Agent 모드 필드에 자동 반영하도록 지원.
 - Auto Setup AJAX 오류를 던지지 않고 UI에만 표시해 목록 조회 중단을 방지.
 - OAuth 앱 재생성 시 삭제 후 대기/확인을 추가하여 전파 지연으로 인한 생성 실패 완화.
-- OAuth Client Secret 자동 채움 시 복호화된 값을 재암호화하여 저장하도록 수정 (이중 암호화 실패 방지).
 
 ## [3.0.69] - 2025-02-22
 
