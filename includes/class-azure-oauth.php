@@ -2160,10 +2160,27 @@ class Azure_Chatbot_OAuth {
             $settings['tenant_id'] = $tenant_id;
             
             // Client Secret은 암호화하여 저장
-            $client_secret = get_option('azure_chatbot_oauth_client_secret', '');
-            if (!empty($client_secret)) {
-                $plugin = Azure_AI_Chatbot::get_instance();
-                $settings['client_secret_encrypted'] = $plugin->encrypt($client_secret);
+            $client_secret_encrypted = get_option('azure_chatbot_oauth_client_secret', '');
+            if (!empty($client_secret_encrypted)) {
+                require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-encryption-manager.php';
+                $encryption_manager = Azure_AI_Chatbot_Encryption_Manager::get_instance();
+
+                // 저장된 암호화 문자열을 복호화한 뒤 다시 플러그인 암호화 포맷으로 저장
+                $client_secret_plain = $encryption_manager->decrypt($client_secret_encrypted);
+                if (empty($client_secret_plain)) {
+                    $migrated = $encryption_manager->migrate_encrypted_value($client_secret_encrypted);
+                    if (!empty($migrated)) {
+                        $client_secret_plain = $encryption_manager->decrypt($migrated);
+                        if (!empty($client_secret_plain)) {
+                            update_option('azure_chatbot_oauth_client_secret', $migrated);
+                        }
+                    }
+                }
+
+                if (!empty($client_secret_plain)) {
+                    $plugin = Azure_AI_Chatbot::get_instance();
+                    $settings['client_secret_encrypted'] = $plugin->encrypt($client_secret_plain);
+                }
             }
         }
         
