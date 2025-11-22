@@ -2460,9 +2460,10 @@ class Azure_Chatbot_OAuth {
                 $settings['client_secret_encrypted'] = $plugin->encrypt($client_secret);
                 $debug_logs[] = '[PHP] client_secret_encrypted 저장: ' . (isset($settings['client_secret_encrypted']) ? 'YES' : 'NO');
             } else if (!empty($this->client_secret)) {
-                // OAuth 설정값 자동 채우기 (이미 암호화되어 있음)
-                $settings['client_secret_encrypted'] = $this->client_secret;
-                $debug_logs[] = '[PHP] client_secret 자동 설정 (OAuth, 암호화됨)';
+                // OAuth 설정값 자동 채우기 (load_config에서 복호화되었으므로 다시 암호화 필요)
+                $plugin = Azure_AI_Chatbot::get_instance();
+                $settings['client_secret_encrypted'] = $plugin->encrypt($this->client_secret);
+                $debug_logs[] = '[PHP] client_secret 자동 설정 (OAuth, 평문 재암호화)';
             }
             
             if (isset($settings_data['tenant_id'])) {

@@ -167,6 +167,7 @@ Agent 모드: 고급 기능 지원 (Function Calling, RAG, 파일 업로드 등,
 * 수정: 저장된 OAuth Client ID/Secret/Tenant ID를 복호화하여 Agent 모드 입력 필드에 자동 반영
 * 수정: Auto Setup AJAX 오류를 예외로 던지지 않고 UI에만 표시해 목록 조회 중단 방지
 * 개선: OAuth 앱 재생성 시 삭제 후 대기/확인 절차 추가로 전파 지연 문제 완화
+* 수정: OAuth Client Secret 자동 채움 시 복호화된 값을 재암호화하여 저장 (복호화 실패 방지)
 
 = 3.0.56 - 2025-11-18 =
 * 개선: Auto Setup 페이지 모드 선택 비활성화 - 리소스 설정과 불일치 방지를 위해 읽기 전용으로 변경 (Manual Settings에서만 변경 가능)
