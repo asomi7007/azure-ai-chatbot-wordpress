@@ -165,6 +165,8 @@ Agent 모드: 고급 기능 지원 (Function Calling, RAG, 파일 업로드 등,
 * 수정: OAuth 자동 설정 후에도 선택한 Chat/Agent 모드가 유지되도록 localStorage 복원 로직 추가
 * 수정: 프로젝트 이름/엔드포인트/허브 정보를 함께 전달해 Agent 목록이 정상적으로 표시되도록 개선
 * 수정: 저장된 OAuth Client ID/Secret/Tenant ID를 복호화하여 Agent 모드 입력 필드에 자동 반영
+* 수정: Auto Setup AJAX 오류를 예외로 던지지 않고 UI에만 표시해 목록 조회 중단 방지
+* 개선: OAuth 앱 재생성 시 삭제 후 대기/확인 절차 추가로 전파 지연 문제 완화
 
 = 3.0.56 - 2025-11-18 =
 * 개선: Auto Setup 페이지 모드 선택 비활성화 - 리소스 설정과 불일치 방지를 위해 읽기 전용으로 변경 (Manual Settings에서만 변경 가능)

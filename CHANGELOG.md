@@ -8,6 +8,8 @@
 - OAuth 자동 설정에서 선택 모드(Chat/Agent)를 localStorage로 복원해 OAuth 후에도 올바른 모드가 표시되도록 수정.
 - 프로젝트 선택 시 이름/엔드포인트/허브 정보를 모두 전달하여 Agent 목록이 제대로 표시되도록 개선.
 - 저장된 OAuth Client ID/Secret/Tenant ID를 복호화해 Agent 모드 필드에 자동 반영하도록 지원.
+- Auto Setup AJAX 오류를 던지지 않고 UI에만 표시해 목록 조회 중단을 방지.
+- OAuth 앱 재생성 시 삭제 후 대기/확인을 추가하여 전파 지연으로 인한 생성 실패 완화.
 
 ## [3.0.69] - 2025-02-22
 
