@@ -3,7 +3,7 @@
  * Plugin Name: Azure AI Chatbot
  * Plugin URI: https://github.com/asomi7007/azure-ai-chatbot-wordpress
  * Description: Integrate Azure AI Foundry agents and OpenAI-compatible chat models into WordPress with a modern chat widget
- * Version: 3.0.70
+ * Version: 3.0.71
  * Author: Asomi AI
  * Author URI: https://www.eldensolution.kr
  * License: GPL-2.0+
@@ -990,23 +990,14 @@ class Azure_AI_Chatbot {
             $mode = $this->options['mode'];
             
             if ($mode === 'agent') {
-                // OAuth 설정 우선 사용 (자동 설정에서 저장된 값)
-                $oauth_settings = get_option('azure_chatbot_oauth_settings', []);
-                
                 // Client ID, Tenant ID, Client Secret 결정
-                $client_id = !empty($oauth_settings['client_id']) ? $oauth_settings['client_id'] : $this->options['client_id'];
-                $tenant_id = !empty($oauth_settings['tenant_id']) ? $oauth_settings['tenant_id'] : $this->options['tenant_id'];
-                
-                // Client Secret 복호화
-                $client_secret = '';
-                if (!empty($oauth_settings['client_secret'])) {
-                    $client_secret = $this->decrypt($oauth_settings['client_secret']);
-                } else if (!empty($this->options['client_secret_encrypted'])) {
-                    $client_secret = $this->decrypt($this->options['client_secret_encrypted']);
-                }
-                
+                // load_options()에서 이미 복호화된 값이 $this->options에 저장됨
+                $client_id = $this->options['client_id'];
+                $tenant_id = $this->options['tenant_id'];
+                $client_secret = $this->options['client_secret'];
+
                 if (empty($client_secret)) {
-                    throw new Exception('Client Secret을 복호화할 수 없습니다.');
+                    throw new Exception('Client Secret을 복호화할 수 없습니다. Manual Settings에서 Client Secret을 다시 저장하거나, OAuth 자동 설정을 다시 실행해주세요.');
                 }
                 
                 // Agent 모드: Entra ID + Assistants API
